@@ -23,12 +23,19 @@ exports.handler = async function (event) {
 
     const data = await response.json();
 
+    // Forward retry-after so the browser knows how long to wait on 429/529
+    const retryAfter = response.headers.get('retry-after');
+    const outHeaders = {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*'
+    };
+    if (retryAfter) {
+      outHeaders['retry-after'] = retryAfter;
+    }
+
     return {
       statusCode: response.status,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
+      headers: outHeaders,
       body: JSON.stringify(data)
     };
   } catch (err) {
