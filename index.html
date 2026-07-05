@@ -863,11 +863,33 @@ CAT5: maintenance manager hydraulic supplier Estado de Mexico
     <div class="field">
       <label>Concurrency (prompts running at once)</label>
       <select id="concurrency">
-        <option value="1">1 — slowest, most reliable</option>
-        <option value="3" selected>3 — recommended</option>
+        <option value="1" selected>1 — slowest, most reliable</option>
+        <option value="3">3 — recommended</option>
         <option value="5">5 — faster, may hit rate limits</option>
       </select>
-      <span class="field-hint">Start with 3. If you see rate limit errors, drop to 1.</span>
+      <span class="field-hint">Start with 1. If you see rate limit errors, keep it here.</span>
+    </div>
+
+    <div class="two-col">
+      <div class="field">
+        <label>Batch size (prompts per batch)</label>
+        <select id="batch-size">
+          <option value="10">10 — safest</option>
+          <option value="20" selected>20 — recommended</option>
+          <option value="30">30</option>
+          <option value="9999">No batching — run all at once</option>
+        </select>
+        <span class="field-hint">Runs this many, then pauses before the next batch.</span>
+      </div>
+      <div class="field">
+        <label>Pause between batches (seconds)</label>
+        <select id="batch-pause">
+          <option value="30">30s</option>
+          <option value="60" selected>60s — recommended</option>
+          <option value="120">120s</option>
+        </select>
+        <span class="field-hint">Gives your rate limit window time to reset.</span>
+      </div>
     </div>
 
     <button class="run-btn" id="run-btn" onclick="runAudit()">
@@ -1014,12 +1036,9 @@ async function runAudit() {
 
   let completed = 0;
 
-  async function runPrompt(rawPrompt, index) {
-    const category = detectCategory(rawPrompt);
-    const cleanedPrompt = cleanPrompt(rawPrompt);
-    const query = `Search the web and answer this question: "${cleanedPrompt}" — Please provide a comprehensive answer citing specific companies, websites, or experts where relevant.`;
-
-    try {
+  async function callClaudeWithRetry(query, maxRetries = 4) {
+    let attempt = 0;
+    while (true) {
       const res = await fetch('/api/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
@@ -1031,12 +1050,35 @@ async function runAudit() {
         })
       });
 
+      if (res.status === 429 || res.status === 529) {
+        attempt++;
+        if (attempt > maxRetries) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error((err.error?.message || 'Rate limited') + ' — gave up after ' + maxRetries + ' retries');
+        }
+        const retryAfterHeader = res.headers.get('retry-after');
+        const waitSec = retryAfterHeader ? parseInt(retryAfterHeader) : Math.min(60, 5 * Math.pow(2, attempt));
+        log('error', `Rate limited (429) — waiting ${waitSec}s before retry ${attempt}/${maxRetries}`);
+        await sleep(waitSec * 1000);
+        continue;
+      }
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error?.message || 'API error ' + res.status);
       }
 
-      const data = await res.json();
+      return res.json();
+    }
+  }
+
+  async function runPrompt(rawPrompt, index) {
+    const category = detectCategory(rawPrompt);
+    const cleanedPrompt = cleanPrompt(rawPrompt);
+    const query = `Search the web and answer this question: "${cleanedPrompt}" — Please provide a comprehensive answer citing specific companies, websites, or experts where relevant.`;
+
+    try {
+      const data = await callClaudeWithRetry(query);
       const responseText = data.content
         .filter(b => b.type === 'text')
         .map(b => b.text)
@@ -1097,11 +1139,31 @@ async function runAudit() {
     document.getElementById('progress-pct').textContent = pct + '%';
   }
 
-  // Run with concurrency
-  for (let i = 0; i < prompts.length; i += concurrency) {
-    const batch = prompts.slice(i, i + concurrency).map((p, j) => runPrompt(p, i + j));
-    await Promise.all(batch);
-    if (i + concurrency < prompts.length) await sleep(1200);
+  // Run in batches, with a pause between batches to let rate limits reset
+  const batchSize = parseInt(document.getElementById('batch-size').value);
+  const batchPauseSec = parseInt(document.getElementById('batch-pause').value);
+  const totalBatches = Math.ceil(prompts.length / batchSize);
+
+  for (let b = 0; b < totalBatches; b++) {
+    const batchStart = b * batchSize;
+    const batchEnd = Math.min(batchStart + batchSize, prompts.length);
+    const batchPrompts = prompts.slice(batchStart, batchEnd);
+
+    if (totalBatches > 1) {
+      log('info', `— Batch ${b + 1}/${totalBatches} (prompts ${batchStart + 1}-${batchEnd}) —`);
+    }
+
+    // Within a batch, respect concurrency setting
+    for (let i = 0; i < batchPrompts.length; i += concurrency) {
+      const chunk = batchPrompts.slice(i, i + concurrency).map((p, j) => runPrompt(p, batchStart + i + j));
+      await Promise.all(chunk);
+      if (i + concurrency < batchPrompts.length) await sleep(1200);
+    }
+
+    if (b < totalBatches - 1) {
+      log('info', `Batch ${b + 1} done. Pausing ${batchPauseSec}s before next batch...`);
+      await sleep(batchPauseSec * 1000);
+    }
   }
 
   log('info', `Audit complete. ${results.filter(r => r.cited).length}/${results.length} prompts cited.`);
