@@ -1050,7 +1050,8 @@ async function runAudit() {
         })
       });
 
-      if (res.status === 429 || res.status === 529) {
+      const isRetryable = res.status === 429 || res.status === 529 || res.status === 502 || res.status === 503 || res.status === 500;
+      if (isRetryable) {
         attempt++;
         if (attempt > maxRetries) {
           const err = await res.json().catch(() => ({}));
@@ -1058,7 +1059,7 @@ async function runAudit() {
         }
         const retryAfterHeader = res.headers.get('retry-after');
         const waitSec = retryAfterHeader ? parseInt(retryAfterHeader) : Math.min(60, 5 * Math.pow(2, attempt));
-        log('error', `Rate limited (429) — waiting ${waitSec}s before retry ${attempt}/${maxRetries}`);
+        log('error', `Server busy (${res.status}) — waiting ${waitSec}s before retry ${attempt}/${maxRetries}`);
         await sleep(waitSec * 1000);
         continue;
       }
