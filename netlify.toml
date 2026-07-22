@@ -2,6 +2,51 @@
   publish = "."
 
 [[redirects]]
-  from = "/api/claude"
-  to = "/.netlify/functions/claude"
+  from = "/api/results"
+  to = "/.netlify/functions/results"
+  status = 200
+
+[[redirects]]
+  from = "/api/intake"
+  to = "/.netlify/functions/intake"
+  status = 200
+
+[[redirects]]
+  from = "/api/intake-codes"
+  to = "/.netlify/functions/intake-codes"
+  status = 200
+
+[[redirects]]
+  from = "/api/prompts"
+  to = "/.netlify/functions/prompts"
+  status = 200
+
+[[redirects]]
+  from = "/api/generate-prompts"
+  to = "/.netlify/functions/generate-prompts-background"
+  status = 200
+
+[[redirects]]
+  from = "/api/generate-job"
+  to = "/.netlify/functions/generate-job"
+  status = 200
+
+[[redirects]]
+  from = "/api/customer-keys"
+  to = "/.netlify/functions/customer-keys"
+  status = 200
+
+[[redirects]]
+  from = "/api/run-audit"
+  to = "/.netlify/functions/run-audit-background"
+  status = 200
+
+[[redirects]]
+  from = "/api/audit-job"
+  to = "/.netlify/functions/audit-job"
+  status = 200
+
+[[redirects]]
+  from = "/api/staff-users"
+  to = "/.netlify/functions/staff-users"
   status = 200

@@ -1,0 +1,640 @@
+<!-- @dsCard group="Documents" viewport="860x1080" name="Reporte — Auditoría FIACSA" subtitle="Documento de auditoría en la marca Akore" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<style data-omelette-print-defaults>
+@media print {
+  @page { margin: 0.5in; }
+  h1, h2, h3, h4, h5, h6 { break-after: avoid; }
+  figure, table, pre, blockquote, img, svg, tr, [class~="card" i] { break-inside: avoid; }
+  img, svg { max-width: 100%; }
+  p { orphans: 3; widows: 3; }
+}
+</style>
+<meta charset="utf-8" />
+<title>FIAC · Auditoría de Presencia Digital — Fase 1</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  doc-page:not(:defined){visibility:hidden}
+  body{margin:0;background:#5b616b;font-family:var(--font-body);color:var(--text-body)}
+  h1,h2,h3{font-family:var(--font-display);color:var(--text-strong);letter-spacing:-.01em}
+  .eb{display:inline-flex;align-items:center;gap:9px;font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--violet-600)}
+  .eb::before{content:"";width:20px;height:2px;background:currentColor;border-radius:2px}
+  h2{font-size:21px;margin:34px 0 12px;padding-top:20px;border-top:2px solid var(--ink-100);display:flex;align-items:baseline;gap:12px}
+  h2 .no{font-family:var(--font-mono);font-size:15px;color:var(--violet-600);font-weight:600}
+  h3{font-size:15.5px;margin:20px 0 7px}
+  p{font-size:13px;line-height:1.62;margin:0 0 11px;text-wrap:pretty}
+  .doc-header{display:flex;align-items:center;justify-content:space-between;width:100%;padding-bottom:10px}
+  .doc-header .conf{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-400)}
+  .doc-footer{display:flex;align-items:center;justify-content:space-between;width:100%;padding-top:8px;border-top:1px solid var(--ink-100);font-family:var(--font-mono);font-size:9px;color:var(--ink-400)}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12px}
+  th{text-align:left;font-family:var(--font-display);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-400);padding:8px 10px;border-bottom:2px solid var(--ink-200)}
+  td{padding:9px 10px;border-bottom:1px solid var(--ink-100);line-height:1.4;vertical-align:top}
+  ul{margin:0 0 12px;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:7px}
+  ul li{position:relative;padding-left:19px;font-size:12.5px;line-height:1.5}
+  ul li::before{content:"";position:absolute;left:0;top:7px;width:6px;height:6px;border-radius:50%;background:var(--emerald-500)}
+  ul.warn li::before{background:var(--danger)}
+  .callout{background:var(--violet-50);border-left:3px solid var(--violet-600);border-radius:8px;padding:14px 18px;margin:14px 0;font-size:12.5px;line-height:1.55}
+  .callout b{color:var(--violet-700)}
+  .badge{display:inline-block;font-family:var(--font-display);font-weight:700;font-size:9px;letter-spacing:.08em;padding:3px 8px;border-radius:999px}
+  .b-block{background:var(--danger);color:#fff}
+  .b-high{background:#f0e0b8;color:#8a6a12}
+  .b-rec{background:var(--violet-100);color:var(--violet-700)}
+  .phases{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+  .phase{border:1px solid var(--ink-100);border-radius:12px;padding:16px 18px}
+  .phase.active{border-color:var(--violet-600);background:var(--violet-50)}
+  .phase h3{margin:0 0 8px;font-size:14px}
+  .phase .tag{font-family:var(--font-mono);font-size:10px;color:var(--emerald-600)}
+  .step{display:flex;gap:14px;margin:0 0 13px;break-inside:avoid}
+  .step .sn{font-family:var(--font-display);font-weight:800;font-size:16px;color:#fff;background:var(--violet-600);width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .step .body h3{margin:2px 0 4px}
+  .step .time{font-family:var(--font-mono);font-size:10.5px;color:var(--emerald-600);margin-bottom:5px}
+  .cover{text-align:left;padding:40px 0 8px}
+</style>
+</head>
+<body>
+<doc-page size="letter" margin="0.7in">
+  <div slot="header" class="doc-header">
+    <img src="../assets/logo-horizontal-light.png" alt="Akore Labs" style="height:20px" />
+    <span class="conf">Documento Confidencial</span>
+  </div>
+  <div slot="footer" class="doc-footer">
+    <span>Akore Labs · GEO &amp; AI Visibility Consulting</span>
+    <span>FIAC — Auditoría Fase 1 · Junio 2026</span>
+  </div>
+
+  <div class="cover">
+    <div class="eb">Auditoría de Presencia Digital</div>
+    <h1 style="font-size:38px;line-height:1.05;margin:16px 0 10px;max-width:16ch">Fase 1: Implementaciones Técnicas Prioritarias</h1>
+    <p style="font-size:14px;color:var(--text-muted);max-width:60ch">FIAC — Fuerza Industrial y Administrativa del Centro · fiacsa.mx · fiacsabombashidraulicas.com</p>
+    <div style="display:flex;gap:40px;margin-top:22px;font-size:12px">
+      <div><div style="font-family:var(--font-display);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-400);margin-bottom:3px">Preparado por</div><b style="color:var(--text-strong)">Akore Labs</b> · GEO Consulting</div>
+      <div><div style="font-family:var(--font-display);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-400);margin-bottom:3px">Fecha</div>Junio 2026</div>
+    </div>
+  </div>
+
+  <h2><span class="no">01</span> Contexto y alcance</h2>
+  <p>Este documento corresponde a la <b>Fase 1</b> de la auditoría digital de FIAC. Su propósito es identificar y documentar todos los problemas técnicos y estructurales que deben resolverse antes de avanzar a cualquier trabajo de optimización de contenido o estrategia digital.</p>
+  <p>Piénselo así: antes de pintar una casa, hay que reparar las paredes. Antes de optimizar un sitio para que aparezca en búsquedas y motores de IA, el sitio debe funcionar correctamente a nivel técnico. Cualquier trabajo sobre una base rota produce resultados mínimos.</p>
+  <div class="phases">
+    <div class="phase active"><h3>Fase 1 — Este documento</h3><span class="tag">Implementaciones técnicas</span><ul style="margin-top:10px"><li>Corrección de errores</li><li>Consolidación de sitios</li><li>Configuración técnica</li><li>Base funcional</li></ul></div>
+    <div class="phase"><h3>Fase 2 — Siguiente etapa</h3><span class="tag" style="color:var(--ink-400)">Contenido y visibilidad</span><ul style="margin-top:10px"><li>Optimización para búsquedas</li><li>Estructura de contenido</li><li>Nuevas páginas estratégicas</li><li>Visibilidad en motores de IA</li></ul></div>
+  </div>
+  <p>La Fase 2 no puede ejecutarse con efectividad hasta que la Fase 1 esté completa. Este documento se enfoca exclusivamente en lo que debe hacerse primero.</p>
+
+  <h2><span class="no">02</span> Hallazgo principal — dos sitios, un solo problema</h2>
+  <p>FIAC opera actualmente con dos sitios web activos y sin coordinación entre sí. Esto es el punto de partida de todos los demás problemas identificados en esta auditoría.</p>
+  <table>
+    <thead><tr><th>Sitio</th><th>Plataforma</th><th>Estado</th><th>Problema principal</th></tr></thead>
+    <tbody>
+      <tr><td><b>fiacsa.mx</b></td><td>WordPress</td><td><span class="badge b-block">Bloqueado</span></td><td>Rechaza rastreadores automáticos. Caché desactualizado en Google.</td></tr>
+      <tr><td><b>fiacsabombas&shy;hidraulicas.com</b></td><td>Constructor ADN/Wix</td><td><span class="badge b-high">Limitado</span></td><td>Plataforma de directorio con control técnico muy limitado.</td></tr>
+    </tbody>
+  </table>
+  <ul class="warn">
+    <li>Los visitantes que buscan a FIAC encuentran dos sitios diferentes y no saben cuál es el oficial.</li>
+    <li>La credibilidad digital de la empresa está fragmentada entre dos propiedades.</li>
+    <li>El trabajo técnico y de contenido debe hacerse dos veces en lugar de una.</li>
+    <li>Ambos sitios se debilitan mutuamente al competir por los mismos términos de búsqueda.</li>
+  </ul>
+
+  <h2><span class="no">03</span> Problemas técnicos — fiacsa.mx (WordPress)</h2>
+  <h3>3.1 · El sitio está bloqueado para acceso automático</h3>
+  <p>fiacsa.mx tiene una barrera que impide el acceso a sistemas automáticos. Cualquier herramienta o plataforma que intente leer el sitio de forma programada — incluidas las herramientas de auditoría más comunes — recibe un rechazo automático. Debe corregirse como paso absoluto número uno.</p>
+  <p style="color:var(--text-muted)"><b style="color:var(--text-strong)">Acción:</b> revisar el panel de WordPress e identificar la causa (plugin de seguridad mal configurado, Cloudflare restrictivo, o reglas en .htaccess). <b style="color:var(--emerald-600)">Tiempo estimado: 15–30 min.</b></p>
+  <h3>3.2 · Caché desactualizado en Google</h3>
+  <p>La información que Google almacena sobre fiacsa.mx no corresponde al contenido actual. Al buscar a FIAC, el resumen en resultados muestra texto antiguo.</p>
+  <p style="color:var(--text-muted)"><b style="color:var(--text-strong)">Acción:</b> tras corregir el bloqueo, enviar el sitio a re-indexación vía Google Search Console. El caché tarda 1–4 semanas en actualizarse.</p>
+  <h3>3.3 · Errores tipográficos en el nombre de la marca</h3>
+  <table>
+    <thead><tr><th>Ubicación</th><th>Texto actual (incorrecto)</th><th>Corrección</th></tr></thead>
+    <tbody>
+      <tr><td>Tagline — ambos sitios</td><td style="color:var(--danger)">"ENGENEERING TOMORROW"</td><td style="color:var(--emerald-600)">"ENGINEERING TOMORROW"</td></tr>
+      <tr><td>Footer de fiacsa.mx</td><td style="color:var(--danger)">"…Admnistrativa del Centro"</td><td style="color:var(--emerald-600)">"…Administrativa del Centro"</td></tr>
+    </tbody>
+  </table>
+  <h3>3.4 · Configuración técnica incompleta</h3>
+  <ul class="warn">
+    <li>No se detecta sitemap XML enviado a Google Search Console.</li>
+    <li>No se verificó certificado SSL activo en todas las páginas.</li>
+    <li>Las imágenes no tienen texto alternativo descriptivo.</li>
+    <li>No hay herramientas de analítica configuradas — sin datos no se mide el impacto.</li>
+    <li>El plugin de SEO (Yoast o equivalente) no está configurado o presente.</li>
+  </ul>
+
+  <h2><span class="no">04</span> Problemas técnicos — fiacsabombashidraulicas.com</h2>
+  <h3>4.1 · Limitaciones de la plataforma actual</h3>
+  <p>Construido sobre un constructor tipo directorio (ADN / Secciones Amarillas), diseñado para listados rápidos pero con limitaciones técnicas importantes.</p>
+  <ul class="warn">
+    <li>No permite editar el código fuente — las configuraciones avanzadas no son posibles.</li>
+    <li>El branding de Secciones Amarillas aparece en el footer — se percibe como directorio, no como sitio corporativo.</li>
+    <li>El dominio es excesivamente largo — debilita la identidad de marca.</li>
+    <li>Varias imágenes de marcas distribuidoras no cargan (aparecen vacías).</li>
+    <li>El tagline con error ortográfico aparece repetidamente.</li>
+  </ul>
+  <h3>4.2 · Lo que sí funciona (y debe migrarse)</h3>
+  <ul>
+    <li>Navegación clara: Inicio / Equipos / Servicios / Contacto / Catálogo.</li>
+    <li>Contacto completo con botón de WhatsApp directo.</li>
+    <li>Múltiples métodos de pago (AMEX, Visa, OXXO, SPEI, Mercado Pago).</li>
+    <li>Google Tag Manager instalado y verificación de Google activa.</li>
+    <li>Sección de catálogo/tienda funcional con productos listados.</li>
+  </ul>
+
+  <h2><span class="no">05</span> Recomendación — consolidar en un solo sitio</h2>
+  <p>Tras analizar ambas propiedades, la recomendación es <b>consolidar los dos sitios en uno solo</b>, con <b>fiacsa.mx</b> como sitio principal.</p>
+  <div class="phases">
+    <div class="phase"><h3>¿Por qué un solo sitio?</h3><ul style="margin-top:10px"><li>Más fácil de mantener y controlar.</li><li>Una sola dirección para tarjetas, correos y materiales.</li><li>El doble de impacto por el mismo trabajo.</li><li>Elimina la confusión del visitante.</li></ul></div>
+    <div class="phase active"><h3>¿Por qué fiacsa.mx?</h3><ul style="margin-top:10px"><li>Dominio más corto y fácil de recordar.</li><li>WordPress ofrece mayor flexibilidad técnica.</li><li>Contiene el nombre de la marca.</li></ul></div>
+  </div>
+  <p>El contenido valioso de fiacsabombashidraulicas.com (catálogo, servicios) se migra a fiacsa.mx; el dominio antiguo se configura con redirección permanente (301) y se mantiene renovado como protección de marca.</p>
+  <div class="callout"><b>Importante:</b> la consolidación es una recomendación, no un requisito inmediato. Las correcciones técnicas pueden comenzar en paralelo — pero todas las mejoras de largo plazo serán más efectivas con un solo sitio unificado.</div>
+
+  <h2><span class="no">06</span> Plan de implementación — Fase 1</h2>
+  <p>Acciones ordenadas por prioridad. Las primeras cuatro son <b>bloqueantes</b>: deben completarse antes de que cualquier trabajo adicional tenga impacto real.</p>
+  <div class="step"><div class="sn">1</div><div class="body"><h3>Desbloquear el acceso automático a fiacsa.mx</h3><div class="time">15–30 min · requiere panel de WordPress</div><p style="margin:0">Identificar el plugin o configuración que bloquea el acceso y ajustarlo permitiendo acceso legítimo sin comprometer la seguridad.</p></div></div>
+  <div class="step"><div class="sn">2</div><div class="body"><h3>Corregir los errores tipográficos en ambos sitios</h3><div class="time">30 min</div><p style="margin:0">"ENGENEERING" → "ENGINEERING" y "Admnistrativa" → "Administrativa" en todos los lugares donde aparecen.</p></div></div>
+  <div class="step"><div class="sn">3</div><div class="body"><h3>Configurar Google Search Console</h3><div class="time">1 hora</div><p style="margin:0">Verificar la cuenta, enviar el sitemap XML y solicitar la re-indexación del sitio.</p></div></div>
+  <div class="step"><div class="sn">4</div><div class="body"><h3>Instalar y configurar plugin de SEO en WordPress</h3><div class="time">1–2 horas</div><p style="margin:0">Yoast SEO o RankMath: configurar título y descripción de cada página; genera el sitemap automáticamente.</p></div></div>
+  <div class="step"><div class="sn">5</div><div class="body"><h3>Corregir imágenes de marcas distribuidoras</h3><div class="time">1–2 horas</div><p style="margin:0">Subir los logos correctos (Vickers, Eaton, Danfoss). Son un elemento de credibilidad importante.</p></div></div>
+  <div class="step"><div class="sn">6</div><div class="body"><h3>Configurar analítica web (Google Analytics 4)</h3><div class="time">1 hora</div><p style="margin:0">Registrar visitantes, origen, páginas y tiempo — base para medir el impacto de mejoras futuras.</p></div></div>
+  <div class="step"><div class="sn">7</div><div class="body"><h3>Planificar y ejecutar la consolidación</h3><div class="time">2–4 semanas · proyecto de desarrollo</div><p style="margin:0">Migrar contenido, configurar redirección 301 y verificar todos los enlaces. Sienta la base para la Fase 2.</p></div></div>
+
+  <h2><span class="no">07</span> Resumen de implementaciones</h2>
+  <table>
+    <thead><tr><th style="width:28px">#</th><th>Acción</th><th>Tiempo est.</th><th>Urgencia</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Desbloquear acceso automático a fiacsa.mx</td><td>15–30 min</td><td><span class="badge b-block">Crítica</span></td></tr>
+      <tr><td>2</td><td>Corregir errores tipográficos en ambos sitios</td><td>30 min</td><td><span class="badge b-block">Crítica</span></td></tr>
+      <tr><td>3</td><td>Configurar Google Search Console</td><td>1 hora</td><td><span class="badge b-block">Crítica</span></td></tr>
+      <tr><td>4</td><td>Instalar y configurar plugin de SEO</td><td>1–2 horas</td><td><span class="badge b-block">Crítica</span></td></tr>
+      <tr><td>5</td><td>Corregir imágenes de marcas distribuidoras</td><td>1–2 horas</td><td><span class="badge b-high">Alta</span></td></tr>
+      <tr><td>6</td><td>Configurar analítica web (GA4)</td><td>1 hora</td><td><span class="badge b-high">Alta</span></td></tr>
+      <tr><td>7</td><td>Consolidar los dos sitios en fiacsa.mx</td><td>2–4 semanas</td><td><span class="badge b-rec">Recomendada</span></td></tr>
+    </tbody>
+  </table>
+  <div class="callout"><b>Tiempo total (acciones 1–6, sin la consolidación):</b> entre 5 y 8 horas de trabajo técnico.</div>
+  <p>FIAC tiene 35 años de experiencia real y distribuye las mejores marcas hidráulicas del mundo. El objetivo de la Fase 1 es asegurar que su sitio web refleje esa realidad — sin errores, sin barreras técnicas, y con una sola presencia digital unificada y profesional.</p>
+</doc-page>
+<script src="doc-page.js"></script>
+<script>
+(async () => {
+  if (!document.title || !document.title.trim()) document.title = "FIACSA_Fase1";
+  // rAF raced with a short timeout: inside a cross-origin iframe (PrintMode),
+  // rAF can be throttled or paused even while the tab is focused, which would
+  // hang the scroll loop and never reach print(). Same pattern as
+  // buildExportSettleScript (export/shared.ts).
+  var raf = function () {
+    return Promise.race([
+      new Promise(function (r) { requestAnimationFrame(r); }),
+      new Promise(function (r) { setTimeout(r, 50); }),
+    ]);
+  };
+  var t0 = performance.now();
+  var mark = function (phase) {
+    var ms = Math.round(performance.now() - t0);
+    console.info('[autoprint]', phase, ms + 'ms');
+    try { parent.postMessage({ __omelette_autoprint: { phase: phase, ms: ms } }, '*'); } catch (e) {}
+  };
+  mark('start');
+  // Prepend so page-supplied @page / break rules (deck-stage's margin:0,
+  // author CSS) keep source-order precedence over the baseline.
+  const baseCss = document.createElement('style');
+  baseCss.textContent = "@media print {\n  figure, table { break-inside: avoid; }\n  *, *::before, *::after {\n    print-color-adjust: exact; -webkit-print-color-adjust: exact;\n    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;\n    animation-delay: -99s !important; animation-duration: .001s !important;\n    animation-iteration-count: 1 !important; animation-fill-mode: both !important;\n    animation-play-state: running !important; transition-duration: 0s !important;\n  }\n}";
+  document.head.prepend(baseCss);
+  if (document.readyState === 'loading') {
+    await new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
+  }
+  let ds = document.querySelector('deck-stage');
+  // whenDefined never resolves when nothing registers the element, so only
+  // await it when a <deck-stage> tag exists (and race a timeout regardless).
+  if (ds && !customElements.get('deck-stage')) {
+    try {
+      await Promise.race([
+        customElements.whenDefined('deck-stage'),
+        new Promise((r) => setTimeout(r, 3000)),
+      ]);
+    } catch (e) {}
+    ds = document.querySelector('deck-stage');
+  }
+  // dc-runtime assigns window.DCLogic at init and mounts into #dc-root on
+  // DOMContentLoaded; settle on that subtree so React has rendered before
+  // print(). Non-DC pages fall through to weighing body.
+  const isDc = !ds && 'DCLogic' in window;
+  const settleRoot = ds || (isDc ? document.getElementById('dc-root') : null) || document.body;
+  if (settleRoot) {
+    // Weigh only content children — skip script/style/template so inline
+    // Babel/CSS doesn't register as stable "content" before the framework
+    // has mounted anything.
+    const MEDIA = 'img,svg,canvas,video,picture,iframe,embed,object';
+    const weigh = () => {
+      let text = 0, media = 0;
+      for (const c of settleRoot.children) {
+        const t = c.tagName;
+        if (t === 'SCRIPT' || t === 'STYLE' || t === 'TEMPLATE') continue;
+        text += (c.textContent || '').trim().length;
+        media += c.querySelectorAll(MEDIA).length + (c.matches(MEDIA) ? 1 : 0);
+      }
+      return text + media * 100;
+    };
+    // "Non-zero and stable" alone is not sufficient to mean rendered: generic
+    // body can carry a static shell while async main content is pending, and
+    // #dc-root can carry the root DC's static text while child refs are still
+    // .sc-placeholder boxes. Gate generic on readyState 'complete', and never
+    // accept stability while a dc-runtime placeholder is present.
+    const isGeneric = settleRoot === document.body;
+    // A placeholder whose fetch failed (.sc-placeholder-error inside) keeps
+    // .sc-placeholder forever — don't wait on it. JS loop, not :has(), so an
+    // engine without :has() support can't throw out of the while and skip
+    // print() entirely.
+    var pendingPlaceholders = function () {
+      var all = settleRoot.querySelectorAll('.sc-placeholder'), n = 0;
+      for (var i = 0; i < all.length; i++)
+        if (!all[i].querySelector('.sc-placeholder-error')) n++;
+      return n;
+    };
+    const deadline = Date.now() + 15000;
+    let last = -1, stable = 0;
+    while (Date.now() < deadline) {
+      const n = weigh();
+      const ready =
+        (!isGeneric || document.readyState === 'complete') &&
+        pendingPlaceholders() === 0;
+      if (n > 0 && n === last && ready) { if (++stable >= 2) break; } else { stable = 0; }
+      last = n;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+  mark('settle-done' + (settleRoot ? ' (errs=' + settleRoot.querySelectorAll('.sc-placeholder-error').length + ' pending=' + pendingPlaceholders() + ')' : ''));
+  // Project support.js may predate runtime default-seeding; push via bridge.
+  if (isDc && window.__dcSetProps && window.__dcRootName) {
+    try {
+      const dpEl = document.querySelector('script[data-dc-script]');
+      const meta = JSON.parse((dpEl && dpEl.getAttribute('data-props')) || '{}');
+      const bag = {};
+      for (const k in meta)
+        if (k[0] !== '$' && meta[k] && meta[k].default !== undefined)
+          bag[k] = meta[k].default;
+      if (Object.keys(bag).length) {
+        window.__dcSetProps(window.__dcRootName(), bag);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    } catch (e) {}
+  }
+  // Reveal content gated on scroll or visibility before printing. Lazy <img>,
+  // IntersectionObserver fade-ins, and collapsed <details> don't render while
+  // off-screen, so a long page would print with them blank or closed. Open
+  // every <details>, force native-lazy images eager, and scroll the document
+  // through its full height to trip lazy-load + IO; then wait (bounded) for the
+  // newly-triggered images. Inert for deck-stage (slides aren't scroll-gated).
+  try {
+    for (const d of document.querySelectorAll('details')) d.open = true;
+    for (const img of document.querySelectorAll('img[loading="lazy"]'))
+      img.loading = 'eager';
+    const scroller = document.scrollingElement || document.documentElement;
+    const full = Math.max(scroller.scrollHeight, document.body.scrollHeight);
+    const step = window.innerHeight || 800;
+    var scrollDeadline = Date.now() + 4000;
+    for (let y = 0; y <= full && Date.now() < scrollDeadline; y += step) {
+      window.scrollTo(0, y);
+      await raf();
+    }
+    window.scrollTo(0, 0);
+    await Promise.race([
+      Promise.all(
+        [...document.images].map((img) =>
+          img.complete
+            ? null
+            : new Promise((res) => {
+                img.addEventListener('load', res, { once: true });
+                img.addEventListener('error', res, { once: true });
+              })
+        )
+      ),
+      new Promise((r) => setTimeout(r, 4000)),
+    ]);
+  } catch (e) {}
+  mark('scroll-done');
+  try { await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 3000))]); } catch (e) {}
+  mark('fonts-done');
+  // Jump every animation to its end state so print() never captures a slide
+  // mid-entrance. Ordering matters: the 0s-transition style must be live
+  // BEFORE data-deck-active is set so attribute-keyed transitions don't
+  // start a (now-0s) run from the pre-active base.
+  const st = document.createElement('style');
+  st.textContent = '*,*::before,*::after{animation-delay:-99s !important;animation-duration:.001s !important;animation-iteration-count:1 !important;animation-fill-mode:both !important;animation-play-state:running !important;transition-duration:0s !important}';
+  document.head.appendChild(st);
+  for (const d of document.querySelectorAll('deck-stage')) {
+    for (const c of d.children) {
+      const t = c.tagName;
+      if (t === 'SCRIPT' || t === 'STYLE' || t === 'TEMPLATE') continue;
+      c.setAttribute('data-deck-active', '');
+    }
+  }
+  // Re-append deck-stage's @page last so no author @page can add a margin and
+  // spill each full-bleed slide onto two sheets. Backstop for old copies.
+  if (ds) {
+    let pg = document.getElementById('deck-stage-print-page');
+    if (!pg) {
+      pg = document.createElement('style');
+      pg.textContent = '@page{size:' + (+ds.getAttribute('width') || 1920) +
+        'px ' + (+ds.getAttribute('height') || 1080) + 'px;margin:0}';
+    }
+    document.body.appendChild(pg);
+  }
+  try {
+    const sweep = () => {
+      for (const a of document.getAnimations()) {
+        try { a.finish(); } catch (e) {
+          try { a.currentTime = (a.effect && a.effect.getComputedTiming().duration) || 0; a.pause(); } catch (e2) {}
+        }
+      }
+    };
+    sweep();
+    await raf();
+    sweep();
+    await raf();
+  } catch (e) {}
+  // A document that owns its print CSS (the doc-page starter injects the
+  // meta at runtime; hand-rolled print designs author it) gets no automatic
+  // page geometry and keeps its forced breaks: strip the injected default
+  // @page — write time cannot see a runtime-injected meta — skip the frame
+  // override below, and skip the fakepage-flattening further down. What
+  // still applies: the print baseline and break-hygiene defaults (no @page
+  // in either; low specificity, so the document's own print CSS wins) and
+  // the break-inside relaxation on >page elements (avoid on those cannot
+  // be honored whoever authored it).
+  var ownsPrint = !!document.querySelector('meta[name="omelette-owns-print" i]');
+  if (ownsPrint) {
+    var dst = document.querySelector('style[data-omelette-print-defaults]');
+    if (dst && dst.textContent) {
+      dst.textContent = dst.textContent.replace(/@page\b[^{}]*\{[^}]*\}/, '');
+    }
+  }
+  // Size the PDF page to the rendered design unless the file opted into
+  // standard paper via @page{size:letter|A4|…} or declared print ownership
+  // via the meta above. Decks own their own @page.
+  // Wrappers (body, …) lose padding+margin so the frame sits at (0,0); the
+  // frame itself loses only margin — its padding is INSIDE the measured
+  // rect and must stay, or content shifts and leaves a gap at bottom/right.
+  var __m = null;
+  try { __m = (() => {
+  var STAMP = true;
+  var docEl = document.documentElement;
+  var doc = { width: docEl.scrollWidth, height: docEl.scrollHeight };
+  // Name-presence check, case-insensitive — the same contract as the
+  // instant-PDF path's runtime check in deck-stage-export.ts. The name is
+  // a string literal here because that file interpolates this script into
+  // its print script, so importing a shared constant from it would be a
+  // cycle; measure.test.ts pins the literal so the two cannot drift apart
+  // silently.
+  var ownsPrint = !!document.querySelector('meta[name="omelette-owns-print" i]');
+
+  var ds = document.querySelector('deck-stage');
+  if (ds) {
+    var dw = Number(ds.getAttribute('width')) || 1920;
+    var dh = Number(ds.getAttribute('height')) || 1080;
+    var n = typeof ds.length === 'number' ? ds.length : ds.children.length;
+    var idx = typeof ds.index === 'number' ? ds.index : 0;
+    var frames = [];
+    for (var i = 0; i < n; i++) frames.push({ left: 0, top: 0, width: dw, height: dh });
+    return { kind: 'deck', source: 'declared', doc: doc, frames: frames,
+      authored: frames.map(function(){return{width:true,height:true}}),
+      deck: { width: dw, height: dh, slideCount: n, index: idx },
+      signals: { paperPage: false, pxPage: false, ownsPrint: ownsPrint } };
+  }
+
+  // Declared kind: a doc-page tag names the kind outright, so no signal
+  // heuristics run (like the deck branch above, signals report false —
+  // they describe inferred classifications only). The tag alone is not
+  // trusted: the element must have upgraded (shadowRoot present), so a
+  // leftover tag whose script was deleted falls through to the heuristics
+  // that handle plain markup.
+  var stageSx = window.scrollX || 0, stageSy = window.scrollY || 0;
+  var dp = document.querySelector('doc-page');
+  if (dp && dp.shadowRoot) {
+    // Crop to the sheet, not the host — the desk around it is screen-only
+    // chrome that must not land in PNG exports.
+    var sheet = dp.shadowRoot.querySelector('.sheet');
+    var sr = (sheet || dp).getBoundingClientRect();
+    return { kind: 'paper-doc', source: 'declared', doc: doc,
+      frames: [{ left: sr.left + stageSx, top: sr.top + stageSy,
+        width: sr.width, height: sr.height }],
+      authored: [{ width: false, height: false }],
+      signals: { paperPage: false, pxPage: false, ownsPrint: ownsPrint } };
+  }
+  var paperPage = false, pxPage = false;
+  var eachRule = function (fn) {
+    for (var s = 0; s < document.styleSheets.length; s++) {
+      var rs; try { rs = document.styleSheets[s].cssRules; } catch (e) { continue; }
+      for (var r = 0; r < rs.length; r++) {
+        fn(rs[r]);
+        if (rs[r].cssRules) for (var n = 0; n < rs[r].cssRules.length; n++) fn(rs[r].cssRules[n]);
+      }
+    }
+  };
+  eachRule(function (r) {
+    if (r.type !== 6) return;
+    var m = /\bsize\s*:\s*([^;}]+)/i.exec(r.cssText || '');
+    if (!m) return;
+    if (/\b(letter|a[3-5]|legal|ledger)\b/i.test(m[1])) paperPage = true;
+    if (/\d+(?:\.\d+)?px\b/i.test(m[1])) pxPage = true;
+  });
+  var signals = { paperPage: paperPage, pxPage: pxPage, ownsPrint: ownsPrint };
+
+  var pxVal = function (v) {
+    var m = /^(\d+(?:\.\d+)?)px$/.exec(v || ''); return m ? +m[1] : 0;
+  };
+  var authoredPx = function (el, prop) {
+    if (pxVal(el.style[prop])) return true;
+    var attr = el.getAttribute(prop);
+    if (attr && /^\d+$/.test(attr)) return true;
+    var hit = false;
+    eachRule(function (r) {
+      if (hit || r.type !== 1 || !r.style) return;
+      try { if (el.matches(r.selectorText) && pxVal(r.style[prop])) hit = true; } catch (e) {}
+    });
+    return hit;
+  };
+
+  var el = document.body, rootPxW = false;
+  for (;;) {
+    var kids = [];
+    for (var c = 0; c < el.children.length; c++) {
+      var t = el.children[c].tagName;
+      if (t !== 'SCRIPT' && t !== 'STYLE' && t !== 'TEMPLATE') kids.push(el.children[c]);
+    }
+    if (kids.length !== 1 || !(kids[0] instanceof HTMLElement)) break;
+    if (STAMP) el.setAttribute('data-om-frame-wrap', '');
+    el = kids[0];
+    rootPxW = authoredPx(el, 'width');
+    if (rootPxW) break;
+  }
+  if (!rootPxW) rootPxW = authoredPx(el, 'width');
+
+  // @page{size:letter} alone is a flowing doc; with a px-width root it's a
+  // fixed sheet pretending to be paper — fall through and size to render.
+  if (paperPage && !rootPxW) {
+    return { kind: 'paper-doc', source: 'inferred', doc: doc, signals: signals,
+      frames: [{ left: 0, top: 0, width: doc.width, height: doc.height }],
+      authored: [{ width: false, height: false }] };
+  }
+
+  var sx = window.scrollX || 0, sy = window.scrollY || 0;
+  var rectOf = function (e) {
+    var r = e.getBoundingClientRect();
+    var oy; try { oy = getComputedStyle(e).overflowY; } catch (err) {}
+    var h = oy === 'visible' ? Math.max(r.height, e.scrollHeight || 0) : r.height;
+    return { left: r.left + sx, top: r.top + sy, width: r.width, height: h };
+  };
+
+  // Multi-frame: off unless the page opts in via data-om-multi-frame on the
+  // stop element — the explicit opt-in is what guards against card grids
+  // and pricing tables that match the geometry but aren't separate
+  // canvases. Two ways to name the frames, explicit first:
+  // 1. Descendants marked data-om-frame-export (the social-frames starter
+  //    marks each asset frame; shells/panels around them are presentation,
+  //    so nesting is expected). Document order.
+  // 2. Fallback, no marked descendants: direct children with an authored px
+  //    width AND height (the original geometry heuristic).
+  // Frames may be different sizes (a gallery mixes 1080×1920 stories with
+  // 728×90 banners); data-om-frame-label rides along for export filenames.
+  if (el.hasAttribute('data-om-multi-frame')) {
+    var visOk = function (e) {
+      var cs; try { cs = getComputedStyle(e); } catch (err) { return false; }
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && cs.position !== 'fixed';
+    };
+    // A frame's crop is its VISUAL box — never the scrollHeight-inflated
+    // rect that rectOf computes for page roots. Shadow-DOM hover controls
+    // (image-slot's Replace bar parks 29px below its host) and similar
+    // escaping UI contribute scrollable overflow to the frame, and the
+    // inflated height both squashes the nominal-size resize and drags
+    // content below the frame into the crop. Zoom-independent; bit every
+    // slot-bearing frame.
+    var frameRectOf = function (e) {
+      var r = e.getBoundingClientRect();
+      return { left: r.left + sx, top: r.top + sy, width: r.width, height: r.height };
+    };
+    var pushCand = function (list, e) {
+      if (!visOk(e)) return;
+      var rc = frameRectOf(e);
+      if (rc.width < 2 || rc.height < 2) return;
+      var lbl = e.getAttribute('data-om-frame-label');
+      if (lbl) rc.label = lbl;
+      list.push(rc);
+    };
+    var cands = [];
+    var marked = el.querySelectorAll('[data-om-frame-export]');
+    if (marked.length) {
+      for (var mk = 0; mk < marked.length; mk++) pushCand(cands, marked[mk]);
+    } else {
+      for (var k = 0; k < el.children.length; k++) {
+        var ch = el.children[k];
+        if (!authoredPx(ch, 'width') || !authoredPx(ch, 'height')) continue;
+        pushCand(cands, ch);
+      }
+    }
+    if (cands.length >= 2) {
+      return { kind: 'multi-frame', source: 'inferred', doc: doc, signals: signals,
+        frames: cands, authored: cands.map(function(){return{width:true,height:true}}) };
+    }
+  }
+
+  if (STAMP) el.setAttribute('data-om-frame', '');
+  return { kind: 'single-canvas', source: 'inferred', doc: doc, signals: signals,
+    frames: [rectOf(el)],
+    authored: [{ width: rootPxW, height: authoredPx(el, 'height') }] };
+})(); } catch (e) {}
+  var frame = null;
+  if (!ownsPrint && __m && __m.kind === 'single-canvas') {
+    var f = __m.frames && __m.frames[0];
+    if (f && f.width >= 200 && f.height >= 200) {
+      frame = f;
+      var fst = document.createElement('style');
+      fst.textContent = '@media print{@page{size:' + Math.ceil(f.width) + 'px ' +
+        Math.ceil(f.height) + 'px;margin:0}' +
+        'html,body,[data-om-frame-wrap]{padding:0!important;margin:0!important;background:none!important}' +
+        '[data-om-frame]{margin:0!important}}';
+      document.body.appendChild(fst);
+    }
+  }
+  // Relax break-inside on oversized elements. An element taller than a
+  // printable page can't honor break-inside: avoid — browsers either overflow
+  // it or push it whole to the next page, leaving a blank gap, then break it
+  // anyway at an arbitrary point. After the final layout (content revealed,
+  // animations jumped), find elements taller than a page that still compute
+  // break-inside: avoid and reset them to auto, so the browser breaks them at
+  // their children's boundaries instead (children keep their own avoid). PAGE_PX
+  // is a conservative portrait estimate at 96 CSS px/in — Letter/A4 usable
+  // height minus our 0.5in margins — so only clearly-oversized elements are
+  // touched and under-page elements still stay whole. Skipped for decks (slides
+  // are sized to the page) and for fixed-size canvases (frame set, or an author
+  // px-based @page) — runs as before for flowing docs on letter/A4.
+  try {
+    if (!ds && !frame && !(__m && __m.signals && __m.signals.pxPage)) {
+      const PAGE_PX = 1024;
+      // Our print defaults add a real @page margin only when the source has
+      // no @page of its own; computed style can't tell us (it reports screen
+      // media), so read the injected rule directly.
+      const defaults = document.querySelector('style[data-omelette-print-defaults]');
+      const pageInset = /@page\s*\{[^}]*margin/.test(defaults ? defaults.textContent || '' : '');
+      const SEL = 'section,article,figure,table,pre,blockquote,[class~="card" i],[class~="page" i],[class~="sheet" i]';
+      for (const el of document.body.querySelectorAll(SEL)) {
+        if (el instanceof HTMLElement && el.offsetHeight > PAGE_PX) {
+          el.setAttribute('data-om-oversized', '');
+          // Fake-paged docs simulate sheets with over-tall break-after:page
+          // boxes; honoring the break spills half-blank pages and ends a
+          // colored box mid-sheet. Flow them, and (only when we own the page
+          // inset) drop the redundant padding/background via the rule below.
+          const cs = getComputedStyle(el);
+          // An owns-print doc's forced breaks are intentional sheet
+          // boundaries, never fake-paged simulation — don't strip them.
+          // The break-inside relaxation above still applies: avoid on a
+          // >page element is impossible to honor whoever authored it.
+          if (
+            !ownsPrint &&
+            (cs.breakAfter === 'page' || cs.pageBreakAfter === 'always')
+          ) {
+            el.setAttribute('data-om-fakepage', '');
+          }
+        }
+      }
+      const ost = document.createElement('style');
+      ost.textContent = '@media print{' +
+        '[data-om-oversized]{break-inside:auto !important;page-break-inside:auto !important}' +
+        '[data-om-fakepage]{break-after:auto !important;page-break-after:auto !important}' +
+        (pageInset ? '[data-om-fakepage]{padding:0 !important;background:none !important}' : '') +
+        '}';
+      document.head.appendChild(ost);
+    }
+  } catch (e) {}
+  // macOS Preview renders Skia-PDF Luminosity soft-masks as opaque grey boxes;
+  // swap the CSS that triggers them for Preview-safe forms.
+  try {
+    for (const el of document.body.querySelectorAll('*')) {
+      const cs = getComputedStyle(el);
+
+      if (cs.boxShadow !== 'none' && cs.filter === 'none') {
+        const outs = [], kept = [];
+        for (const s of cs.boxShadow.split(/,(?![^(]*[)])/)) {
+          const t = s.trim();
+          const m = t.match(/^(rgba?[(][^)]+[)]) (-?[0-9.]+px) (-?[0-9.]+px) ([0-9.]+px) -?[0-9.]+px$/);
+          if (m && parseFloat(m[4]) > 0) outs.push('drop-shadow(' + m[2] + ' ' + m[3] + ' ' + m[4] + ' ' + m[1] + ')');
+          else kept.push(t);
+        }
+        if (outs.length) {
+          el.style.setProperty('filter', outs.join(' '), 'important');
+          el.style.setProperty('box-shadow', kept.join(', ') || 'none', 'important');
+        }
+      }
+
+      const mask = cs.maskImage && cs.maskImage !== 'none' ? cs.maskImage : cs.webkitMaskImage;
+      if (mask && mask !== 'none' && cs.filter === 'none') el.style.setProperty('filter', 'opacity(1)', 'important');
+    }
+  } catch (e) {}
+  mark('print-calling');
+  setTimeout(() => { try { window.print(); } catch (e) {} }, 200);
+})();
+</script>
+</body>
+</html>

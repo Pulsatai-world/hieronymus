@@ -1,0 +1,625 @@
+<!-- @dsCard group="Slides" viewport="1280x720" name="GEO B2B Pitch Deck" subtitle="7-slide sales deck in the Akore language" -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<style data-omelette-print-defaults>
+@media print {
+  h1, h2, h3, h4, h5, h6 { break-after: avoid; }
+  figure, table, pre, blockquote, img, svg, tr, [class~="card" i] { break-inside: avoid; }
+  img, svg { max-width: 100%; }
+  p { orphans: 3; widows: 3; }
+}
+</style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Akore Labs — GEO B2B</title>
+<link rel="stylesheet" href="../styles.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  deck-stage:not(:defined){visibility:hidden}
+  body{margin:0;background:#0b0d12}
+  .pad{width:100%;height:100%;box-sizing:border-box;padding:60px 82px;display:flex;flex-direction:column;font-family:var(--font-body)}
+  .dark{background:var(--ink-950);color:#fff}
+  .dark .pad{background:radial-gradient(1100px 620px at 82% -10%, rgba(109,79,224,.30), transparent 60%),radial-gradient(760px 520px at -8% 110%, rgba(30,169,124,.16), transparent 55%)}
+  .light{background:var(--white);color:var(--text-body)}
+  .tint{background:var(--ink-50);color:var(--text-body)}
+  .eb{display:inline-flex;align-items:center;gap:11px;font-family:var(--font-display);font-weight:600;font-size:15px;letter-spacing:.18em;text-transform:uppercase;color:var(--violet-600)}
+  .dark .eb{color:var(--violet-300)}
+  .eb::before{content:"";width:26px;height:2px;background:currentColor;border-radius:2px}
+  h1.t{font-family:var(--font-display);font-weight:800;letter-spacing:-.025em;line-height:1.02;margin:0}
+  h2.t{font-family:var(--font-display);font-weight:700;letter-spacing:-.022em;line-height:1.05;margin:0;font-size:50px;color:var(--text-strong)}
+  .dark h2.t{color:#fff}
+  .lead{font-size:22px;line-height:1.5;color:var(--text-muted);max-width:66ch;margin:0}
+  .dark .lead{color:var(--ink-300)}
+  .foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;font-size:15px;color:var(--ink-400);font-family:var(--font-mono)}
+  .num{font-family:var(--font-display);font-weight:800;letter-spacing:-.03em;line-height:.9;font-variant-numeric:tabular-nums}
+  .card{background:#fff;border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:26px 28px;box-shadow:var(--shadow-sm)}
+  .dark .card{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12);box-shadow:none}
+  .ico{width:46px;height:46px;border-radius:12px;background:var(--violet-100);color:var(--violet-600);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+  .dark .ico{background:rgba(129,104,234,.18);color:var(--violet-300)}
+  .ico.em{background:var(--emerald-100);color:var(--emerald-600)}
+  .dark .ico.em{background:rgba(30,169,124,.18);color:var(--emerald-400)}
+  .src{font-family:var(--font-mono);font-size:12.5px;color:var(--ink-400)}
+  b{font-weight:700;color:var(--text-strong)}
+  .dark b{color:#fff}
+  .dl{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+  .dl li{position:relative;padding-left:18px;font-size:14px;color:var(--text-body);line-height:1.42}
+  .dl li::before{content:"";position:absolute;left:0;top:7px;width:6px;height:6px;border-radius:50%;background:var(--emerald-500)}
+</style>
+</head>
+<body>
+<deck-stage width="1280" height="720">
+
+<!-- 1 · TITLE -->
+<section class="dark" data-label="Portada">
+  <div class="pad">
+    <img src="../assets/logo-mark.png" alt="Akore Labs" style="height:74px;width:auto;align-self:flex-start" />
+    <div style="margin-top:34px" class="eb">Akore Labs · GEO &amp; AI Visibility Consulting</div>
+    <h1 class="t" style="font-size:70px;margin-top:22px;max-width:17ch">Optimización para Motores <span style="color:var(--violet-400)">Generativos</span> (GEO) B2B</h1>
+    <p class="lead" style="margin-top:26px">Logramos que la IA cite y recomiende a tu empresa cuando tus clientes preguntan — no solo que aparezcas en una lista de enlaces.</p>
+    <div class="foot">
+      <span>Plataforma de Monitoreo + Servicios de Implementación</span>
+      <img src="../assets/logo-horizontal-dark.png" alt="Akore Labs" style="height:30px;width:auto" />
+    </div>
+  </div>
+</section>
+
+<!-- 2 · EL CAMBIO -->
+<section class="dark" data-label="El Cambio">
+  <div class="pad">
+    <div class="eb">El Cambio</div>
+    <h2 class="t" style="margin-top:16px;max-width:24ch">Los clientes dejaron de buscar en Google. Ahora preguntan.</h2>
+    <div style="margin-top:auto;margin-bottom:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:26px">
+      <div><div class="num" style="font-size:74px;color:var(--violet-400)">84<span style="font-size:38px">%</span></div><p style="margin:12px 0 0;font-size:15px;line-height:1.4;color:var(--ink-300)">de las marcas no rastrea su visibilidad en IA de forma sistemática</p></div>
+      <div><div class="num" style="font-size:74px;color:var(--emerald-400)">527<span style="font-size:38px">%</span></div><p style="margin:12px 0 0;font-size:15px;line-height:1.4;color:var(--ink-300)">de aumento anual en tráfico web referido por IA (2025)</p></div>
+      <div><div class="num" style="font-size:74px;color:var(--violet-400)">4.4<span style="font-size:38px">×</span></div><p style="margin:12px 0 0;font-size:15px;line-height:1.4;color:var(--ink-300)">mayor tasa de conversión de visitantes referidos por IA vs. búsqueda orgánica</p></div>
+      <div><div class="num" style="font-size:74px;color:var(--emerald-400)">94<span style="font-size:38px">%</span></div><p style="margin:12px 0 0;font-size:15px;line-height:1.4;color:var(--ink-300)">de los compradores B2B ya usa IA en su proceso de compra</p></div>
+    </div>
+    <div class="foot"><span class="src">Fuentes: Previsible AI Traffic Report vía Semrush (527%) · Seer Interactive (4.4×) · Similarweb / McKinsey 2025 (84%) · 6sense B2B Buyer Experience Report 2025 (94%)</span><span></span></div>
+  </div>
+</section>
+
+<!-- 3 · ¿QUÉ ES GEO? -->
+<section class="light" data-label="¿Qué es GEO?">
+  <div class="pad">
+    <div class="eb">¿Qué es GEO?</div>
+    <h2 class="t" style="margin-top:16px">El SEO te posiciona. Con GEO, la IA te cita.</h2>
+    <div style="margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:38px;flex:1">
+      <div class="dark" style="background:var(--ink-950);border-radius:var(--radius-lg);padding:30px 32px;display:flex;flex-direction:column;gap:16px;box-shadow:var(--shadow-brand)">
+        <div style="display:flex;align-items:center;gap:14px"><div class="ico" style="background:rgba(129,104,234,.2);color:var(--violet-300)"><i data-lucide="bot"></i></div><h3 style="font-family:var(--font-display);font-size:20px;margin:0;color:#fff;line-height:1.15">Optimización para Motores Generativos (GEO)</h3></div>
+        <p style="margin:0;font-size:15.5px;line-height:1.55;color:var(--ink-100)">La práctica de optimizar tu sitio, tu contenido y tu huella digital para que los motores de IA (ChatGPT, Claude, Gemini) <b>reconozcan, enlacen y recomienden</b> tu marca dentro de sus respuestas.</p>
+        <p style="margin:auto 0 0;font-size:15px;line-height:1.5;color:var(--violet-300);font-style:italic">En la práctica: cuando tu cliente ideal le pregunta a una IA a qué proveedor recurrir, tu empresa es la respuesta — no la competencia.</p>
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:center;gap:22px">
+        <div style="display:flex;gap:16px"><div class="ico em" style="width:40px;height:40px;border-radius:10px"><i data-lucide="eye" style="width:20px"></i></div><div><h3 style="font-family:var(--font-display);font-size:16.5px;margin:0 0 3px;color:var(--text-strong)">Verificación manual de citas</h3><p style="margin:0;font-size:14px;color:var(--text-muted);line-height:1.4">Le hacemos a ChatGPT, Claude y Gemini las preguntas clave de tu sector y guardamos las respuestas.</p></div></div>
+        <div style="display:flex;gap:16px"><div class="ico em" style="width:40px;height:40px;border-radius:10px"><i data-lucide="line-chart" style="width:20px"></i></div><div><h3 style="font-family:var(--font-display);font-size:16.5px;margin:0 0 3px;color:var(--text-strong)">Share of Model (SoM)</h3><p style="margin:0;font-size:14px;color:var(--text-muted);line-height:1.4">Con qué frecuencia aparece tu marca frente a competidores concretos, y su evolución.</p></div></div>
+        <div style="display:flex;gap:16px"><div class="ico em" style="width:40px;height:40px;border-radius:10px"><i data-lucide="search" style="width:20px"></i></div><div><h3 style="font-family:var(--font-display);font-size:16.5px;margin:0 0 3px;color:var(--text-strong)">Tráfico referido por IA</h3><p style="margin:0;font-size:14px;color:var(--text-muted);line-height:1.4">Aparece como una fuente de referencia distinta en Google Analytics.</p></div></div>
+        <div style="display:flex;gap:16px"><div class="ico em" style="width:40px;height:40px;border-radius:10px"><i data-lucide="target" style="width:20px"></i></div><div><h3 style="font-family:var(--font-display);font-size:16.5px;margin:0 0 3px;color:var(--text-strong)">Línea base antes / después</h3><p style="margin:0;font-size:14px;color:var(--text-muted);line-height:1.4">Hacemos las mismas preguntas antes y después de optimizar, y comparamos los resultados.</p></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 · NUESTRO PROCESO -->
+<section class="tint" data-label="Nuestro Proceso">
+  <div class="pad">
+    <div class="eb">Nuestro Proceso</div>
+    <h2 class="t" style="margin-top:16px">Un ciclo continuo, no un proyecto puntual.</h2>
+    <p style="margin:12px 0 0;font-size:17px;color:var(--text-muted)">La visibilidad en IA cambia sola; por eso medimos, actuamos y volvemos a medir.</p>
+    <div style="position:relative;margin-top:auto;margin-bottom:auto;display:grid;grid-template-columns:1fr 1fr 1fr;gap:22px;align-items:stretch">
+      <div style="position:absolute;top:-30px;left:16%;right:16%;height:26px;border:2px solid var(--violet-300);border-bottom:0;border-radius:26px 26px 0 0"></div>
+      <div style="position:absolute;top:-42px;left:0;right:0;text-align:center;font-family:var(--font-display);font-size:13px;font-style:italic;color:var(--violet-600)">y vuelve a empezar ↺</div>
+      <div class="card" style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;padding:30px 26px"><div class="ico" style="width:56px;height:56px"><i data-lucide="search"></i></div><h3 style="font-family:var(--font-display);font-size:20px;margin:4px 0 0;color:var(--text-strong)">1 · Diagnóstico</h3><p style="margin:0;font-size:14px;color:var(--text-muted);line-height:1.45">Auditamos tu visibilidad actual en los motores de IA y fijamos la línea base en cuatro dimensiones.</p></div>
+      <div class="card" style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;padding:30px 26px"><div class="ico" style="width:56px;height:56px"><i data-lucide="target"></i></div><h3 style="font-family:var(--font-display);font-size:20px;margin:4px 0 0;color:var(--text-strong)">2 · Acción</h3><p style="margin:0;font-size:14px;color:var(--text-muted);line-height:1.45">Ejecutamos las mejoras: optimización técnica del sitio, contenido citable y sindicación.</p></div>
+      <div class="card" style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px;padding:30px 26px"><div class="ico em" style="width:56px;height:56px"><i data-lucide="activity"></i></div><h3 style="font-family:var(--font-display);font-size:20px;margin:4px 0 0;color:var(--text-strong)">3 · Monitoreo</h3><p style="margin:0;font-size:14px;color:var(--text-muted);line-height:1.45">La plataforma mide de forma continua y detecta cuándo actuar de nuevo.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 5 · DIAGNÓSTICO · 4 DIMENSIONES -->
+<section class="light" data-label="Diagnóstico · Auditoría">
+  <div class="pad">
+    <div class="eb">Diagnóstico · Auditoría</div>
+    <h2 class="t" style="margin-top:16px">Las cuatro dimensiones que medimos en tu punto de partida.</h2>
+    <div style="margin-top:26px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:18px;flex:1">
+      <div class="card" style="padding:22px 26px"><div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px"><div class="ico" style="width:38px;height:38px;border-radius:10px"><i data-lucide="code-2" style="width:19px"></i></div><div><h3 style="font-family:var(--font-display);font-size:18px;margin:0;color:var(--text-strong)">Visibilidad</h3><span style="font-size:13px;font-style:italic;color:var(--violet-600)">¿Te ven los motores de IA?</span></div></div><ul class="dl"><li>Frecuencia de citas en respuestas de IA</li><li>Tasa de mención de marca (con o sin enlace)</li><li>Cobertura de las preguntas clave de tu sector</li><li>Posición de la cita en la respuesta</li></ul></div>
+      <div class="card" style="padding:22px 26px"><div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px"><div class="ico" style="width:38px;height:38px;border-radius:10px"><i data-lucide="layers" style="width:19px"></i></div><div><h3 style="font-family:var(--font-display);font-size:18px;margin:0;color:var(--text-strong)">Competitividad</h3><span style="font-size:13px;font-style:italic;color:var(--violet-600)">¿Cómo te comparas?</span></div></div><ul class="dl"><li>Share of Voice (SoV) vs. competidores</li><li>Diferencia de citas frente al líder</li><li>Posición por grupo de temas</li><li>Temas que dominas frente a los que no apareces</li></ul></div>
+      <div class="card" style="padding:22px 26px"><div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px"><div class="ico em" style="width:38px;height:38px;border-radius:10px"><i data-lucide="file-check-2" style="width:19px"></i></div><div><h3 style="font-family:var(--font-display);font-size:18px;margin:0;color:var(--text-strong)">Calidad y Confianza</h3><span style="font-size:13px;font-style:italic;color:var(--emerald-600)">¿Te describen bien?</span></div></div><ul class="dl"><li>Sentimiento: positivo / neutral / negativo</li><li>Precisión de datos, servicios y ubicación</li><li>Desglose por motor: ChatGPT, Claude, Gemini</li></ul></div>
+      <div class="card" style="padding:22px 26px"><div style="display:flex;align-items:baseline;gap:12px;margin-bottom:12px"><div class="ico em" style="width:38px;height:38px;border-radius:10px"><i data-lucide="trending-up" style="width:19px"></i></div><div><h3 style="font-family:var(--font-display);font-size:18px;margin:0;color:var(--text-strong)">Impacto de Negocio</h3><span style="font-size:13px;font-style:italic;color:var(--emerald-600)">¿Genera resultado?</span></div></div><ul class="dl"><li>Tráfico referido por IA (canal GA4)</li><li>Conversión de visitantes referidos por IA</li><li>Aumento de búsquedas directas de tu marca</li><li>B2B: RFQs / leads calificados atribuidos a IA</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 · ACCIÓN · 3 FRENTES -->
+<section class="light" data-label="Acción · Servicios">
+  <div class="pad">
+    <div class="eb">Acción · Servicios de Optimización</div>
+    <h2 class="t" style="margin-top:16px">Tres frentes para ganar visibilidad.</h2>
+    <div style="margin-top:32px;display:grid;grid-template-columns:repeat(3,1fr);gap:30px;flex:1">
+      <div style="display:flex;flex-direction:column;gap:14px"><div class="ico" style="width:54px;height:54px"><i data-lucide="code-2"></i></div><h3 style="font-family:var(--font-display);font-size:20px;margin:0;color:var(--text-strong);line-height:1.15">1 · Optimización de Sitio Web</h3><ul class="dl"><li>Schema markup completo (WebSite, Product, FAQ, LocalBusiness)</li><li>Corrección de noindex, autoría y meta descripciones</li><li>Reescritura de páginas clave con datos específicos</li><li>Resumen citable para la IA en la página de inicio</li></ul></div>
+      <div style="display:flex;flex-direction:column;gap:14px"><div class="ico" style="width:54px;height:54px"><i data-lucide="file-text"></i></div><h3 style="font-family:var(--font-display);font-size:20px;margin:0;color:var(--text-strong);line-height:1.15">2 · Contenido y Artículos</h3><ul class="dl"><li>Artículos y publicaciones optimizadas para ser citadas</li><li>Definiciones claras y respaldadas con datos</li><li>Encabezados en forma de pregunta</li><li>Basados en las preguntas reales de tus clientes</li></ul></div>
+      <div style="display:flex;flex-direction:column;gap:14px"><div class="ico em" style="width:54px;height:54px"><i data-lucide="share-2"></i></div><h3 style="font-family:var(--font-display);font-size:20px;margin:0;color:var(--text-strong);line-height:1.15">3 · Sindicación y Distribución</h3><ul class="dl"><li>Directorios y perfiles de negocio (GBP)</li><li>Guest posts, prensa y podcasts</li><li>Bios y link-in-bio en redes</li><li>Construcción de citas externas de autoridad</li></ul></div>
+    </div>
+    <div class="foot"><span class="src">Priorizados por impacto según lo que revela la auditoría. Se pueden contratar juntos o por separado.</span><span></span></div>
+  </div>
+</section>
+
+<!-- 7 · MONITOREO · PLATAFORMA -->
+<section class="dark" data-label="Monitoreo · Plataforma">
+  <div class="pad">
+    <div class="eb">Monitoreo · Aplicación de Medición</div>
+    <h2 class="t" style="margin-top:16px;color:#fff">La plataforma que convierte el diagnóstico en monitoreo.</h2>
+    <p class="lead" style="margin-top:16px;max-width:78ch">La auditoría es una foto del momento. La plataforma la mantiene viva: mide las mismas cuatro dimensiones de forma continua, para que la visibilidad en IA sea un indicador más que puedas seguir.</p>
+    <div style="margin-top:auto;display:grid;grid-template-columns:repeat(3,1fr);gap:22px">
+      <div class="card"><div class="ico" style="width:50px;height:50px"><i data-lucide="radar"></i></div><h3 style="font-family:var(--font-display);font-size:19px;margin:14px 0 6px;color:#fff">Monitoreo continuo</h3><p style="margin:0;font-size:14px;color:var(--ink-300);line-height:1.45">Lanzamos tus preguntas clave en ChatGPT, Claude y Gemini de forma periódica, sin trabajo para tu equipo.</p></div>
+      <div class="card"><div class="ico" style="width:50px;height:50px"><i data-lucide="trending-up"></i></div><h3 style="font-family:var(--font-display);font-size:19px;margin:14px 0 6px;color:#fff">Evolución en el tiempo</h3><p style="margin:0;font-size:14px;color:var(--ink-300);line-height:1.45">Observa cómo evolucionan tus cuatro dimensiones semana a semana y detecta cuándo subes o bajas frente a competidores.</p></div>
+      <div class="card"><div class="ico em" style="width:50px;height:50px"><i data-lucide="bell-ring"></i></div><h3 style="font-family:var(--font-display);font-size:19px;margin:14px 0 6px;color:#fff">Alertas y reportes</h3><p style="margin:0;font-size:14px;color:var(--ink-300);line-height:1.45">Recibe un aviso cuando tu visibilidad cambia y un informe periódico frente a tu línea base inicial.</p></div>
+    </div>
+    <div class="foot" style="align-items:center;margin-top:28px"><img src="../assets/logo-horizontal-dark.png" alt="Akore Labs" style="height:30px" /><span class="src">GEO &amp; AI Visibility Consulting</span></div>
+  </div>
+</section>
+
+</deck-stage>
+<script src="deck-stage.js"></script>
+<script>window.addEventListener('load',()=>{setTimeout(()=>window.lucide&&window.lucide.createIcons(),50);const d=document.querySelector('deck-stage');d&&d.addEventListener('slidechange',()=>window.lucide&&window.lucide.createIcons());});</script>
+<script>
+(async () => {
+  if (!document.title || !document.title.trim()) document.title = "index";
+  // rAF raced with a short timeout: inside a cross-origin iframe (PrintMode),
+  // rAF can be throttled or paused even while the tab is focused, which would
+  // hang the scroll loop and never reach print(). Same pattern as
+  // buildExportSettleScript (export/shared.ts).
+  var raf = function () {
+    return Promise.race([
+      new Promise(function (r) { requestAnimationFrame(r); }),
+      new Promise(function (r) { setTimeout(r, 50); }),
+    ]);
+  };
+  var t0 = performance.now();
+  var mark = function (phase) {
+    var ms = Math.round(performance.now() - t0);
+    console.info('[autoprint]', phase, ms + 'ms');
+    try { parent.postMessage({ __omelette_autoprint: { phase: phase, ms: ms } }, '*'); } catch (e) {}
+  };
+  mark('start');
+  // Prepend so page-supplied @page / break rules (deck-stage's margin:0,
+  // author CSS) keep source-order precedence over the baseline.
+  const baseCss = document.createElement('style');
+  baseCss.textContent = "@media print {\n  figure, table { break-inside: avoid; }\n  *, *::before, *::after {\n    print-color-adjust: exact; -webkit-print-color-adjust: exact;\n    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;\n    animation-delay: -99s !important; animation-duration: .001s !important;\n    animation-iteration-count: 1 !important; animation-fill-mode: both !important;\n    animation-play-state: running !important; transition-duration: 0s !important;\n  }\n}";
+  document.head.prepend(baseCss);
+  if (document.readyState === 'loading') {
+    await new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
+  }
+  let ds = document.querySelector('deck-stage');
+  // whenDefined never resolves when nothing registers the element, so only
+  // await it when a <deck-stage> tag exists (and race a timeout regardless).
+  if (ds && !customElements.get('deck-stage')) {
+    try {
+      await Promise.race([
+        customElements.whenDefined('deck-stage'),
+        new Promise((r) => setTimeout(r, 3000)),
+      ]);
+    } catch (e) {}
+    ds = document.querySelector('deck-stage');
+  }
+  // dc-runtime assigns window.DCLogic at init and mounts into #dc-root on
+  // DOMContentLoaded; settle on that subtree so React has rendered before
+  // print(). Non-DC pages fall through to weighing body.
+  const isDc = !ds && 'DCLogic' in window;
+  const settleRoot = ds || (isDc ? document.getElementById('dc-root') : null) || document.body;
+  if (settleRoot) {
+    // Weigh only content children — skip script/style/template so inline
+    // Babel/CSS doesn't register as stable "content" before the framework
+    // has mounted anything.
+    const MEDIA = 'img,svg,canvas,video,picture,iframe,embed,object';
+    const weigh = () => {
+      let text = 0, media = 0;
+      for (const c of settleRoot.children) {
+        const t = c.tagName;
+        if (t === 'SCRIPT' || t === 'STYLE' || t === 'TEMPLATE') continue;
+        text += (c.textContent || '').trim().length;
+        media += c.querySelectorAll(MEDIA).length + (c.matches(MEDIA) ? 1 : 0);
+      }
+      return text + media * 100;
+    };
+    // "Non-zero and stable" alone is not sufficient to mean rendered: generic
+    // body can carry a static shell while async main content is pending, and
+    // #dc-root can carry the root DC's static text while child refs are still
+    // .sc-placeholder boxes. Gate generic on readyState 'complete', and never
+    // accept stability while a dc-runtime placeholder is present.
+    const isGeneric = settleRoot === document.body;
+    // A placeholder whose fetch failed (.sc-placeholder-error inside) keeps
+    // .sc-placeholder forever — don't wait on it. JS loop, not :has(), so an
+    // engine without :has() support can't throw out of the while and skip
+    // print() entirely.
+    var pendingPlaceholders = function () {
+      var all = settleRoot.querySelectorAll('.sc-placeholder'), n = 0;
+      for (var i = 0; i < all.length; i++)
+        if (!all[i].querySelector('.sc-placeholder-error')) n++;
+      return n;
+    };
+    const deadline = Date.now() + 15000;
+    let last = -1, stable = 0;
+    while (Date.now() < deadline) {
+      const n = weigh();
+      const ready =
+        (!isGeneric || document.readyState === 'complete') &&
+        pendingPlaceholders() === 0;
+      if (n > 0 && n === last && ready) { if (++stable >= 2) break; } else { stable = 0; }
+      last = n;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+  mark('settle-done' + (settleRoot ? ' (errs=' + settleRoot.querySelectorAll('.sc-placeholder-error').length + ' pending=' + pendingPlaceholders() + ')' : ''));
+  // Project support.js may predate runtime default-seeding; push via bridge.
+  if (isDc && window.__dcSetProps && window.__dcRootName) {
+    try {
+      const dpEl = document.querySelector('script[data-dc-script]');
+      const meta = JSON.parse((dpEl && dpEl.getAttribute('data-props')) || '{}');
+      const bag = {};
+      for (const k in meta)
+        if (k[0] !== '$' && meta[k] && meta[k].default !== undefined)
+          bag[k] = meta[k].default;
+      if (Object.keys(bag).length) {
+        window.__dcSetProps(window.__dcRootName(), bag);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    } catch (e) {}
+  }
+  // Reveal content gated on scroll or visibility before printing. Lazy <img>,
+  // IntersectionObserver fade-ins, and collapsed <details> don't render while
+  // off-screen, so a long page would print with them blank or closed. Open
+  // every <details>, force native-lazy images eager, and scroll the document
+  // through its full height to trip lazy-load + IO; then wait (bounded) for the
+  // newly-triggered images. Inert for deck-stage (slides aren't scroll-gated).
+  try {
+    for (const d of document.querySelectorAll('details')) d.open = true;
+    for (const img of document.querySelectorAll('img[loading="lazy"]'))
+      img.loading = 'eager';
+    const scroller = document.scrollingElement || document.documentElement;
+    const full = Math.max(scroller.scrollHeight, document.body.scrollHeight);
+    const step = window.innerHeight || 800;
+    var scrollDeadline = Date.now() + 4000;
+    for (let y = 0; y <= full && Date.now() < scrollDeadline; y += step) {
+      window.scrollTo(0, y);
+      await raf();
+    }
+    window.scrollTo(0, 0);
+    await Promise.race([
+      Promise.all(
+        [...document.images].map((img) =>
+          img.complete
+            ? null
+            : new Promise((res) => {
+                img.addEventListener('load', res, { once: true });
+                img.addEventListener('error', res, { once: true });
+              })
+        )
+      ),
+      new Promise((r) => setTimeout(r, 4000)),
+    ]);
+  } catch (e) {}
+  mark('scroll-done');
+  try { await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 3000))]); } catch (e) {}
+  mark('fonts-done');
+  // Jump every animation to its end state so print() never captures a slide
+  // mid-entrance. Ordering matters: the 0s-transition style must be live
+  // BEFORE data-deck-active is set so attribute-keyed transitions don't
+  // start a (now-0s) run from the pre-active base.
+  const st = document.createElement('style');
+  st.textContent = '*,*::before,*::after{animation-delay:-99s !important;animation-duration:.001s !important;animation-iteration-count:1 !important;animation-fill-mode:both !important;animation-play-state:running !important;transition-duration:0s !important}';
+  document.head.appendChild(st);
+  for (const d of document.querySelectorAll('deck-stage')) {
+    for (const c of d.children) {
+      const t = c.tagName;
+      if (t === 'SCRIPT' || t === 'STYLE' || t === 'TEMPLATE') continue;
+      c.setAttribute('data-deck-active', '');
+    }
+  }
+  // Re-append deck-stage's @page last so no author @page can add a margin and
+  // spill each full-bleed slide onto two sheets. Backstop for old copies.
+  if (ds) {
+    let pg = document.getElementById('deck-stage-print-page');
+    if (!pg) {
+      pg = document.createElement('style');
+      pg.textContent = '@page{size:' + (+ds.getAttribute('width') || 1920) +
+        'px ' + (+ds.getAttribute('height') || 1080) + 'px;margin:0}';
+    }
+    document.body.appendChild(pg);
+  }
+  try {
+    const sweep = () => {
+      for (const a of document.getAnimations()) {
+        try { a.finish(); } catch (e) {
+          try { a.currentTime = (a.effect && a.effect.getComputedTiming().duration) || 0; a.pause(); } catch (e2) {}
+        }
+      }
+    };
+    sweep();
+    await raf();
+    sweep();
+    await raf();
+  } catch (e) {}
+  // A document that owns its print CSS (the doc-page starter injects the
+  // meta at runtime; hand-rolled print designs author it) gets no automatic
+  // page geometry and keeps its forced breaks: strip the injected default
+  // @page — write time cannot see a runtime-injected meta — skip the frame
+  // override below, and skip the fakepage-flattening further down. What
+  // still applies: the print baseline and break-hygiene defaults (no @page
+  // in either; low specificity, so the document's own print CSS wins) and
+  // the break-inside relaxation on >page elements (avoid on those cannot
+  // be honored whoever authored it).
+  var ownsPrint = !!document.querySelector('meta[name="omelette-owns-print" i]');
+  if (ownsPrint) {
+    var dst = document.querySelector('style[data-omelette-print-defaults]');
+    if (dst && dst.textContent) {
+      dst.textContent = dst.textContent.replace(/@page\b[^{}]*\{[^}]*\}/, '');
+    }
+  }
+  // Size the PDF page to the rendered design unless the file opted into
+  // standard paper via @page{size:letter|A4|…} or declared print ownership
+  // via the meta above. Decks own their own @page.
+  // Wrappers (body, …) lose padding+margin so the frame sits at (0,0); the
+  // frame itself loses only margin — its padding is INSIDE the measured
+  // rect and must stay, or content shifts and leaves a gap at bottom/right.
+  var __m = null;
+  try { __m = (() => {
+  var STAMP = true;
+  var docEl = document.documentElement;
+  var doc = { width: docEl.scrollWidth, height: docEl.scrollHeight };
+  // Name-presence check, case-insensitive — the same contract as the
+  // instant-PDF path's runtime check in deck-stage-export.ts. The name is
+  // a string literal here because that file interpolates this script into
+  // its print script, so importing a shared constant from it would be a
+  // cycle; measure.test.ts pins the literal so the two cannot drift apart
+  // silently.
+  var ownsPrint = !!document.querySelector('meta[name="omelette-owns-print" i]');
+
+  var ds = document.querySelector('deck-stage');
+  if (ds) {
+    var dw = Number(ds.getAttribute('width')) || 1920;
+    var dh = Number(ds.getAttribute('height')) || 1080;
+    var n = typeof ds.length === 'number' ? ds.length : ds.children.length;
+    var idx = typeof ds.index === 'number' ? ds.index : 0;
+    var frames = [];
+    for (var i = 0; i < n; i++) frames.push({ left: 0, top: 0, width: dw, height: dh });
+    return { kind: 'deck', source: 'declared', doc: doc, frames: frames,
+      authored: frames.map(function(){return{width:true,height:true}}),
+      deck: { width: dw, height: dh, slideCount: n, index: idx },
+      signals: { paperPage: false, pxPage: false, ownsPrint: ownsPrint } };
+  }
+
+  // Declared kind: a doc-page tag names the kind outright, so no signal
+  // heuristics run (like the deck branch above, signals report false —
+  // they describe inferred classifications only). The tag alone is not
+  // trusted: the element must have upgraded (shadowRoot present), so a
+  // leftover tag whose script was deleted falls through to the heuristics
+  // that handle plain markup.
+  var stageSx = window.scrollX || 0, stageSy = window.scrollY || 0;
+  var dp = document.querySelector('doc-page');
+  if (dp && dp.shadowRoot) {
+    // Crop to the sheet, not the host — the desk around it is screen-only
+    // chrome that must not land in PNG exports.
+    var sheet = dp.shadowRoot.querySelector('.sheet');
+    var sr = (sheet || dp).getBoundingClientRect();
+    return { kind: 'paper-doc', source: 'declared', doc: doc,
+      frames: [{ left: sr.left + stageSx, top: sr.top + stageSy,
+        width: sr.width, height: sr.height }],
+      authored: [{ width: false, height: false }],
+      signals: { paperPage: false, pxPage: false, ownsPrint: ownsPrint } };
+  }
+  var paperPage = false, pxPage = false;
+  var eachRule = function (fn) {
+    for (var s = 0; s < document.styleSheets.length; s++) {
+      var rs; try { rs = document.styleSheets[s].cssRules; } catch (e) { continue; }
+      for (var r = 0; r < rs.length; r++) {
+        fn(rs[r]);
+        if (rs[r].cssRules) for (var n = 0; n < rs[r].cssRules.length; n++) fn(rs[r].cssRules[n]);
+      }
+    }
+  };
+  eachRule(function (r) {
+    if (r.type !== 6) return;
+    var m = /\bsize\s*:\s*([^;}]+)/i.exec(r.cssText || '');
+    if (!m) return;
+    if (/\b(letter|a[3-5]|legal|ledger)\b/i.test(m[1])) paperPage = true;
+    if (/\d+(?:\.\d+)?px\b/i.test(m[1])) pxPage = true;
+  });
+  var signals = { paperPage: paperPage, pxPage: pxPage, ownsPrint: ownsPrint };
+
+  var pxVal = function (v) {
+    var m = /^(\d+(?:\.\d+)?)px$/.exec(v || ''); return m ? +m[1] : 0;
+  };
+  var authoredPx = function (el, prop) {
+    if (pxVal(el.style[prop])) return true;
+    var attr = el.getAttribute(prop);
+    if (attr && /^\d+$/.test(attr)) return true;
+    var hit = false;
+    eachRule(function (r) {
+      if (hit || r.type !== 1 || !r.style) return;
+      try { if (el.matches(r.selectorText) && pxVal(r.style[prop])) hit = true; } catch (e) {}
+    });
+    return hit;
+  };
+
+  var el = document.body, rootPxW = false;
+  for (;;) {
+    var kids = [];
+    for (var c = 0; c < el.children.length; c++) {
+      var t = el.children[c].tagName;
+      if (t !== 'SCRIPT' && t !== 'STYLE' && t !== 'TEMPLATE') kids.push(el.children[c]);
+    }
+    if (kids.length !== 1 || !(kids[0] instanceof HTMLElement)) break;
+    if (STAMP) el.setAttribute('data-om-frame-wrap', '');
+    el = kids[0];
+    rootPxW = authoredPx(el, 'width');
+    if (rootPxW) break;
+  }
+  if (!rootPxW) rootPxW = authoredPx(el, 'width');
+
+  // @page{size:letter} alone is a flowing doc; with a px-width root it's a
+  // fixed sheet pretending to be paper — fall through and size to render.
+  if (paperPage && !rootPxW) {
+    return { kind: 'paper-doc', source: 'inferred', doc: doc, signals: signals,
+      frames: [{ left: 0, top: 0, width: doc.width, height: doc.height }],
+      authored: [{ width: false, height: false }] };
+  }
+
+  var sx = window.scrollX || 0, sy = window.scrollY || 0;
+  var rectOf = function (e) {
+    var r = e.getBoundingClientRect();
+    var oy; try { oy = getComputedStyle(e).overflowY; } catch (err) {}
+    var h = oy === 'visible' ? Math.max(r.height, e.scrollHeight || 0) : r.height;
+    return { left: r.left + sx, top: r.top + sy, width: r.width, height: h };
+  };
+
+  // Multi-frame: off unless the page opts in via data-om-multi-frame on the
+  // stop element — the explicit opt-in is what guards against card grids
+  // and pricing tables that match the geometry but aren't separate
+  // canvases. Two ways to name the frames, explicit first:
+  // 1. Descendants marked data-om-frame-export (the social-frames starter
+  //    marks each asset frame; shells/panels around them are presentation,
+  //    so nesting is expected). Document order.
+  // 2. Fallback, no marked descendants: direct children with an authored px
+  //    width AND height (the original geometry heuristic).
+  // Frames may be different sizes (a gallery mixes 1080×1920 stories with
+  // 728×90 banners); data-om-frame-label rides along for export filenames.
+  if (el.hasAttribute('data-om-multi-frame')) {
+    var visOk = function (e) {
+      var cs; try { cs = getComputedStyle(e); } catch (err) { return false; }
+      return cs.display !== 'none' && cs.visibility !== 'hidden' && cs.position !== 'fixed';
+    };
+    // A frame's crop is its VISUAL box — never the scrollHeight-inflated
+    // rect that rectOf computes for page roots. Shadow-DOM hover controls
+    // (image-slot's Replace bar parks 29px below its host) and similar
+    // escaping UI contribute scrollable overflow to the frame, and the
+    // inflated height both squashes the nominal-size resize and drags
+    // content below the frame into the crop. Zoom-independent; bit every
+    // slot-bearing frame.
+    var frameRectOf = function (e) {
+      var r = e.getBoundingClientRect();
+      return { left: r.left + sx, top: r.top + sy, width: r.width, height: r.height };
+    };
+    var pushCand = function (list, e) {
+      if (!visOk(e)) return;
+      var rc = frameRectOf(e);
+      if (rc.width < 2 || rc.height < 2) return;
+      var lbl = e.getAttribute('data-om-frame-label');
+      if (lbl) rc.label = lbl;
+      list.push(rc);
+    };
+    var cands = [];
+    var marked = el.querySelectorAll('[data-om-frame-export]');
+    if (marked.length) {
+      for (var mk = 0; mk < marked.length; mk++) pushCand(cands, marked[mk]);
+    } else {
+      for (var k = 0; k < el.children.length; k++) {
+        var ch = el.children[k];
+        if (!authoredPx(ch, 'width') || !authoredPx(ch, 'height')) continue;
+        pushCand(cands, ch);
+      }
+    }
+    if (cands.length >= 2) {
+      return { kind: 'multi-frame', source: 'inferred', doc: doc, signals: signals,
+        frames: cands, authored: cands.map(function(){return{width:true,height:true}}) };
+    }
+  }
+
+  if (STAMP) el.setAttribute('data-om-frame', '');
+  return { kind: 'single-canvas', source: 'inferred', doc: doc, signals: signals,
+    frames: [rectOf(el)],
+    authored: [{ width: rootPxW, height: authoredPx(el, 'height') }] };
+})(); } catch (e) {}
+  var frame = null;
+  if (!ownsPrint && __m && __m.kind === 'single-canvas') {
+    var f = __m.frames && __m.frames[0];
+    if (f && f.width >= 200 && f.height >= 200) {
+      frame = f;
+      var fst = document.createElement('style');
+      fst.textContent = '@media print{@page{size:' + Math.ceil(f.width) + 'px ' +
+        Math.ceil(f.height) + 'px;margin:0}' +
+        'html,body,[data-om-frame-wrap]{padding:0!important;margin:0!important;background:none!important}' +
+        '[data-om-frame]{margin:0!important}}';
+      document.body.appendChild(fst);
+    }
+  }
+  // Relax break-inside on oversized elements. An element taller than a
+  // printable page can't honor break-inside: avoid — browsers either overflow
+  // it or push it whole to the next page, leaving a blank gap, then break it
+  // anyway at an arbitrary point. After the final layout (content revealed,
+  // animations jumped), find elements taller than a page that still compute
+  // break-inside: avoid and reset them to auto, so the browser breaks them at
+  // their children's boundaries instead (children keep their own avoid). PAGE_PX
+  // is a conservative portrait estimate at 96 CSS px/in — Letter/A4 usable
+  // height minus our 0.5in margins — so only clearly-oversized elements are
+  // touched and under-page elements still stay whole. Skipped for decks (slides
+  // are sized to the page) and for fixed-size canvases (frame set, or an author
+  // px-based @page) — runs as before for flowing docs on letter/A4.
+  try {
+    if (!ds && !frame && !(__m && __m.signals && __m.signals.pxPage)) {
+      const PAGE_PX = 1024;
+      // Our print defaults add a real @page margin only when the source has
+      // no @page of its own; computed style can't tell us (it reports screen
+      // media), so read the injected rule directly.
+      const defaults = document.querySelector('style[data-omelette-print-defaults]');
+      const pageInset = /@page\s*\{[^}]*margin/.test(defaults ? defaults.textContent || '' : '');
+      const SEL = 'section,article,figure,table,pre,blockquote,[class~="card" i],[class~="page" i],[class~="sheet" i]';
+      for (const el of document.body.querySelectorAll(SEL)) {
+        if (el instanceof HTMLElement && el.offsetHeight > PAGE_PX) {
+          el.setAttribute('data-om-oversized', '');
+          // Fake-paged docs simulate sheets with over-tall break-after:page
+          // boxes; honoring the break spills half-blank pages and ends a
+          // colored box mid-sheet. Flow them, and (only when we own the page
+          // inset) drop the redundant padding/background via the rule below.
+          const cs = getComputedStyle(el);
+          // An owns-print doc's forced breaks are intentional sheet
+          // boundaries, never fake-paged simulation — don't strip them.
+          // The break-inside relaxation above still applies: avoid on a
+          // >page element is impossible to honor whoever authored it.
+          if (
+            !ownsPrint &&
+            (cs.breakAfter === 'page' || cs.pageBreakAfter === 'always')
+          ) {
+            el.setAttribute('data-om-fakepage', '');
+          }
+        }
+      }
+      const ost = document.createElement('style');
+      ost.textContent = '@media print{' +
+        '[data-om-oversized]{break-inside:auto !important;page-break-inside:auto !important}' +
+        '[data-om-fakepage]{break-after:auto !important;page-break-after:auto !important}' +
+        (pageInset ? '[data-om-fakepage]{padding:0 !important;background:none !important}' : '') +
+        '}';
+      document.head.appendChild(ost);
+    }
+  } catch (e) {}
+  // macOS Preview renders Skia-PDF Luminosity soft-masks as opaque grey boxes;
+  // swap the CSS that triggers them for Preview-safe forms.
+  try {
+    for (const el of document.body.querySelectorAll('*')) {
+      const cs = getComputedStyle(el);
+
+      if (cs.boxShadow !== 'none' && cs.filter === 'none') {
+        const outs = [], kept = [];
+        for (const s of cs.boxShadow.split(/,(?![^(]*[)])/)) {
+          const t = s.trim();
+          const m = t.match(/^(rgba?[(][^)]+[)]) (-?[0-9.]+px) (-?[0-9.]+px) ([0-9.]+px) -?[0-9.]+px$/);
+          if (m && parseFloat(m[4]) > 0) outs.push('drop-shadow(' + m[2] + ' ' + m[3] + ' ' + m[4] + ' ' + m[1] + ')');
+          else kept.push(t);
+        }
+        if (outs.length) {
+          el.style.setProperty('filter', outs.join(' '), 'important');
+          el.style.setProperty('box-shadow', kept.join(', ') || 'none', 'important');
+        }
+      }
+
+      const mask = cs.maskImage && cs.maskImage !== 'none' ? cs.maskImage : cs.webkitMaskImage;
+      if (mask && mask !== 'none' && cs.filter === 'none') el.style.setProperty('filter', 'opacity(1)', 'important');
+    }
+  } catch (e) {}
+  mark('print-calling');
+  setTimeout(() => { try { window.print(); } catch (e) {} }, 200);
+})();
+</script>
+</body>
+</html>

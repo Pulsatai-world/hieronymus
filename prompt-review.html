@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEO Audit — Review Prompts | Akore Labs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --navy: #6d4fe0;
+  --violet-700: #4834b0;
+  --violet-100: #ece7fd;
+  --ink: #08090c;
+  --ink-60: #757f8f;
+  --ink-30: #c3c8d0;
+  --surface: #f4f6f8;
+  --card: #ffffff;
+  --accent: #6d4fe0;
+  --accent-light: #f4f2fb;
+  --success: #0f7d5b;
+  --success-bg: #eefaf4;
+  --border: #e3e6ea;
+  --border-strong: #c3c8d0;
+  --focus-ring: rgba(109,79,224,0.35);
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius: 16px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 3px rgba(16,19,25,0.08), 0 1px 2px rgba(16,19,25,0.04);
+  --shadow-lg: 0 18px 40px rgba(16,19,25,0.12), 0 6px 12px rgba(16,19,25,0.06);
+  --shadow-brand: 0 12px 30px rgba(109,79,224,0.28);
+  --shadow: var(--shadow-sm);
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --fs-h2: 1.5rem;
+  --fs-eyebrow: 0.6875rem;
+  --font-display: "Montserrat", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Manrope", "Helvetica Neue", Arial, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-body); background: var(--surface); color: var(--ink); min-height: 100vh; font-size: 15px; line-height: 1.6; }
+
+.app-header {
+  background: var(--card); border-bottom: 1px solid var(--border); padding: 0 40px; height: 64px;
+  display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 var(--border);
+}
+.logo { display: flex; align-items: center; gap: 14px; }
+.logo-lockup { height: 38px; width: auto; display: block; image-rendering: -webkit-optimize-contrast; }
+.logo-mark { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+.logo-mark img { width: 100%; height: 100%; object-fit: contain; }
+.logo-text { display: flex; flex-direction: column; }
+.logo-name { font-family: var(--font-display); font-size: 15px; font-weight: 700; }
+.logo-sub { font-size: var(--fs-eyebrow); font-weight: 600; color: var(--ink-60); text-transform: uppercase; letter-spacing: 0.16em; display: flex; align-items: center; gap: 10px; }
+.logo-sub::before { content: ""; width: 22px; height: 2px; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
+.logo-divider { width: 1px; height: 18px; background: var(--border-strong); }
+.lang-toggle { display: flex; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); overflow: hidden; }
+.lang-btn { font-family: var(--font-body); font-size: 11px; font-weight: 600; color: var(--ink-60); background: var(--card); border: none; padding: 7px 14px; cursor: pointer; }
+.lang-btn.active { background: var(--accent); color: #fff; }
+
+.access-gate { min-height: calc(100vh - 64px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.access-gate-inner { width: 100%; max-width: 400px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 40px 32px; text-align: center; }
+.access-gate-icon { width: 52px; height: 52px; margin: 0 auto 20px; border-radius: 50%; background: var(--violet-100); color: var(--navy); display: flex; align-items: center; justify-content: center; }
+.access-gate-inner h2 { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; letter-spacing: -0.01em; margin-bottom: 12px; }
+.access-gate-inner p { font-size: 13px; color: var(--ink-60); line-height: 1.6; margin-bottom: 24px; }
+.access-gate-inner input { width: 100%; font-family: var(--font-body); font-size: 15px; padding: 12px 16px; border: 1.5px solid var(--border-strong); border-radius: var(--radius-md); outline: none; margin-bottom: 14px; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
+.access-gate-inner input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+.access-gate-error { font-size: 12px; color: var(--danger, #b03a3a); margin-top: 12px; min-height: 16px; }
+.btn-accent { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-pill); padding: 13px 20px; min-height: 44px; font-family: var(--font-body); font-weight: 600; font-size: 14px; letter-spacing: 0.01em; cursor: pointer; width: 100%; box-shadow: var(--shadow-sm); transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-fast) var(--ease-standard); }
+.btn-accent:hover { background: var(--violet-700); box-shadow: var(--shadow-brand); }
+.btn-accent:active { transform: translateY(1px); }
+.btn-ghost { background: var(--accent-light); color: var(--accent); border: 1px solid rgba(109,79,224,0.2); border-radius: var(--radius-pill); padding: 10px 18px; font-family: var(--font-body); font-weight: 600; font-size: 13px; cursor: pointer; transition: all var(--dur-base) var(--ease-standard); }
+
+.main { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; display: none; }
+.page-title { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; letter-spacing: -0.01em; margin-bottom: 6px; }
+.page-sub { font-size: 13px; color: var(--ink-60); margin-bottom: 28px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 24px; margin-bottom: 20px; }
+.card-title { font-family: var(--font-display); font-size: 16px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 4px; }
+.cat-group { margin-bottom: 18px; }
+.cat-group:last-child { margin-bottom: 0; }
+.cat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-60); margin-bottom: 8px; font-weight: 600; }
+.prompt-line { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.prompt-line:last-child { border-bottom: none; }
+.prompt-input { width: 100%; font-family: var(--font-body); font-size: 14px; line-height: 1.5; color: var(--ink); border: 1.5px solid transparent; border-radius: var(--radius-md); padding: 8px 10px; outline: none; background: transparent; resize: none; overflow: hidden; white-space: pre-wrap; word-wrap: break-word; display: block; transition: background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard); }
+.prompt-input:hover { background: var(--surface); }
+.prompt-input:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 3px var(--focus-ring); }
+.status-banner { border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 20px; font-size: 13px; }
+.status-approved { background: var(--success-bg); color: var(--success); }
+.status-pending { background: var(--accent-light); color: var(--ink); }
+textarea { width: 100%; font-family: var(--font-body); font-size: 14px; border: 1.5px solid var(--border-strong); border-radius: var(--radius-md); padding: 12px 14px; outline: none; min-height: 90px; resize: vertical; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
+textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--ink-60); }
+@media (max-width: 600px) { .app-header { padding: 0 16px; } .logo-sub, .logo-divider { display: none; } }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="logo">
+    <img class="logo-lockup" src="/brand/logo-horizontal-light.png" alt="Akore Labs">
+    <span class="logo-divider"></span>
+    <div class="logo-sub" id="logo-sub">GEO Audit — Prompt Review</div>
+  </div>
+  <div style="display:flex; align-items:center; gap:10px;">
+    <div class="lang-toggle">
+      <button class="lang-btn" id="lang-btn-en" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" id="lang-btn-es" onclick="setLang('es')">ES</button>
+    </div>
+    <button class="btn-ghost" id="logout-btn" onclick="clientLogout()" style="display:none;">Log out</button>
+  </div>
+</div>
+
+<div id="access-gate" class="access-gate">
+  <div class="access-gate-inner">
+    <div class="access-gate-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+    <h2 id="gate-title">Client Access</h2>
+    <p id="gate-desc">Enter the username and password from your invitation to review your GEO audit prompts.</p>
+    <input type="text" id="gate-username-input" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')document.getElementById('gate-password-input').focus()">
+    <input type="password" id="gate-password-input" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitGate()">
+    <button class="btn-accent" id="gate-continue-btn" onclick="submitGate()">Continue</button>
+    <div id="gate-error" class="access-gate-error"></div>
+  </div>
+</div>
+
+<main class="main" id="main-content"></main>
+
+<script>
+let clientCompany = '';
+let clientUsername = '';
+let clientPassword = '';
+let clientRole = 'full';
+function findMember(group, username) {
+  return (group.members || []).find(m => m.username === username);
+}
+
+const T = {
+  logoSub: { en: 'GEO Audit — Prompt Review', es: 'Auditoría GEO — Revisión de Prompts' },
+  gateTitle: { en: 'Client Access', es: 'Acceso de Cliente' },
+  gateDesc: { en: 'Enter the username and password from your invitation to review your GEO audit prompts.', es: 'Ingresa el usuario y la contraseña de tu invitación para revisar los prompts de tu auditoría GEO.' },
+  usernamePlaceholder: { en: 'Username', es: 'Usuario' },
+  passwordPlaceholder: { en: 'Password', es: 'Contraseña' },
+  continueBtn: { en: 'Continue', es: 'Continuar' },
+  enterCreds: { en: 'Enter your username and password.', es: 'Ingresa tu usuario y contraseña.' },
+  invalidCreds: { en: 'Invalid username or password. Please check and try again.', es: 'Usuario o contraseña inválidos. Verifica e intenta de nuevo.' },
+  loading: { en: 'Loading…', es: 'Cargando…' },
+  notReady: { en: "Your prompts aren't ready yet — check back soon.", es: 'Tus prompts aún no están listos — vuelve a revisar pronto.' },
+  failedToLoad: { en: 'Failed to load: ', es: 'Error al cargar: ' },
+  approvedOn: { en: '✓ Approved ', es: '✓ Aprobado el ' },
+  yourComments: { en: ' — your comments: “', es: ' — tus comentarios: “' },
+  pendingBanner: { en: "These prompts haven't been approved yet. Edit any that don't look right, add comments if you'd like, and click Approve when they're good.", es: 'Estos prompts aún no han sido aprobados. Edita los que no se vean bien, agrega comentarios si quieres, y haz clic en Aprobar cuando estén listos.' },
+  viewOnlyBanner: { en: "You have view-only access — you can see these prompts but can't edit or approve them.", es: 'Tienes acceso de solo lectura — puedes ver estos prompts pero no puedes editarlos ni aprobarlos.' },
+  pageTitle: { en: 'Review your GEO audit prompts', es: 'Revisa los prompts de tu auditoría GEO' },
+  pageSub: { en: (c) => `These are the questions we'll ask Claude, ChatGPT, and Gemini to see how ${c} shows up. Edit any prompt directly, or leave a comment below, before we run the audit.`, es: (c) => `Estas son las preguntas que le haremos a Claude, ChatGPT y Gemini para ver cómo aparece ${c}. Edita cualquier prompt directamente, o deja un comentario abajo, antes de correr la auditoría.` },
+  commentsTitle: { en: 'Comments (optional)', es: 'Comentarios (opcional)' },
+  commentsPlaceholder: { en: "Anything you'd like us to change or double check?", es: '¿Algo que quieras que cambiemos o verifiquemos?' },
+  saveApproveBtn: { en: '✓ Save & Approve', es: '✓ Guardar y Aprobar' },
+  saving: { en: 'Saving...', es: 'Guardando...' },
+  failedToSave: { en: 'Failed to save: ', es: 'Error al guardar: ' },
+  catBrand: { en: 'About your brand', es: 'Sobre tu marca' },
+  catCategory: { en: 'General category searches', es: 'Búsquedas generales de categoría' },
+  catProblem: { en: 'Problem-based searches', es: 'Búsquedas basadas en problemas' },
+  catCompetitor: { en: 'Competitor comparisons', es: 'Comparaciones con competidores' },
+  catPersona: { en: 'Buyer persona searches', es: 'Búsquedas por perfil de comprador' },
+  catOther: { en: 'Other', es: 'Otros' }
+};
+let lang = localStorage.getItem('hieronymus_lang') || 'es';
+function t(key, ...args) {
+  const val = T[key][lang];
+  return typeof val === 'function' ? val(...args) : val;
+}
+function applyStaticLang() {
+  document.getElementById('logo-sub').textContent = t('logoSub');
+  document.getElementById('gate-title').textContent = t('gateTitle');
+  document.getElementById('gate-desc').textContent = t('gateDesc');
+  document.getElementById('gate-username-input').placeholder = t('usernamePlaceholder');
+  document.getElementById('gate-password-input').placeholder = t('passwordPlaceholder');
+  document.getElementById('gate-continue-btn').textContent = t('continueBtn');
+  document.getElementById('lang-btn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('lang-btn-es').classList.toggle('active', lang === 'es');
+}
+function setLang(newLang) {
+  lang = newLang;
+  localStorage.setItem('hieronymus_lang', lang);
+  applyStaticLang();
+  if (document.getElementById('main-content').style.display === 'block') loadPrompts();
+}
+
+async function submitGate() {
+  const userInput = document.getElementById('gate-username-input');
+  const passInput = document.getElementById('gate-password-input');
+  const errEl = document.getElementById('gate-error');
+  const username = userInput.value.trim().toLowerCase();
+  const password = passInput.value.trim();
+  errEl.textContent = '';
+  if (!username || !password) {
+    errEl.textContent = t('enterCreds');
+    return;
+  }
+  try {
+    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+    if (!res.ok) throw new Error('bad credentials');
+    const data = await res.json();
+    clientCompany = data.company || '';
+    clientUsername = username;
+    clientPassword = password;
+    clientRole = data.role || 'full';
+    sessionStorage.setItem('geo_review_username', username);
+    sessionStorage.setItem('geo_review_password', password);
+    showApp();
+  } catch {
+    errEl.textContent = t('invalidCreds');
+    passInput.classList.add('error');
+  }
+}
+
+function showApp() {
+  document.getElementById('access-gate').style.display = 'none';
+  document.getElementById('main-content').style.display = 'block';
+  document.getElementById('logout-btn').style.display = '';
+  loadPrompts();
+}
+
+function clientLogout() {
+  sessionStorage.removeItem('geo_review_username');
+  sessionStorage.removeItem('geo_review_password');
+  location.reload();
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+function catLabels() {
+  return { CAT1: t('catBrand'), CAT2: t('catCategory'), CAT3: t('catProblem'), CAT4: t('catCompetitor'), CAT5: t('catPersona') };
+}
+
+let currentItems = []; // [{ cat, text }], in original order — the source of truth while editing
+
+function parsePrompts(text) {
+  return text.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+    const m = line.match(/^(CAT[1-5]):\s*(.*)$/i);
+    return { cat: m ? m[1].toUpperCase() : 'OTHER', text: m ? m[2] : line };
+  });
+}
+
+function groupByLabel(items) {
+  const labels = catLabels();
+  const groups = {};
+  items.forEach((item, idx) => {
+    const label = labels[item.cat] || t('catOther');
+    if (!groups[label]) groups[label] = [];
+    groups[label].push({ ...item, idx });
+  });
+  return groups;
+}
+
+async function loadPrompts() {
+  const main = document.getElementById('main-content');
+  main.innerHTML = `<div class="page-title">${esc(clientCompany)}</div><div class="empty-state">${t('loading')}</div>`;
+
+  let record;
+  try {
+    const res = await fetch('/api/prompts?company=' + encodeURIComponent(clientCompany));
+    if (res.status === 404) {
+      main.innerHTML = `<div class="page-title">${esc(clientCompany)}</div><div class="empty-state">${t('notReady')}</div>`;
+      return;
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    record = await res.json();
+  } catch (err) {
+    main.innerHTML = `<div class="empty-state">${t('failedToLoad')}${esc(err.message)}</div>`;
+    return;
+  }
+
+  currentItems = parsePrompts(record.promptsText || '');
+  const groups = groupByLabel(currentItems);
+  const banner = record.approvedAt
+    ? `<div class="status-banner status-approved">${t('approvedOn')}${esc(new Date(record.approvedAt).toLocaleDateString())}${record.comments ? t('yourComments') + esc(record.comments) + '”' : ''}</div>`
+    : `<div class="status-banner status-pending">${t('pendingBanner')}</div>`;
+
+  const viewer = clientRole === 'viewer';
+  main.innerHTML = `
+    <div class="page-title">${t('pageTitle')}</div>
+    <div class="page-sub">${t('pageSub', esc(clientCompany))}</div>
+    ${viewer ? `<div class="status-banner status-pending">${t('viewOnlyBanner')}</div>` : ''}
+    ${banner}
+    <div class="card">
+      ${Object.keys(groups).map(label => `
+        <div class="cat-group">
+          <div class="cat-label">${esc(label)}</div>
+          ${groups[label].map(p => `<div class="prompt-line"><textarea class="prompt-input" rows="1" data-idx="${p.idx}" oninput="autoGrowPromptInput(this)" ${viewer ? 'disabled' : ''}>${esc(p.text)}</textarea></div>`).join('')}
+        </div>
+      `).join('')}
+    </div>
+    ${viewer ? '' : `
+    <div class="card">
+      <div class="card-title" style="margin-bottom:12px;">${t('commentsTitle')}</div>
+      <textarea id="comments-input" placeholder="${t('commentsPlaceholder')}">${esc(record.comments || '')}</textarea>
+      <div style="margin-top:16px;">
+        <button class="btn-accent" style="width:auto;" id="approve-btn" onclick="approvePrompts()">${t('saveApproveBtn')}</button>
+      </div>
+    </div>
+    `}
+  `;
+  document.querySelectorAll('.prompt-input').forEach(autoGrowPromptInput);
+}
+
+function autoGrowPromptInput(el) {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+
+async function approvePrompts() {
+  const btn = document.getElementById('approve-btn');
+  const comments = document.getElementById('comments-input').value.trim();
+  document.querySelectorAll('.prompt-input').forEach(input => {
+    const idx = parseInt(input.dataset.idx, 10);
+    currentItems[idx].text = input.value.trim();
+  });
+  const promptsText = currentItems.map(item => `${item.cat}: ${item.text}`).join('\n');
+
+  btn.disabled = true;
+  btn.textContent = t('saving');
+  try {
+    const res = await fetch('/api/prompts', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company: clientCompany, comments, promptsText, requestingUsername: clientUsername, requestingPassword: clientPassword })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await loadPrompts();
+  } catch (err) {
+    alert(t('failedToSave') + err.message);
+    btn.disabled = false;
+    btn.textContent = t('saveApproveBtn');
+  }
+}
+
+applyStaticLang();
+
+(async function initGate() {
+  const params = new URLSearchParams(location.search);
+  const usernameFromUrl = params.get('username');
+
+  // Staff already logged into the internal Portal can open a customer's link straight
+  // through, without also needing that customer's own password.
+  if (usernameFromUrl && localStorage.getItem('hieronymus_internal_auth') === 'true') {
+    try {
+      const res = await fetch('/api/intake-codes');
+      const data = await res.json();
+      const group = (data.items || []).find(i => findMember(i, usernameFromUrl));
+      if (group) {
+        clientCompany = group.company || '';
+        // Staff bypass: full unrestricted access regardless of the member's own role, and no
+        // member credentials are sent with the approve call below (isBlockedViewer treats a
+        // missing requestingUsername as "not a member request, let it through").
+        clientRole = 'full';
+        clientUsername = '';
+        clientPassword = '';
+        showApp();
+        return;
+      }
+    } catch { /* fall through to the normal client login gate */ }
+  }
+
+  if (usernameFromUrl) {
+    const userInput = document.getElementById('gate-username-input');
+    if (userInput) userInput.value = usernameFromUrl;
+  }
+  const usernameToTry = sessionStorage.getItem('geo_review_username');
+  const passwordToTry = sessionStorage.getItem('geo_review_password');
+  if (usernameToTry && passwordToTry) {
+    document.getElementById('gate-username-input').value = usernameToTry;
+    document.getElementById('gate-password-input').value = passwordToTry;
+    submitGate();
+  }
+})();
+</script>
+</body>
+</html>

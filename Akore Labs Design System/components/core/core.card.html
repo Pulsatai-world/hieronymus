@@ -1,0 +1,72 @@
+<!-- @dsCard group="Components" viewport="700x560" name="Core — buttons, badges, inputs" subtitle="Buttons, badges, inputs, cards, stats & eyebrows" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="../../styles.css" />
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>
+  body{margin:0;background:var(--bg-canvas);font-family:var(--font-body);color:var(--text-body)}
+  .wrap{padding:26px 28px;display:flex;flex-direction:column;gap:22px}
+  .row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+  .grp{display:flex;flex-direction:column;gap:10px}
+  .lbl{font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--text-muted)}
+</style>
+</head>
+<body>
+<div id="root" class="wrap"></div>
+<script type="text/babel">
+const { Button, Badge, Input, Card, Stat, Eyebrow, Icon } = window.AkoreLabsDesignSystem_192c69;
+function Demo(){
+  return (
+    <React.Fragment>
+      <div className="grp">
+        <span className="lbl">Buttons</span>
+        <div className="row">
+          <Button variant="primary" iconRight={<Icon name="arrow-right" size={17} />}>Book an audit</Button>
+          <Button variant="accent">Get results</Button>
+          <Button variant="secondary">Case studies</Button>
+          <Button variant="ghost">Learn more</Button>
+          <Button variant="primary" size="sm">Small</Button>
+          <Button variant="primary" disabled>Disabled</Button>
+        </div>
+      </div>
+      <div className="grp">
+        <span className="lbl">Badges</span>
+        <div className="row">
+          <Badge tone="violet">GEO</Badge>
+          <Badge tone="emerald" dot>Live audit</Badge>
+          <Badge tone="neutral">Case study</Badge>
+          <Badge tone="solid">Featured</Badge>
+          <Badge tone="outline">Draft</Badge>
+        </div>
+      </div>
+      <div className="row" style={{alignItems:'flex-start',gap:'20px'}}>
+        <div className="grp" style={{flex:'1 1 240px'}}>
+          <span className="lbl">Input</span>
+          <Input label="Work email" placeholder="you@company.com" iconLeft={<Icon name="mail" size={17} />} hint="We reply within one business day." />
+        </div>
+        <div className="grp" style={{flex:'0 0 auto'}}>
+          <span className="lbl">Stat</span>
+          <Stat value="3.4×" label="AI mentions" accent="emerald" />
+        </div>
+      </div>
+      <div className="grp">
+        <span className="lbl">Card + Eyebrow</span>
+        <Card variant="raised" interactive padding="22px" style={{maxWidth:'360px'}}>
+          <Eyebrow marker="tick">Generative Engine Optimization</Eyebrow>
+          <h3 style={{fontFamily:'var(--font-display)',margin:'10px 0 6px',fontSize:'20px',color:'var(--text-strong)',letterSpacing:'-0.01em'}}>Get found inside the answer</h3>
+          <p style={{margin:0,fontSize:'14px',color:'var(--text-muted)'}}>We make your brand the source AI engines cite.</p>
+        </Card>
+      </div>
+    </React.Fragment>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script>
+</body>
+</html>

@@ -3,746 +3,240 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hieronymus — GEO Audit Engine</title>
+<title>Akore Labs — Customer Detail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <script>
-// ── PASSWORD GATE ──
-// Change this to your own password before deploying
-const ACCESS_PASSWORD = 'GEO2026!js';
-const SESSION_KEY = 'hieronymus_auth';
+const SESSION_KEY = 'hieronymus_internal_auth'; // shared with portal.html/intake-view.html — log in once, stay in across all three
+const USER_KEY = 'hieronymus_internal_user';
+const ROLE_KEY = 'hieronymus_internal_role';
 
 function checkAuth() {
-  if (sessionStorage.getItem(SESSION_KEY) === 'true') return true;
-  return false;
+  return localStorage.getItem(SESSION_KEY) === 'true';
 }
+function isAdmin() {
+  return localStorage.getItem(ROLE_KEY) === 'admin';
+}
+function staffLogout() {
+  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(ROLE_KEY);
+  sessionStorage.removeItem('geo_staff_password');
+  location.href = '/portal.html';
+}
+
+const GATE_T = {
+  title: { en: 'Akore Labs', es: 'Akore Labs' },
+  sub: { en: 'GEO Audit Engine — Restricted Access', es: 'Motor de Auditoría GEO — Acceso Restringido' },
+  userPlaceholder: { en: 'Username', es: 'Usuario' },
+  placeholder: { en: 'Password', es: 'Contraseña' },
+  accessBtn: { en: 'Access Tool →', es: 'Acceder →' },
+  error: { en: 'Incorrect username or password. Try again.', es: 'Usuario o contraseña incorrectos. Intenta de nuevo.' },
+  footer: { en: 'Akore Labs — Internal Use Only', es: 'Akore Labs — Uso Interno Únicamente' }
+};
+function gt(key) { return GATE_T[key][localStorage.getItem('hieronymus_lang') || 'es']; }
 
 function showPasswordGate() {
+  const curLang = localStorage.getItem('hieronymus_lang') || 'es';
+  // Only <body> is replaced here — the page's own <style> block (in <head>) stays active, so
+  // this reuses the exact same classes (.card, .btn, .lang-toggle, .logo-icon) as the rest of
+  // the app, rather than a separately-themed gate design.
   document.body.innerHTML = `
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { background: #0c0c0e; min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Space Mono', monospace; }
-      .gate { width: 100%; max-width: 380px; padding: 24px; }
-      .gate-icon { width: 56px; height: 56px; background: rgba(124,107,255,0.12); border: 1px solid rgba(124,107,255,0.4); border-radius: 14px; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; color: #7c6bff; letter-spacing: -1px; }
-      .gate-title { font-family: 'Syne', sans-serif; font-size: 24px; font-weight: 800; color: #f0f0f0; text-align: center; margin-bottom: 6px; letter-spacing: -0.5px; }
-      .gate-sub { font-size: 11px; color: rgba(240,240,240,0.4); text-align: center; margin-bottom: 32px; text-transform: uppercase; letter-spacing: 1px; }
-      .gate-input { width: 100%; background: #141416; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 13px 16px; font-family: 'Space Mono', monospace; font-size: 14px; color: #f0f0f0; outline: none; text-align: center; letter-spacing: 3px; transition: border-color 0.15s, box-shadow 0.15s; }
-      .gate-input:focus { border-color: #7c6bff; box-shadow: 0 0 0 3px rgba(124,107,255,0.15); }
-      .gate-input.error { border-color: #ff5c5c; box-shadow: 0 0 0 3px rgba(255,92,92,0.15); animation: shake 0.3s; }
+      body { background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: var(--mono); padding: 24px; }
+      .gate-input { width: 100%; font-family: var(--mono); font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--border-bright); border-radius: var(--radius-sm); padding: 12px 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+      .gate-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+      .gate-input.error { border-color: var(--red); animation: shake 0.3s; }
       @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
-      .gate-btn { width: 100%; background: #7c6bff; color: white; border: none; border-radius: 10px; padding: 13px; font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; margin-top: 12px; transition: all 0.15s; letter-spacing: -0.2px; }
-      .gate-btn:hover { background: #6b5ce7; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(124,107,255,0.3); }
-      .gate-error { font-size: 11px; color: #ff5c5c; text-align: center; margin-top: 10px; height: 16px; }
-      .gate-footer { font-size: 10px; color: rgba(240,240,240,0.2); text-align: center; margin-top: 24px; }
     </style>
-    <div class="gate">
-      <div class="gate-icon">H</div>
-      <div class="gate-title">Hieronymus</div>
-      <div class="gate-sub">GEO Audit Engine — Restricted Access</div>
-      <input class="gate-input" id="pw-input" type="password" placeholder="Enter access code" autocomplete="off" onkeydown="if(event.key==='Enter')tryAuth()">
-      <button class="gate-btn" onclick="tryAuth()">Access Tool →</button>
-      <div class="gate-error" id="pw-error"></div>
-      <div class="gate-footer">Joe Shalita Consulting — Internal Use Only</div>
+    <div class="card" style="width:100%; max-width:380px; box-shadow:0 8px 32px rgba(27,39,51,0.10); margin-bottom:0;">
+      <div style="display:flex; justify-content:flex-end; margin-bottom:20px;">
+        <div class="lang-toggle">
+          <button class="lang-btn" id="gate-lang-en" onclick="setGateLang('en')">EN</button>
+          <button class="lang-btn" id="gate-lang-es" onclick="setGateLang('es')">ES</button>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:center; margin-bottom:20px;">
+        <div class="logo-icon" style="width:48px; height:48px;"><img src="/brand/logo-mark.png" alt="Akore Labs"></div>
+      </div>
+      <div style="font-family:var(--display); font-size:22px; font-weight:700; color:var(--text); text-align:center; margin-bottom:4px;" id="gate-title">${gt('title')}</div>
+      <div style="font-size:12px; color:var(--text-dim); text-align:center; margin-bottom:28px;" id="gate-sub">${gt('sub')}</div>
+      <input class="gate-input" id="user-input" type="text" placeholder="${gt('userPlaceholder')}" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')document.getElementById('pw-input').focus()">
+      <input class="gate-input" id="pw-input" type="password" placeholder="${gt('placeholder')}" autocomplete="current-password" style="margin-bottom:16px;" onkeydown="if(event.key==='Enter')tryAuth()">
+      <button class="btn" id="gate-access-btn" onclick="tryAuth()" style="width:100%; justify-content:center; padding:12px; font-size:14px;">${gt('accessBtn')}</button>
+      <div class="gate-error" id="pw-error" style="font-size:11px; color:var(--red); text-align:center; margin-top:10px; min-height:16px;"></div>
+      <div style="font-size:10px; color:var(--text-dim); text-align:center; margin-top:20px;" id="gate-footer">${gt('footer')}</div>
     </div>`;
-  setTimeout(() => document.getElementById('pw-input').focus(), 100);
+  document.getElementById('gate-lang-en').classList.toggle('active', curLang === 'en');
+  document.getElementById('gate-lang-es').classList.toggle('active', curLang === 'es');
+  setTimeout(() => document.getElementById('user-input').focus(), 100);
 }
 
-function tryAuth() {
-  const input = document.getElementById('pw-input');
-  const val = input.value.trim();
-  if (val === ACCESS_PASSWORD) {
-    sessionStorage.setItem(SESSION_KEY, 'true');
-    location.reload();
-  } else {
-    input.classList.add('error');
-    document.getElementById('pw-error').textContent = 'Incorrect access code. Try again.';
-    input.value = '';
-    setTimeout(() => { input.classList.remove('error'); input.focus(); }, 400);
+function setGateLang(newLang) {
+  localStorage.setItem('hieronymus_lang', newLang);
+  showPasswordGate();
+}
+
+async function tryAuth() {
+  const userInput = document.getElementById('user-input');
+  const passInput = document.getElementById('pw-input');
+  const username = userInput.value.trim().toLowerCase();
+  const password = passInput.value.trim();
+  if (!username || !password) return;
+  const errEl = document.getElementById('pw-error');
+  try {
+    let res = await fetch('/api/staff-users?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+    if (!res.ok) {
+      // Login failed — if no staff accounts exist anywhere yet, this is the very first visit:
+      // create the founding admin account with whatever was just typed, instead of erroring.
+      const listData = await (await fetch('/api/staff-users')).json().catch(() => ({ items: [] }));
+      if ((listData.items || []).length === 0) {
+        const createRes = await fetch('/api/staff-users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, role: 'admin' })
+        });
+        if (!createRes.ok) {
+          const createData = await createRes.json().catch(() => ({}));
+          throw new Error(createData.error || 'bootstrap failed');
+        }
+        res = await fetch('/api/staff-users?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+      }
+      if (!res.ok) throw new Error('bad credentials');
+    }
+    const data = await res.json();
+    localStorage.setItem(SESSION_KEY, 'true');
+    localStorage.setItem(USER_KEY, data.username);
+    localStorage.setItem(ROLE_KEY, data.role);
+    sessionStorage.setItem('geo_staff_password', password);
+    // Portal (customer list/search/create) is the real "home" — only stay on this page if a
+    // specific customer was already requested (e.g. a bookmarked/shared link with ?company=).
+    if (new URLSearchParams(location.search).get('company')) {
+      location.reload();
+    } else {
+      location.href = '/portal.html';
+    }
+  } catch (err) {
+    passInput.classList.add('error');
+    errEl.textContent = err.message === 'bad credentials' || !err.message ? gt('error') : err.message;
+    passInput.value = '';
+    setTimeout(() => { passInput.classList.remove('error'); passInput.focus(); }, 400);
   }
 }
 
-// Run gate check immediately
 if (!checkAuth()) {
   document.addEventListener('DOMContentLoaded', showPasswordGate);
 }
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0c0c0e;
-  --surface: #141416;
-  --surface2: #1c1c20;
-  --border: rgba(255,255,255,0.08);
-  --border-bright: rgba(255,255,255,0.15);
-  --text: #f0f0f0;
-  --text-dim: rgba(240,240,240,0.45);
-  --text-mid: rgba(240,240,240,0.7);
-  --accent: #7c6bff;
-  --accent-glow: rgba(124,107,255,0.2);
-  --accent-dim: rgba(124,107,255,0.12);
-  --green: #00d48a;
-  --green-dim: rgba(0,212,138,0.12);
-  --red: #ff5c5c;
-  --red-dim: rgba(255,92,92,0.12);
-  --yellow: #ffd166;
-  --yellow-dim: rgba(255,209,102,0.12);
-  --radius: 12px;
+  --navy: #6d4fe0;
+  --violet-700: #4834b0;
+  --violet-100: #ece7fd;
+  --violet-50: #f6f3fe;
+  --emerald-700: #0f7d5b;
+  --emerald-100: #d5f4e8;
+  --bg: #f4f6f8;
+  --surface: #FFFFFF;
+  --surface2: #f4f2fb;
+  --border: #e3e6ea;
+  --border-bright: #c3c8d0;
+  --text: #08090c;
+  --text-dim: #757f8f;
+  --text-mid: #3d4653;
+  --accent: #6d4fe0;
+  --accent-glow: rgba(109,79,224,0.18);
+  --accent-dim: rgba(109,79,224,0.10);
+  --focus-ring: rgba(109,79,224,0.35);
+  --green: #0f7d5b;
+  --green-dim: #eefaf4;
+  --yellow: #8a6a12;
+  --yellow-dim: #fbf1de;
+  --red: #b03a3a;
+  --red-dim: #fce9e9;
+  --radius-xs: 4px;
   --radius-sm: 8px;
-  --mono: 'Space Mono', monospace;
-  --display: 'Syne', sans-serif;
+  --radius-md: 12px;
+  --radius: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+  --shadow-xs: 0 1px 2px rgba(16,19,25,0.06);
+  --shadow-sm: 0 1px 3px rgba(16,19,25,0.08), 0 1px 2px rgba(16,19,25,0.04);
+  --shadow-md: 0 6px 16px rgba(16,19,25,0.08), 0 2px 4px rgba(16,19,25,0.04);
+  --shadow-lg: 0 18px 40px rgba(16,19,25,0.12), 0 6px 12px rgba(16,19,25,0.06);
+  --shadow-brand: 0 12px 30px rgba(109,79,224,0.28);
+  --shadow-accent: 0 12px 30px rgba(30,169,124,0.24);
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --fs-h1: 2.5rem;
+  --fs-h2: 1.5rem;
+  --fs-h3: 1.125rem;
+  --fs-eyebrow: 0.6875rem;
+  --mono: "Manrope","Helvetica Neue",Arial,sans-serif;
+  --display: "Montserrat","Helvetica Neue",Arial,sans-serif;
 }
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  font-family: var(--mono);
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-/* ── NOISE OVERLAY ── */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 1000;
-  opacity: 0.4;
-}
-
-/* ── HEADER ── */
+body { font-family: var(--mono); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 13px; line-height: 1.6; }
 .header {
-  border-bottom: 1px solid var(--border);
-  padding: 20px 40px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0;
-  background: rgba(12,12,14,0.9);
-  backdrop-filter: blur(20px);
-  z-index: 100;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.logo-icon {
-  width: 38px;
-  height: 38px;
-  background: var(--accent-dim);
-  border: 1px solid var(--accent);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--display);
-  font-weight: 800;
-  font-size: 16px;
-  color: var(--accent);
-  letter-spacing: -1px;
-}
-
-.logo-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.logo-name {
-  font-family: var(--display);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.3px;
-}
-
-.logo-sub {
-  font-size: 10px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.status-pill {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  background: var(--green-dim);
-  border: 1px solid rgba(0,212,138,0.25);
-  border-radius: 20px;
-  padding: 5px 12px;
-  font-size: 11px;
-  color: var(--green);
-  font-family: var(--mono);
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--green);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-/* ── LAYOUT ── */
-.main {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 40px 24px 80px;
-}
-
-/* ── HERO ── */
-.hero {
-  margin-bottom: 40px;
-  padding-bottom: 40px;
-  border-bottom: 1px solid var(--border);
-}
-
-.hero-eyebrow {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: var(--accent);
-  margin-bottom: 12px;
-}
-
-.hero-title {
-  font-family: var(--display);
-  font-size: 42px;
-  font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: -1.5px;
-  margin-bottom: 14px;
-  background: linear-gradient(135deg, #f0f0f0 0%, rgba(240,240,240,0.6) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.hero-desc {
-  font-size: 14px;
-  color: var(--text-mid);
-  max-width: 560px;
-  line-height: 1.7;
-}
-
-/* ── CARDS ── */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
-  margin-bottom: 16px;
-}
-
-.card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-
-.card-label {
-  font-family: var(--display);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.card-num {
-  font-size: 11px;
-  color: var(--accent);
-  background: var(--accent-dim);
-  border: 1px solid rgba(124,107,255,0.25);
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-family: var(--mono);
-}
-
-/* ── FIELDS ── */
-.field { margin-bottom: 18px; }
-.field:last-child { margin-bottom: 0; }
-
-label {
-  display: block;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--text-dim);
-  margin-bottom: 7px;
-}
-
-input[type="text"],
-input[type="password"],
-textarea,
-select {
-  width: 100%;
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border-bright);
-  border-radius: var(--radius-sm);
-  padding: 10px 14px;
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  appearance: none;
-}
-
-input[type="text"]:focus,
-input[type="password"]:focus,
-textarea:focus,
-select:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
-}
-
-textarea {
-  min-height: 160px;
-  resize: vertical;
-  line-height: 1.7;
-}
-
-.field-hint {
-  font-size: 11px;
-  color: var(--text-dim);
-  margin-top: 6px;
-  line-height: 1.5;
-}
-
-.two-col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-/* ── PROMPT COUNTER ── */
-.prompt-stats {
-  display: flex;
-  gap: 20px;
-  margin-top: 10px;
-}
-
-.stat-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: var(--text-dim);
-}
-
-.stat-val {
-  font-family: var(--display);
-  font-weight: 700;
-  font-size: 16px;
-  color: var(--accent);
-}
-
-/* ── SHEETS CONFIG ── */
-.sheets-info {
-  background: var(--yellow-dim);
-  border: 1px solid rgba(255,209,102,0.2);
-  border-radius: var(--radius-sm);
-  padding: 14px 16px;
-  font-size: 12px;
-  color: var(--yellow);
-  line-height: 1.6;
-  margin-bottom: 18px;
-}
-
-.sheets-info code {
-  background: rgba(255,209,102,0.15);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-family: var(--mono);
-}
-
-/* ── RUN BUTTON ── */
-.run-btn {
-  width: 100%;
-  background: var(--accent);
-  color: white;
-  border: none;
-  border-radius: var(--radius);
-  padding: 16px 24px;
-  font-family: var(--display);
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.run-btn:hover {
-  background: #6b5ce7;
-  transform: translateY(-1px);
-  box-shadow: 0 8px 24px rgba(124,107,255,0.3);
-}
-
-.run-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-/* ── PROGRESS ── */
-.progress-section {
-  display: none;
-  margin-top: 24px;
-}
-
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.progress-title {
-  font-family: var(--display);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.progress-pct {
-  font-size: 12px;
-  color: var(--accent);
-  font-family: var(--mono);
-}
-
-.progress-track {
-  height: 4px;
-  background: var(--surface2);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-bottom: 16px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--green));
-  border-radius: 2px;
-  transition: width 0.3s ease;
-  width: 0%;
-}
-
-/* ── LOG ── */
-.log-container {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 16px;
-  max-height: 300px;
-  overflow-y: auto;
-  font-family: var(--mono);
-  font-size: 11px;
-  line-height: 1.8;
-}
-
-.log-entry {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-  padding: 3px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
-}
-
-.log-time {
-  color: var(--text-dim);
-  flex-shrink: 0;
-  width: 70px;
-}
-
-.log-msg { flex: 1; color: var(--text-mid); }
-.log-cited { color: var(--green); }
-.log-not-cited { color: var(--red); }
-.log-error { color: var(--yellow); }
-.log-info { color: var(--accent); }
-
-/* ── RESULTS ── */
-.results-section {
-  display: none;
-  margin-top: 32px;
-}
-
-.results-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
-
-.results-title {
-  font-family: var(--display);
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-}
-
-/* ── SCORE DISPLAY ── */
-.score-display {
-  display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: 24px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 28px;
-  margin-bottom: 20px;
-}
-
-.score-circle-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.score-circle {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border: 3px solid var(--accent);
-  background: var(--accent-dim);
-  box-shadow: 0 0 30px var(--accent-glow);
-}
-
-.score-num {
-  font-family: var(--display);
-  font-size: 36px;
-  font-weight: 800;
-  color: var(--accent);
-  line-height: 1;
-}
-
-.score-label {
-  font-size: 10px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.score-company {
-  font-family: var(--display);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-mid);
-  text-align: center;
-}
-
-.score-breakdown {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 12px;
-}
-
-.score-cat {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.score-cat-name {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  width: 130px;
-  flex-shrink: 0;
-}
-
-.score-bar-track {
-  flex: 1;
-  height: 6px;
-  background: var(--surface2);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.score-bar-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
-}
-
-.score-cat-val {
-  font-family: var(--display);
-  font-weight: 700;
-  font-size: 13px;
-  width: 40px;
-  text-align: right;
-  flex-shrink: 0;
-}
-
-/* ── RESULTS TABLE ── */
-.results-table-wrap {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  margin-bottom: 20px;
-}
-
-.results-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.results-table th {
-  background: var(--surface2);
-  padding: 10px 14px;
-  text-align: left;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--text-dim);
-  border-bottom: 1px solid var(--border);
-  font-family: var(--mono);
-}
-
-.results-table td {
-  padding: 10px 14px;
-  font-size: 12px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-  color: var(--text-mid);
-}
-
-.results-table tr:last-child td { border-bottom: none; }
-.results-table tr:hover td { background: rgba(255,255,255,0.02); }
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.badge-cited { background: var(--green-dim); color: var(--green); border: 1px solid rgba(0,212,138,0.25); }
-.badge-not { background: var(--red-dim); color: var(--red); border: 1px solid rgba(255,92,92,0.25); }
-.badge-brand { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(124,107,255,0.25); }
-.badge-category { background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(255,209,102,0.25); }
-.badge-problem { background: rgba(255,92,92,0.1); color: #ff9090; border: 1px solid rgba(255,92,92,0.2); }
-.badge-competitor { background: rgba(0,200,255,0.1); color: #00c8ff; border: 1px solid rgba(0,200,255,0.2); }
-.badge-persona { background: rgba(255,150,50,0.1); color: #ffa050; border: 1px solid rgba(255,150,50,0.2); }
-
-/* ── EXPORT BUTTONS ── */
-.export-row {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--mono);
-  font-size: 12px;
-  padding: 10px 18px;
-  border-radius: var(--radius-sm);
-  border: none;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-green {
-  background: var(--green-dim);
-  color: var(--green);
-  border: 1px solid rgba(0,212,138,0.3);
-}
-
-.btn-green:hover { background: rgba(0,212,138,0.18); }
-
-.btn-ghost {
-  background: var(--surface2);
-  color: var(--text-mid);
-  border: 1px solid var(--border-bright);
-}
-
-.btn-ghost:hover { background: rgba(255,255,255,0.06); }
-
-/* ── COLLAPSIBLE RESPONSE ── */
-.response-toggle {
-  cursor: pointer;
-  color: var(--accent);
-  font-size: 11px;
-  text-decoration: underline;
-  background: none;
-  border: none;
-  font-family: var(--mono);
-  padding: 0;
-}
-
-.response-text {
-  display: none;
-  margin-top: 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 10px;
-  font-size: 11px;
-  color: var(--text-dim);
-  line-height: 1.6;
-  max-height: 120px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-}
-
-/* ── ALERT ── */
-.alert {
-  padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  margin-bottom: 16px;
-  line-height: 1.5;
-}
-
-.alert-info {
-  background: var(--accent-dim);
-  border: 1px solid rgba(124,107,255,0.25);
-  color: #a89dff;
-}
-
-/* ── RESPONSIVE ── */
+  border-bottom: 1px solid var(--border); padding: 20px 40px; display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; background: rgba(255,255,255,0.92); backdrop-filter: blur(20px); z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 14px; }
+.logo-lockup { height: 38px; width: auto; display: block; image-rendering: -webkit-optimize-contrast; }
+.logo-icon { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; }
+.logo-icon img { width: 100%; height: 100%; object-fit: contain; }
+.logo-name { font-family: var(--display); font-size: 16px; font-weight: 700; color: var(--text); }
+.logo-sub { font-size: var(--fs-eyebrow); font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.16em; display: flex; align-items: center; gap: 10px; }
+.logo-sub::before { content: ""; display: inline-block; width: 22px; height: 2px; background: var(--accent); border-radius: 2px; flex-shrink: 0; }
+.logo-divider { width: 1px; height: 18px; background: var(--border-bright); }
+.nav-link { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text-mid); text-decoration: none; border: 1px solid var(--border-bright); border-radius: var(--radius-pill); padding: 8px 16px; transition: all var(--dur-base) var(--ease-standard); }
+.nav-link:hover { background: var(--surface2); color: var(--text); }
+.main { max-width: 900px; margin: 0 auto; padding: 48px 24px 80px; }
+.company-picker { display: flex; gap: 10px; align-items: center; margin-bottom: 24px; }
+.company-picker select { font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--radius-md); padding: 10px 14px; outline: none; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); min-width: 220px; }
+.company-picker select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+.page-title { font-family: var(--display); font-size: var(--fs-h2); font-weight: 700; color: var(--text); margin-bottom: 20px; letter-spacing: -0.01em; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 18px; box-shadow: var(--shadow-sm); }
+.card-title { font-family: var(--display); font-size: var(--fs-h3); font-weight: 700; color: var(--text); margin-bottom: 4px; letter-spacing: -0.01em; }
+.card-caption { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: var(--radius-pill); letter-spacing: 0.02em; white-space: nowrap; }
+.badge-submitted, .badge-done { background: var(--emerald-100); color: var(--emerald-700); }
+.badge-pending { background: var(--surface2); color: var(--text-dim); }
+.badge-partial { background: var(--yellow-dim); color: var(--yellow); }
+.badge-error { background: var(--red-dim); color: var(--red); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--mono); font-weight: 600; font-size: 13px; letter-spacing: 0.01em; padding: 11px 20px; min-height: 40px; border-radius: var(--radius-pill); border: none; cursor: pointer; background: var(--navy); color: white; box-shadow: var(--shadow-sm); transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-fast) var(--ease-standard); white-space: nowrap; text-decoration: none; }
+.btn:hover { background: var(--violet-700); box-shadow: var(--shadow-brand); }
+.btn:active { transform: translateY(1px); }
+.btn-ghost { background: transparent; color: var(--navy); border: 1px solid var(--border-bright); box-shadow: none; }
+.btn-ghost:hover { background: var(--violet-50); box-shadow: none; }
+.btn-sm { padding: 8px 16px; font-size: 11px; min-height: 34px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.field-hint { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+.progress-wrap { width: 100%; height: 6px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin-top: 10px; }
+.progress-bar { height: 100%; background: var(--accent); transition: width 0.3s; }
+table { width: 100%; border-collapse: collapse; }
+th { background: var(--surface2); padding: 8px 12px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-dim); border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--border); color: var(--text-mid); }
+tr:last-child td { border-bottom: none; }
+.empty-state { text-align: center; padding: 30px 20px; color: var(--text-dim); font-size: 13px; }
+code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--radius-xs); }
+.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(8,9,12,0.5); align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+.modal-backdrop.open { display: flex; }
+.modal-box { background: var(--surface); border-radius: var(--radius); padding: 28px; width: 100%; max-width: 440px; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-dim); margin-bottom: 7px; }
+.field input, .field select { width: 100%; font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--radius-md); padding: 11px 14px; outline: none; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
+.field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; transform: none; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.lang-toggle { display: flex; border: 1px solid var(--border-bright); border-radius: var(--radius-pill); overflow: hidden; }
+.lang-btn { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-mid); background: var(--surface); border: none; padding: 6px 12px; cursor: pointer; }
+.lang-btn.active { background: var(--accent); color: #fff; }
 @media (max-width: 640px) {
-  .header { padding: 16px; }
-  .main { padding: 24px 16px 60px; }
-  .hero-title { font-size: 28px; }
-  .two-col { grid-template-columns: 1fr; }
-  .score-display { grid-template-columns: 1fr; }
+  .header { padding: 14px 16px; flex-wrap: wrap; row-gap: 8px; }
+  .logo-sub, .logo-divider { display: none; }
+  .header-right { flex-wrap: wrap; row-gap: 8px; justify-content: flex-end; }
 }
 </style>
 </head>
@@ -750,610 +244,588 @@ textarea {
 
 <header class="header">
   <div class="logo">
-    <div class="logo-icon">H</div>
-    <div class="logo-text">
-      <span class="logo-name">Hieronymus</span>
-      <span class="logo-sub">GEO Audit Engine v1.0</span>
-    </div>
+    <img class="logo-lockup" src="/brand/logo-horizontal-light.png" alt="Akore Labs">
+    <span class="logo-divider"></span>
+    <div class="logo-sub" data-t="logoSub">Customer Detail</div>
   </div>
-  <div class="status-pill">
-    <div class="status-dot"></div>
-    Ready
+  <div class="header-right">
+    <div class="lang-toggle">
+      <button class="lang-btn" id="lang-btn-en" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" id="lang-btn-es" onclick="setLang('es')">ES</button>
+    </div>
+    <a class="nav-link" href="/portal.html" data-t="backToPortal">← Portal</a>
+    <button class="nav-link" onclick="staffLogout()" style="cursor:pointer;" data-t="logoutBtn">Log out</button>
   </div>
 </header>
 
 <main class="main">
-
-  <div class="hero">
-    <div class="hero-eyebrow">Joe Shalita Consulting — Internal Tool</div>
-    <h1 class="hero-title">Run the audit.<br>Get the data.</h1>
-    <p class="hero-desc">Paste the prompts from the intake tool. Hieronymus runs each one against Claude with web search, checks if the target brand appears, scores each category, and exports everything to Google Sheets.</p>
+  <div class="company-picker">
+    <select id="company-select" onchange="if(this.value) location.search = '?company=' + encodeURIComponent(this.value)">
+      <option value="" data-t="selectCustomer">Select a customer…</option>
+    </select>
   </div>
-
-  <!-- STEP 1 — CONFIG -->
-  <div class="card">
-    <div class="card-header">
-      <span class="card-label">Step 1 — Configuration</span>
-      <span class="card-num">01</span>
-    </div>
-
-    <div class="two-col">
-      <div class="field">
-        <label>Target Company Name</label>
-        <input type="text" id="company-name" placeholder="e.g. Fiacsa">
-        <span class="field-hint">Exact name as it should appear in AI responses</span>
-      </div>
-      <div class="field">
-        <label>Also check for these name variants</label>
-        <input type="text" id="company-variants" placeholder="e.g. fiacsa.mx, Fuerza Industrial">
-        <span class="field-hint">Comma separated — domain, abbreviation, full legal name</span>
-      </div>
-    </div>
-
-    <div class="field">
-      <label>Claude API Key</label>
-      <input type="password" id="api-key" placeholder="sk-ant-...">
-      <span class="field-hint">Never stored. Used only for this session. Get yours at console.anthropic.com</span>
-    </div>
-  </div>
-
-  <!-- STEP 2 — GOOGLE SHEETS -->
-  <div class="card">
-    <div class="card-header">
-      <span class="card-label">Step 2 — Google Sheets Output</span>
-      <span class="card-num">02</span>
-    </div>
-
-    <div class="sheets-info">
-      <strong>Setup required once:</strong> Create a Google Sheet and deploy a Google Apps Script as a web app to receive data. 
-      Paste the script URL below. Each prompt result gets logged as a row with: timestamp, prompt, category, language, cited (yes/no), brand cited instead, response excerpt, score.
-      <br><br>
-      <strong>Apps Script to deploy:</strong> Copy the script from the <code>📋 Copy Apps Script</code> button below and deploy it in your Google Sheet (Extensions → Apps Script → Deploy as Web App → Anyone).
-    </div>
-
-    <div class="field">
-      <label>Google Apps Script Web App URL</label>
-      <input type="text" id="sheets-url" placeholder="https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec">
-      <span class="field-hint">Leave blank to run without logging to Sheets (results still shown below)</span>
-    </div>
-
-    <button class="btn btn-ghost" onclick="copyAppsScript()" style="margin-top: 4px;">
-      📋 Copy Apps Script
-    </button>
-  </div>
-
-  <!-- STEP 3 — PROMPTS -->
-  <div class="card">
-    <div class="card-header">
-      <span class="card-label">Step 3 — Paste Your Prompts</span>
-      <span class="card-num">03</span>
-    </div>
-
-    <div class="alert alert-info">
-      Paste the prompts generated by the intake tool. Each prompt on its own line. Include the category prefix format: <strong>CAT1:</strong>, <strong>CAT2:</strong>, <strong>CAT3:</strong>, <strong>CAT4:</strong>, <strong>CAT5:</strong> — or Hieronymus will auto-detect the category from position.
-    </div>
-
-    <div class="field">
-      <label>Prompts (one per line)</label>
-      <textarea id="prompts-input" placeholder="CAT1: Who is Fiacsa?
-CAT1: What is Fiacsa hydraulics?
-CAT1: Fiacsa Toluca reviews
-CAT2: hydraulic pump repair Toluca Mexico
-CAT2: sistemas hidráulicos industriales Toluca
-CAT3: my hydraulic system failed who can repair it in Toluca
-CAT3: bomba hidráulica rota proveedor confiable Toluca
-CAT4: Fiacsa vs Parker Hannifin dealers Toluca
-CAT5: maintenance manager hydraulic supplier Estado de Mexico
-...paste all 100+ prompts here"></textarea>
-      <div class="prompt-stats">
-        <div class="stat-chip">
-          <span class="stat-val" id="prompt-count">0</span>
-          prompts loaded
-        </div>
-        <div class="stat-chip">
-          <span class="stat-val" id="cat-count">0</span>
-          categories detected
-        </div>
-        <div class="stat-chip">
-          Est. time: <span class="stat-val" id="est-time">—</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="field">
-      <label>Concurrency (prompts running at once)</label>
-      <select id="concurrency">
-        <option value="1" selected>1 — slowest, most reliable</option>
-        <option value="3">3 — recommended</option>
-        <option value="5">5 — faster, may hit rate limits</option>
-      </select>
-      <span class="field-hint">Start with 1. If you see rate limit errors, keep it here.</span>
-    </div>
-
-    <div class="two-col">
-      <div class="field">
-        <label>Batch size (prompts per batch)</label>
-        <select id="batch-size">
-          <option value="10">10 — safest</option>
-          <option value="20" selected>20 — recommended</option>
-          <option value="30">30</option>
-          <option value="9999">No batching — run all at once</option>
-        </select>
-        <span class="field-hint">Runs this many, then pauses before the next batch.</span>
-      </div>
-      <div class="field">
-        <label>Pause between batches (seconds)</label>
-        <select id="batch-pause">
-          <option value="30">30s</option>
-          <option value="60" selected>60s — recommended</option>
-          <option value="120">120s</option>
-        </select>
-        <span class="field-hint">Gives your rate limit window time to reset.</span>
-      </div>
-    </div>
-
-    <button class="run-btn" id="run-btn" onclick="runAudit()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-      Run Hieronymus
-    </button>
-  </div>
-
-  <!-- PROGRESS -->
-  <div class="progress-section" id="progress-section">
-    <div class="card">
-      <div class="progress-header">
-        <span class="progress-title">Running audit...</span>
-        <span class="progress-pct" id="progress-pct">0%</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="progress-fill"></div>
-      </div>
-      <div class="log-container" id="log-container"></div>
-    </div>
-  </div>
-
-  <!-- RESULTS -->
-  <div class="results-section" id="results-section">
-
-    <div class="results-header">
-      <h2 class="results-title">Audit Results</h2>
-      <div class="export-row">
-        <button class="btn btn-green" onclick="exportCSV()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Export CSV
-        </button>
-        <button class="btn btn-ghost" onclick="copyForSheets()">
-          📊 Copy for Sheets
-        </button>
-        <button class="btn btn-ghost" onclick="runAudit()">
-          ↺ Run Again
-        </button>
-      </div>
-    </div>
-
-    <!-- Score display -->
-    <div class="score-display" id="score-display">
-      <div class="score-circle-wrap">
-        <div class="score-circle">
-          <span class="score-num" id="overall-score">—</span>
-          <span class="score-label">/ 100</span>
-        </div>
-        <span class="score-company" id="score-company-name">—</span>
-      </div>
-      <div class="score-breakdown" id="score-breakdown"></div>
-    </div>
-
-    <!-- Table -->
-    <div class="results-table-wrap">
-      <table class="results-table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Category</th>
-            <th>Prompt</th>
-            <th>Cited?</th>
-            <th>Competitor Cited</th>
-            <th>Response</th>
-          </tr>
-        </thead>
-        <tbody id="results-tbody"></tbody>
-      </table>
-    </div>
-
-  </div>
-
+  <div id="main-content"><div class="empty-state" data-t="selectFromDropdown">Select a customer from the dropdown above, or open this page from the Portal.</div></div>
 </main>
 
+<div class="modal-backdrop" id="gen-modal">
+  <div class="modal-box">
+    <div class="card-title" id="gen-modal-title" data-t="generatePrompts">Generate Prompts</div>
+    <div class="card-caption" data-t="genModalCaption">These are the GEO audit prompts generated from this customer's intake answers.</div>
+    <div class="field">
+      <label data-t="promptsToGenerate">Prompts to generate</label>
+      <input type="number" id="gen-count" value="100" min="1" step="5">
+    </div>
+    <div class="field">
+      <label data-t="languagesLabel">Languages</label>
+      <div id="gen-languages" style="display:flex; flex-wrap:wrap; gap:10px 18px; padding-top:4px;">
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="English" checked style="width:auto;"> English</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="Spanish" style="width:auto;"> Spanish</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="French" style="width:auto;"> French</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="German" style="width:auto;"> German</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="Portuguese" style="width:auto;"> Portuguese</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="Italian" style="width:auto;"> Italian</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="Dutch" style="width:auto;"> Dutch</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="Mandarin Chinese" style="width:auto;"> Mandarin Chinese</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="Japanese" style="width:auto;"> Japanese</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="Korean" style="width:auto;"> Korean</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="Arabic" style="width:auto;"> Arabic</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="Hindi" style="width:auto;"> Hindi</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="Russian" style="width:auto;"> Russian</label>
+      </div>
+      <div class="field-hint" data-t="languagesHint">Select as many as you like. Prompts are split evenly across the languages chosen.</div>
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label data-t="enginesLabel">AI engines to audit with</label>
+      <div style="display:flex; gap:16px; padding-top:4px;">
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" id="gen-engine-claude" checked style="width:auto;"> Claude</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" id="gen-engine-chatgpt" checked style="width:auto;"> ChatGPT</label>
+        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" id="gen-engine-gemini" checked style="width:auto;"> Gemini</label>
+      </div>
+      <div class="field-hint" data-t="enginesHint">Only engines with an API key configured for this customer (set at customer creation in the Portal) will actually run, even if selected here.</div>
+    </div>
+
+    <div id="gen-progress-block" style="display:none; margin-top:14px;">
+      <div class="progress-wrap"><div class="progress-bar" id="gen-progress-bar" style="width:0%"></div></div>
+      <div class="field-hint" id="gen-progress-label" style="margin-top:6px;"></div>
+    </div>
+
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeGenModal()" data-t="cancelBtn">Cancel</button>
+      <button class="btn" id="gen-confirm-btn" onclick="confirmGenerate()" data-t="generateBtn">Generate</button>
+    </div>
+  </div>
+</div>
+
 <script>
-// ── STATE ──
-let results = [];
-let running = false;
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
-// ── PROMPT COUNTER ──
-document.getElementById('prompts-input').addEventListener('input', updatePromptStats);
-
-function updatePromptStats() {
-  const lines = getPrompts();
-  const count = lines.length;
-  document.getElementById('prompt-count').textContent = count;
-  const cats = new Set(lines.map(p => detectCategory(p)));
-  document.getElementById('cat-count').textContent = cats.size;
-  const secs = count * 4;
-  document.getElementById('est-time').textContent = secs < 60 ? secs + 's' : Math.ceil(secs/60) + 'm';
+const T = {
+  logoSub: { en: 'Customer Detail', es: 'Detalle del Cliente' },
+  backToPortal: { en: '← Portal', es: '← Portal' },
+  logoutBtn: { en: 'Log out', es: 'Cerrar sesión' },
+  selectCustomer: { en: 'Select a customer…', es: 'Selecciona un cliente…' },
+  selectFromDropdown: { en: 'Select a customer from the dropdown above, or open this page from the Portal.', es: 'Selecciona un cliente en el menú de arriba, o abre esta página desde el Portal.' },
+  genModalCaption: { en: "These are the GEO audit prompts generated from this customer's intake answers.", es: 'Estos son los prompts de auditoría GEO generados a partir de las respuestas del formulario de este cliente.' },
+  promptsToGenerate: { en: 'Prompts to generate', es: 'Prompts a generar' },
+  languagesLabel: { en: 'Languages', es: 'Idiomas' },
+  languagesHint: { en: 'Select as many as you like. Prompts are split evenly across the languages chosen.', es: 'Selecciona los que quieras. Los prompts se dividen en partes iguales entre los idiomas elegidos.' },
+  enginesLabel: { en: 'AI engines to audit with', es: 'Motores de IA a usar en la auditoría' },
+  enginesHint: { en: 'Only engines with an API key configured for this customer (set at customer creation in the Portal) will actually run, even if selected here.', es: 'Solo se ejecutarán los motores que tengan una clave API configurada para este cliente (definida al crear el cliente en el Portal), aunque estén seleccionados aquí.' },
+  cancelBtn: { en: 'Cancel', es: 'Cancelar' },
+  generateBtn: { en: 'Generate', es: 'Generar' },
+  loading: { en: 'Loading…', es: 'Cargando…' },
+  submittedOn: { en: 'Submitted ', es: 'Enviado ' },
+  viewResponses: { en: 'View Responses →', es: 'Ver Respuestas →' },
+  noIntakeYet: { en: 'No intake submitted yet', es: 'Aún no se ha enviado el formulario' },
+  approvedOn: { en: 'Approved ', es: 'Aprobado ' },
+  awaitingReview: { en: 'Awaiting client review', es: 'Esperando revisión del cliente' },
+  clientComments: { en: 'Client comments: ', es: 'Comentarios del cliente: ' },
+  promptsCountLine: { en: (n, langs, date) => `${n} prompts · ${langs} · generated ${date}`, es: (n, langs, date) => `${n} prompts · ${langs} · generado ${date}` },
+  regeneratePrompts: { en: 'Regenerate Prompts', es: 'Regenerar Prompts' },
+  copyReviewLink: { en: 'Copy Review Link', es: 'Copiar Enlace de Revisión' },
+  notGeneratedYet: { en: 'Not generated yet', es: 'Aún no generado' },
+  generatePrompts: { en: 'Generate Prompts', es: 'Generar Prompts' },
+  intakeTitle: { en: 'Intake', es: 'Formulario' },
+  promptsTitle: { en: 'Prompts', es: 'Prompts' },
+  auditStatusTitle: { en: 'Audit status', es: 'Estado de la auditoría' },
+  checking: { en: 'Checking…', es: 'Verificando…' },
+  runAuditBtn: { en: '▶ Run Audit', es: '▶ Ejecutar Auditoría' },
+  generateFirstTitle: { en: 'Generate prompts first', es: 'Genera los prompts primero' },
+  cancelRunBtn: { en: 'Cancel', es: 'Cancelar' },
+  resultsTitle: { en: (n, rowWord, runsPart) => `Results (${n} ${rowWord}${runsPart})`, es: (n, rowWord, runsPart) => `Resultados (${n} ${rowWord}${runsPart})` },
+  row: { en: 'row', es: 'fila' },
+  rows: { en: 'rows', es: 'filas' },
+  run: { en: 'run', es: 'ejecución' },
+  runs: { en: 'runs', es: 'ejecuciones' },
+  exportCustomerBtn: { en: '⬇ Export This Customer (CSV)', es: '⬇ Exportar Este Cliente (CSV)' },
+  clearResultsBtn: { en: 'Clear Results', es: 'Borrar Resultados' },
+  confirmClearResults: { en: (c, n) => `Permanently delete all ${n} audit result rows for ${c}? This cannot be undone — the results table and both dashboards will go back to empty for this customer. Prompts are not affected; use Regenerate Prompts separately if you want a fresh prompt set.`, es: (c, n) => `¿Eliminar permanentemente las ${n} filas de resultados de auditoría de ${c}? Esto no se puede deshacer — la tabla de resultados y ambos tableros quedarán vacíos para este cliente. Los prompts no se ven afectados; usa Regenerar Prompts por separado si quieres un nuevo conjunto de prompts.` },
+  failedToClearResults: { en: 'Failed to clear results: ', es: 'Error al borrar los resultados: ' },
+  reenterPasswordPrompt: { en: 'Re-enter your admin password to confirm:', es: 'Vuelve a ingresar tu contraseña de administrador para confirmar:' },
+  confirmRunAudit: { en: (c) => `Run a full audit for ${c} now? This calls the AI engines for every prompt and costs real API usage — make sure this is intentional.`, es: (c) => `¿Ejecutar una auditoría completa para ${c} ahora? Esto llama a los motores de IA para cada prompt y tiene un costo real de uso de API — asegúrate de que sea intencional.` },
+  thDate: { en: 'Date', es: 'Fecha' },
+  thEngine: { en: 'Engine', es: 'Motor' },
+  thPrompt: { en: 'Prompt', es: 'Prompt' },
+  thCategory: { en: 'Category', es: 'Categoría' },
+  thCited: { en: 'Cited', es: 'Citado' },
+  thSentiment: { en: 'Sentiment', es: 'Sentimiento' },
+  showingRecent: { en: (n) => `Showing the 5 most recent of ${n} rows — see the dashboards below for the full picture.`, es: (n) => `Se muestran las 5 filas más recientes de ${n} — consulta los tableros de abajo para ver el panorama completo.` },
+  noResultsYet: { en: 'No audit results yet for this customer.', es: 'Aún no hay resultados de auditoría para este cliente.' },
+  dashboardsTitle: { en: 'Dashboards', es: 'Tableros' },
+  diagnosticDashboard: { en: 'Diagnostic Dashboard →', es: 'Tablero de Diagnóstico →' },
+  monitoringDashboard: { en: 'Monitoring Dashboard →', es: 'Tablero de Monitoreo →' },
+  reviewLinkCopied: { en: 'Review link copied!', es: '¡Enlace de revisión copiado!' },
+  runningLabel: { en: 'Running', es: 'En proceso' },
+  runningDetail: { en: (c, t, ci) => `${c}/${t} (${ci} cited)`, es: (c, t, ci) => `${c}/${t} (${ci} citados)` },
+  stalledNote: { en: 'No progress for a while — this run may have stalled. You can cancel it and try again.', es: 'Sin progreso por un rato — esta ejecución podría haberse detenido. Puedes cancelarla e intentar de nuevo.' },
+  runningBtnLabel: { en: 'Running...', es: 'En proceso...' },
+  errorLabel: { en: 'Error', es: 'Error' },
+  lastRunLabel: { en: (c, ci) => `Last run: ${c} rows, ${ci} cited`, es: (c, ci) => `Última ejecución: ${c} filas, ${ci} citados` },
+  finishedAt: { en: 'finished ', es: 'terminó ' },
+  noAuditYet: { en: 'No audit run yet', es: 'Aún no se ha ejecutado ninguna auditoría' },
+  couldNotLoadStatus: { en: 'Could not load audit status.', es: 'No se pudo cargar el estado de la auditoría.' },
+  cancelConfirm: { en: "Cancel this run? If it's genuinely still active this only clears the displayed status — it won't stop already-in-flight API calls.", es: '¿Cancelar esta ejecución? Si realmente sigue activa, esto solo borra el estado mostrado — no detendrá las llamadas API que ya están en curso.' },
+  failedToCancel: { en: 'Failed to cancel: ', es: 'Error al cancelar: ' },
+  startingBtnLabel: { en: 'Starting...', es: 'Iniciando...' },
+  genModalTitle: { en: (c) => 'Generate Prompts — ' + c, es: (c) => 'Generar Prompts — ' + c },
+  selectLanguageAlert: { en: 'Select at least one language.', es: 'Selecciona al menos un idioma.' },
+  selectEngineAlert: { en: 'Select at least one AI engine.', es: 'Selecciona al menos un motor de IA.' },
+  generatingBtnLabel: { en: 'Generating...', es: 'Generando...' },
+  failedToGenerate: { en: 'Failed to generate prompts: ', es: 'Error al generar los prompts: ' },
+  alreadyGenerating: { en: 'A prompt generation is already running for this customer — please wait for it to finish.', es: 'Ya hay una generación de prompts en curso para este cliente — espera a que termine.' },
+  generateProgress: { en: (c, total) => `${c} of ${total} categories done`, es: (c, total) => `${c} de ${total} categorías completadas` },
+  failedToStartAudit: { en: 'Failed to start audit: ', es: 'Error al iniciar la auditoría: ' },
+  alreadyRunning: { en: 'An audit is already running for this customer.', es: 'Ya hay una auditoría en curso para este cliente.' }
+};
+let lang = localStorage.getItem('hieronymus_lang') || 'es';
+function t(key, ...args) {
+  const val = T[key][lang];
+  return typeof val === 'function' ? val(...args) : val;
+}
+function applyStaticLang() {
+  document.querySelectorAll('[data-t]').forEach(el => {
+    el.innerHTML = t(el.getAttribute('data-t'));
+  });
+  document.getElementById('lang-btn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('lang-btn-es').classList.toggle('active', lang === 'es');
+}
+function setLang(newLang) {
+  lang = newLang;
+  localStorage.setItem('hieronymus_lang', lang);
+  applyStaticLang();
+  if (currentCompany) loadCompany(currentCompany);
 }
 
-function getPrompts() {
-  return document.getElementById('prompts-input').value
-    .split('\n')
-    .map(l => l.trim())
-    .filter(l => l.length > 3);
-}
-
-function detectCategory(prompt) {
-  const p = prompt.toLowerCase();
-  if (p.startsWith('cat1:') || p.startsWith('1.') || p.startsWith('category 1')) return 'Brand';
-  if (p.startsWith('cat2:') || p.startsWith('category 2')) return 'Category';
-  if (p.startsWith('cat3:') || p.startsWith('category 3')) return 'Problem';
-  if (p.startsWith('cat4:') || p.startsWith('category 4')) return 'Competitor';
-  if (p.startsWith('cat5:') || p.startsWith('category 5')) return 'Persona';
-  if (p.includes(' vs ') || p.includes('alternative') || p.includes('alternativa')) return 'Competitor';
-  if (p.includes('problem') || p.includes('broken') || p.includes('failed') || p.includes('roto') || p.includes('falla')) return 'Problem';
-  if (p.includes('who is') || p.includes('what is ' + (document.getElementById('company-name').value || 'company').toLowerCase())) return 'Brand';
-  return 'Category';
-}
-
-function cleanPrompt(prompt) {
-  return prompt.replace(/^(cat[1-5]:|category \d+:|[1-9]\d*\.)\s*/i, '').trim();
-}
-
-// ── RUN AUDIT ──
-async function runAudit() {
-  const apiKey = document.getElementById('api-key').value.trim();
-  const company = document.getElementById('company-name').value.trim();
-  const variants = document.getElementById('company-variants').value.split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
-  const sheetsUrl = document.getElementById('sheets-url').value.trim();
-  const prompts = getPrompts();
-  const concurrency = parseInt(document.getElementById('concurrency').value);
-
-  if (!apiKey) { alert('Please enter your Claude API key.'); return; }
-  if (!company) { alert('Please enter the target company name.'); return; }
-  if (prompts.length === 0) { alert('Please paste at least one prompt.'); return; }
-
-  running = true;
-  results = [];
-  document.getElementById('run-btn').disabled = true;
-  document.getElementById('progress-section').style.display = 'block';
-  document.getElementById('results-section').style.display = 'none';
-  document.getElementById('log-container').innerHTML = '';
-  document.getElementById('progress-fill').style.width = '0%';
-  document.getElementById('progress-pct').textContent = '0%';
-
-  log('info', `Starting audit for "${company}" — ${prompts.length} prompts`);
-  if (sheetsUrl) log('info', 'Google Sheets logging enabled');
-  else log('info', 'Running without Sheets logging — results shown below only');
-
-  const allTerms = [company.toLowerCase(), ...variants];
-
-  let completed = 0;
-
-  async function callClaudeWithRetry(query, maxRetries = 4) {
-    let attempt = 0;
-    while (true) {
-      const res = await fetch('/api/claude', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1024,
-          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-          messages: [{ role: 'user', content: query }]
-        })
-      });
-
-      const isRetryable = res.status === 429 || res.status === 529 || res.status === 502 || res.status === 503 || res.status === 500;
-      if (isRetryable) {
-        attempt++;
-        if (attempt > maxRetries) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error((err.error?.message || 'Rate limited') + ' — gave up after ' + maxRetries + ' retries');
-        }
-        const retryAfterHeader = res.headers.get('retry-after');
-        const waitSec = retryAfterHeader ? parseInt(retryAfterHeader) : Math.min(60, 5 * Math.pow(2, attempt));
-        log('error', `Server busy (${res.status}) — waiting ${waitSec}s before retry ${attempt}/${maxRetries}`);
-        await sleep(waitSec * 1000);
-        continue;
-      }
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || 'API error ' + res.status);
-      }
-
-      return res.json();
+function parseCSV(text) {
+  const rows = [];
+  let field = '', row = [], inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else field += c;
     }
   }
-
-  async function runPrompt(rawPrompt, index) {
-    const category = detectCategory(rawPrompt);
-    const cleanedPrompt = cleanPrompt(rawPrompt);
-    const query = `Search the web and answer this question: "${cleanedPrompt}" — Please provide a comprehensive answer citing specific companies, websites, or experts where relevant.`;
-
-    try {
-      const data = await callClaudeWithRetry(query);
-      const responseText = data.content
-        .filter(b => b.type === 'text')
-        .map(b => b.text)
-        .join(' ');
-
-      const lowerResponse = responseText.toLowerCase();
-      const cited = allTerms.some(t => lowerResponse.includes(t));
-
-      // Detect competitor mentions — simple heuristic
-      const competitorMentions = [];
-      const commonCompetitors = ['forrests', 'forrest', 'midwest musical', 'mmimports', 'mmi', 'amazon', 'ebay'];
-      commonCompetitors.forEach(c => {
-        if (lowerResponse.includes(c) && !allTerms.includes(c)) competitorMentions.push(c);
-      });
-
-      const result = {
-        index: index + 1,
-        prompt: cleanedPrompt,
-        rawPrompt,
-        category,
-        cited,
-        competitorCited: competitorMentions.join(', ') || '—',
-        response: responseText.slice(0, 500),
-        timestamp: new Date().toISOString(),
-        company
-      };
-
-      results.push(result);
-
-      log(cited ? 'cited' : 'not-cited',
-        `[${category}] "${cleanedPrompt.slice(0,60)}..." → ${cited ? '✓ CITED' : '✗ NOT CITED'}${competitorMentions.length ? ' (competitor: ' + competitorMentions[0] + ')' : ''}`
-      );
-
-      if (sheetsUrl) {
-        logToSheets(sheetsUrl, result).catch(() => {});
-      }
-
-    } catch (err) {
-      const result = {
-        index: index + 1,
-        prompt: cleanedPrompt,
-        rawPrompt,
-        category,
-        cited: false,
-        competitorCited: '—',
-        response: 'ERROR: ' + err.message,
-        timestamp: new Date().toISOString(),
-        company,
-        error: true
-      };
-      results.push(result);
-      log('error', `[${category}] "${cleanedPrompt.slice(0,50)}..." → ERROR: ${err.message}`);
-    }
-
-    completed++;
-    const pct = Math.round((completed / prompts.length) * 100);
-    document.getElementById('progress-fill').style.width = pct + '%';
-    document.getElementById('progress-pct').textContent = pct + '%';
-  }
-
-  // Run in batches, with a pause between batches to let rate limits reset
-  const batchSize = parseInt(document.getElementById('batch-size').value);
-  const batchPauseSec = parseInt(document.getElementById('batch-pause').value);
-  const totalBatches = Math.ceil(prompts.length / batchSize);
-
-  for (let b = 0; b < totalBatches; b++) {
-    const batchStart = b * batchSize;
-    const batchEnd = Math.min(batchStart + batchSize, prompts.length);
-    const batchPrompts = prompts.slice(batchStart, batchEnd);
-
-    if (totalBatches > 1) {
-      log('info', `— Batch ${b + 1}/${totalBatches} (prompts ${batchStart + 1}-${batchEnd}) —`);
-    }
-
-    // Within a batch, respect concurrency setting
-    for (let i = 0; i < batchPrompts.length; i += concurrency) {
-      const chunk = batchPrompts.slice(i, i + concurrency).map((p, j) => runPrompt(p, batchStart + i + j));
-      await Promise.all(chunk);
-      if (i + concurrency < batchPrompts.length) await sleep(1200);
-    }
-
-    if (b < totalBatches - 1) {
-      log('info', `Batch ${b + 1} done. Pausing ${batchPauseSec}s before next batch...`);
-      await sleep(batchPauseSec * 1000);
-    }
-  }
-
-  log('info', `Audit complete. ${results.filter(r => r.cited).length}/${results.length} prompts cited.`);
-  running = false;
-  document.getElementById('run-btn').disabled = false;
-  showResults(company);
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  if (!rows.length) return [];
+  const headers = rows[0];
+  return rows.slice(1)
+    .filter(r => r.length === headers.length && r.some(v => v !== ''))
+    .map(r => { const obj = {}; headers.forEach((h, idx) => obj[h] = r[idx]); return obj; });
 }
 
-// ── LOG ──
-function log(type, msg) {
-  const container = document.getElementById('log-container');
-  const entry = document.createElement('div');
-  entry.className = 'log-entry';
-  const now = new Date();
-  const time = now.toTimeString().slice(0,8);
-  entry.innerHTML = `<span class="log-time">${time}</span><span class="log-msg log-${type}">${msg}</span>`;
-  container.appendChild(entry);
-  container.scrollTop = container.scrollHeight;
+async function populateCompanyPicker(selected) {
+  const select = document.getElementById('company-select');
+  try {
+    const res = await fetch('/api/intake-codes');
+    const data = await res.json();
+    (data.items || []).forEach(i => {
+      const opt = document.createElement('option');
+      opt.value = i.company;
+      opt.textContent = i.company;
+      if (i.company === selected) opt.selected = true;
+      select.appendChild(opt);
+    });
+  } catch { /* picker is a convenience, not worth blocking the page over */ }
 }
 
-// ── SHOW RESULTS ──
-function showResults(company) {
-  document.getElementById('results-section').style.display = 'block';
+let jobPollTimer = null;
+let currentCompany = '';
+let currentRows = [];
 
-  const categories = ['Brand', 'Category', 'Problem', 'Competitor', 'Persona'];
-  const catScores = {};
-  const catColors = {
-    'Brand': '#7c6bff',
-    'Category': '#ffd166',
-    'Problem': '#ff9090',
-    'Competitor': '#00c8ff',
-    'Persona': '#ffa050'
-  };
+async function loadCompany(company) {
+  currentCompany = company;
+  const main = document.getElementById('main-content');
+  main.innerHTML = `<div class="page-title">${esc(company)}</div><div class="empty-state">${t('loading')}</div>`;
 
-  categories.forEach(cat => {
-    const catResults = results.filter(r => r.category === cat && !r.error);
-    if (catResults.length === 0) { catScores[cat] = null; return; }
-    const citedCount = catResults.filter(r => r.cited).length;
-    catScores[cat] = Math.round((citedCount / catResults.length) * 100);
-  });
-
-  const validScores = Object.values(catScores).filter(s => s !== null);
-  const overallScore = validScores.length > 0 ? Math.round(validScores.reduce((a,b) => a+b, 0) / validScores.length) : 0;
-
-  document.getElementById('overall-score').textContent = overallScore;
-  document.getElementById('score-company-name').textContent = company;
-
-  // Score color
-  const scoreEl = document.getElementById('overall-score').parentElement;
-  if (overallScore >= 70) { scoreEl.style.borderColor = 'var(--green)'; scoreEl.style.background = 'var(--green-dim)'; document.getElementById('overall-score').style.color = 'var(--green)'; }
-  else if (overallScore >= 40) { scoreEl.style.borderColor = 'var(--yellow)'; scoreEl.style.background = 'var(--yellow-dim)'; document.getElementById('overall-score').style.color = 'var(--yellow)'; }
-  else { scoreEl.style.borderColor = 'var(--red)'; scoreEl.style.background = 'var(--red-dim)'; document.getElementById('overall-score').style.color = 'var(--red)'; }
-
-  // Breakdown bars
-  const breakdown = document.getElementById('score-breakdown');
-  breakdown.innerHTML = '';
-  categories.forEach(cat => {
-    if (catScores[cat] === null) return;
-    const score = catScores[cat];
-    const color = catColors[cat];
-    const catResults = results.filter(r => r.category === cat && !r.error);
-    breakdown.innerHTML += `
-      <div class="score-cat">
-        <span class="score-cat-name">${cat} (${catResults.length})</span>
-        <div class="score-bar-track">
-          <div class="score-bar-fill" style="width: ${score}%; background: ${color}"></div>
-        </div>
-        <span class="score-cat-val" style="color: ${color}">${score}%</span>
-      </div>`;
-  });
-
-  // Table
-  const tbody = document.getElementById('results-tbody');
-  tbody.innerHTML = '';
-  results.forEach((r, i) => {
-    const catClass = {
-      'Brand': 'badge-brand',
-      'Category': 'badge-category',
-      'Problem': 'badge-problem',
-      'Competitor': 'badge-competitor',
-      'Persona': 'badge-persona'
-    }[r.category] || 'badge-brand';
-
-    tbody.innerHTML += `
-      <tr>
-        <td style="color: var(--text-dim); width: 36px">${r.index}</td>
-        <td><span class="badge ${catClass}">${r.category}</span></td>
-        <td style="max-width: 280px; color: var(--text)">${r.prompt}</td>
-        <td><span class="badge ${r.cited ? 'badge-cited' : 'badge-not'}">${r.cited ? '✓ Yes' : '✗ No'}</span></td>
-        <td style="color: var(--text-dim)">${r.competitorCited}</td>
-        <td>
-          <button class="response-toggle" onclick="toggleResponse(${i})">view</button>
-          <div class="response-text" id="resp-${i}">${r.response}</div>
-        </td>
-      </tr>`;
-  });
-
-  document.getElementById('results-section').scrollIntoView({ behavior: 'smooth' });
-}
-
-function toggleResponse(i) {
-  const el = document.getElementById('resp-' + i);
-  el.style.display = el.style.display === 'block' ? 'none' : 'block';
-}
-
-// ── SHEETS LOGGING ──
-async function logToSheets(url, result) {
-  await fetch(url, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      timestamp: result.timestamp,
-      company: result.company,
-      prompt: result.prompt,
-      category: result.category,
-      cited: result.cited ? 'YES' : 'NO',
-      competitorCited: result.competitorCited,
-      response: result.response
-    })
-  });
-}
-
-// ── EXPORT ──
-function exportCSV() {
-  if (results.length === 0) { alert('No results yet. Run the audit first.'); return; }
-  const headers = ['#', 'Company', 'Category', 'Prompt', 'Cited', 'Competitor Cited', 'Timestamp', 'Response Excerpt'];
-  const rows = results.map(r => [
-    r.index, r.company, r.category,
-    '"' + r.prompt.replace(/"/g, '""') + '"',
-    r.cited ? 'YES' : 'NO',
-    r.competitorCited,
-    r.timestamp,
-    '"' + (r.response || '').replace(/"/g, '""').slice(0, 200) + '"'
+  const [intakeRes, promptsRes, resultsText] = await Promise.all([
+    fetch('/api/intake?company=' + encodeURIComponent(company)).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch('/api/prompts?company=' + encodeURIComponent(company)).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch('/api/results').then(r => r.ok ? r.text() : '').catch(() => '')
   ]);
-  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
+
+  const rows = parseCSV(resultsText).filter(r => r.brand === company);
+  currentRows = rows;
+  const runDates = [...new Set(rows.map(r => r.snapshot_date))].sort().reverse();
+
+  const intakeBlock = intakeRes
+    ? `<span class="badge badge-submitted">${t('submittedOn')}${esc((intakeRes.savedAt || '').slice(0, 10))}</span> <a class="btn btn-ghost btn-sm" href="/intake-view.html?company=${encodeURIComponent(company)}">${t('viewResponses')}</a>`
+    : `<span class="badge badge-pending">${t('noIntakeYet')}</span>`;
+
+  const hasPrompts = !!(promptsRes && promptsRes.promptsText);
+  let promptsBlock;
+  if (hasPrompts) {
+    const lines = promptsRes.promptsText.split('\n').map(l => l.trim()).filter(Boolean);
+    const langs = (promptsRes.languages || ['English']).join(', ');
+    const reviewStatus = promptsRes.approvedAt
+      ? `<span class="badge badge-done">${t('approvedOn')}${esc(promptsRes.approvedAt.slice(0, 10))}</span>`
+      : `<span class="badge badge-partial">${t('awaitingReview')}</span>`;
+    const comments = promptsRes.comments ? `<div class="field-hint" style="margin-top:8px;">${t('clientComments')}${esc(promptsRes.comments)}</div>` : '';
+    promptsBlock = `
+      <div class="row" style="margin-bottom:8px;">${reviewStatus}<span class="field-hint">${t('promptsCountLine', lines.length, esc(langs), esc((promptsRes.generatedAt || '').slice(0, 10)))}</span></div>
+      ${comments}
+      <div class="row" style="margin-top:12px;">
+        <button class="btn btn-sm" onclick="openGenModal()">${t('regeneratePrompts')}</button>
+        <button class="btn btn-ghost btn-sm" onclick="copyReviewLink('${esc(company)}')">${t('copyReviewLink')}</button>
+      </div>`;
+  } else {
+    promptsBlock = `
+      <span class="badge badge-pending">${t('notGeneratedYet')}</span>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn btn-sm" onclick="openGenModal()">${t('generatePrompts')}</button>
+      </div>`;
+  }
+
+  main.innerHTML = `
+    <div class="page-title">${esc(company)}</div>
+
+    <div class="card">
+      <div class="card-title">${t('intakeTitle')}</div>
+      ${intakeBlock}
+    </div>
+
+    <div class="card">
+      <div class="card-title">${t('promptsTitle')}</div>
+      ${promptsBlock}
+    </div>
+
+    <div class="card">
+      <div class="card-title">${t('auditStatusTitle')}</div>
+      <div id="job-status-block"><div class="field-hint">${t('checking')}</div></div>
+      <div class="row" style="margin-top:12px;">
+        <button class="btn" id="run-audit-btn" onclick="runAudit()" ${hasPrompts ? '' : `disabled title="${t('generateFirstTitle')}"`}>${t('runAuditBtn')}</button>
+        <button class="btn btn-ghost" id="cancel-audit-btn" onclick="cancelAudit()" style="display:none;">${t('cancelRunBtn')}</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">${t('resultsTitle', rows.length, rows.length === 1 ? t('row') : t('rows'), runDates.length ? ', ' + runDates.length + ' ' + (runDates.length === 1 ? t('run') : t('runs')) : '')}</div>
+      ${rows.length ? `<div class="row" style="margin-bottom:12px;"><button class="btn btn-ghost btn-sm" onclick="exportCompanyCSV()">${t('exportCustomerBtn')}</button>${isAdmin() ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="clearResults()">${t('clearResultsBtn')}</button>` : ''}</div>` : ''}
+      ${rows.length ? `
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr><th>${t('thDate')}</th><th>${t('thEngine')}</th><th>${t('thPrompt')}</th><th>${t('thCategory')}</th><th>${t('thCited')}</th><th>${t('thSentiment')}</th></tr></thead>
+          <tbody>
+            ${rows.slice(0, 5).map(r => `<tr>
+              <td>${esc(r.snapshot_date)}</td>
+              <td>${esc(r.engine)}</td>
+              <td>${esc(r.prompt_id)}</td>
+              <td>${esc(r.topic_cluster)}</td>
+              <td>${r.brand_cited === '1' ? '✓' : '—'}</td>
+              <td>${esc(r.sentiment)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${rows.length > 5 ? `<div class="field-hint" style="margin-top:10px;">${t('showingRecent', rows.length)}</div>` : ''}
+      ` : `<div class="empty-state">${t('noResultsYet')}</div>`}
+    </div>
+
+    <div class="card">
+      <div class="card-title">${t('dashboardsTitle')}</div>
+      <div class="row">
+        <a class="btn btn-ghost btn-sm" href="/dashboard-diagnostic.html?company=${encodeURIComponent(company)}">${t('diagnosticDashboard')}</a>
+        <a class="btn btn-ghost btn-sm" href="/dashboard-monitoring.html?company=${encodeURIComponent(company)}">${t('monitoringDashboard')}</a>
+      </div>
+    </div>
+
+  `;
+
+  pollJobStatus(company);
+}
+
+function copyReviewLink(company) {
+  const username = company.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+  const link = location.origin + '/prompt-review.html?username=' + encodeURIComponent(username);
+  navigator.clipboard.writeText(link).then(() => alert(t('reviewLinkCopied')));
+}
+
+const CSV_COLUMNS = [
+  'run_id', 'snapshot_date', 'engine', 'prompt_id', 'prompt_text', 'query_intent', 'topic_cluster',
+  'brand', 'brand_mentioned', 'brand_cited', 'brand_citation_rank', 'total_brands_cited',
+  'brands_cited_list', 'top_cited_brand', 'brand_is_leader', 'linked_to_site', 'sentiment',
+  'claims_about_brand', 'incorrect_claims', 'has_incorrect_claim', 'services_correct',
+  'location_correct', 'contact_correct', 'ai_sessions', 'ai_conversions', 'ai_pipeline_usd',
+  'answer_excerpt'
+];
+function csvEscape(val) {
+  const s = String(val ?? '');
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function exportCompanyCSV() {
+  if (!currentRows.length) return;
+  const header = CSV_COLUMNS.join(',') + '\n';
+  const lines = currentRows.map(r => CSV_COLUMNS.map(col => csvEscape(r[col])).join(',') + '\n').join('');
+  const blob = new Blob([header + lines], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = (document.getElementById('company-name').value || 'audit') + '_geo_results.csv';
+  a.download = currentCompany.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') + '_results.csv';
   a.click();
+  URL.revokeObjectURL(url);
 }
 
-function copyForSheets() {
-  if (results.length === 0) { alert('No results yet.'); return; }
-  const headers = ['#', 'Company', 'Category', 'Prompt', 'Cited', 'Competitor Cited', 'Timestamp'];
-  const rows = results.map(r => [r.index, r.company, r.category, r.prompt, r.cited ? 'YES' : 'NO', r.competitorCited, r.timestamp]);
-  const text = [headers, ...rows].map(r => r.join('\t')).join('\n');
-  navigator.clipboard.writeText(text).then(() => alert('Copied! Paste directly into Google Sheets.'));
-}
-
-// ── APPS SCRIPT ──
-function copyAppsScript() {
-  const script = `// Google Apps Script — paste in Extensions > Apps Script, deploy as Web App
-function doPost(e) {
-  try {
-    const data = JSON.parse(e.postData.contents);
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    
-    // Add headers if first row is empty
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow(['Timestamp', 'Company', 'Category', 'Prompt', 'Cited', 'Competitor Cited', 'Response Excerpt']);
-    }
-    
-    sheet.appendRow([
-      data.timestamp,
-      data.company,
-      data.category,
-      data.prompt,
-      data.cited,
-      data.competitorCited,
-      data.response ? data.response.substring(0, 300) : ''
-    ]);
-    
-    return ContentService.createTextOutput(JSON.stringify({status: 'ok'})).setMimeType(ContentService.MimeType.JSON);
-  } catch(err) {
-    return ContentService.createTextOutput(JSON.stringify({status: 'error', message: err.toString()})).setMimeType(ContentService.MimeType.JSON);
+// Persistent login (localStorage) can outlive the password cached in sessionStorage (e.g. the
+// browser was closed and reopened) — admin actions need the password again to prove admin
+// status server-side, so ask for it just-in-time rather than failing silently.
+function getStaffPassword() {
+  let pw = sessionStorage.getItem('geo_staff_password');
+  if (!pw) {
+    pw = prompt(t('reenterPasswordPrompt')) || '';
+    if (pw) sessionStorage.setItem('geo_staff_password', pw);
   }
-}`;
-
-  navigator.clipboard.writeText(script).then(() => {
-    alert('Apps Script copied!\\n\\nNow:\\n1. Open your Google Sheet\\n2. Extensions → Apps Script\\n3. Paste and save\\n4. Deploy → New deployment → Web App → Anyone → Deploy\\n5. Copy the web app URL and paste it above');
-  });
+  return pw;
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+async function clearResults() {
+  if (!currentCompany) return;
+  if (!confirm(t('confirmClearResults', currentCompany, currentRows.length))) return;
+  try {
+    const params = new URLSearchParams({
+      company: currentCompany,
+      requestingUsername: localStorage.getItem(USER_KEY) || '',
+      requestingPassword: getStaffPassword()
+    });
+    const res = await fetch('/api/results?' + params.toString(), { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    // Also clear the displayed audit status so it doesn't keep showing a "Last run" summary
+    // for data that no longer exists.
+    await fetch('/api/audit-job?company=' + encodeURIComponent(currentCompany), { method: 'DELETE' }).catch(() => {});
+    await loadCompany(currentCompany);
+  } catch (err) {
+    alert(t('failedToClearResults') + err.message);
+  }
+}
 
-updatePromptStats();
+async function pollJobStatus(company, opts) {
+  opts = opts || {};
+  if (jobPollTimer) clearTimeout(jobPollTimer);
+  const block = document.getElementById('job-status-block');
+  const runBtn = document.getElementById('run-audit-btn');
+  const cancelBtn = document.getElementById('cancel-audit-btn');
+  if (!block) return;
+  try {
+    const res = await fetch('/api/audit-job?company=' + encodeURIComponent(company));
+    const data = await res.json();
+    // Netlify Blobs can occasionally return a read shortly after a write with a field missing
+    // (eventual consistency, not a real state change) — the 'status' key has been the one that
+    // drops most often. Rather than chase that at the storage layer, infer "still running" from
+    // total/completed being present and not yet finished, so a dropped status field doesn't make
+    // a genuinely in-progress run look like "no audit yet".
+    const inferredRunning = data.status === 'running' || (!data.status && data.total > 0 && (data.completed || 0) < data.total && !data.finishedAt);
+    const inferredDone = data.status === 'done' || (!data.status && data.total > 0 && (data.completed || 0) >= data.total);
+    if (inferredRunning) {
+      const pct = data.total ? Math.round((data.completed / data.total) * 100) : 0;
+      const stuck = !data.total && (Date.now() - new Date(data.startedAt).getTime()) > 2 * 60 * 1000;
+      block.innerHTML = `<span class="badge badge-partial">${t('runningLabel')}</span> <span class="field-hint">${t('runningDetail', data.completed || 0, data.total || '?', data.cited || 0)}</span><div class="progress-wrap"><div class="progress-bar" style="width:${pct}%"></div></div>${stuck ? `<div class="field-hint" style="margin-top:6px;">${t('stalledNote')}</div>` : ''}`;
+      if (runBtn) { runBtn.disabled = true; runBtn.textContent = t('runningBtnLabel'); }
+      if (cancelBtn) cancelBtn.style.display = '';
+      jobPollTimer = setTimeout(() => pollJobStatus(company), 3000);
+    } else if (opts.graceRetriesLeft > 0) {
+      // A run was just triggered, but the status store hasn't caught up to 'running' yet —
+      // keep polling briefly instead of settling on a stale pre-trigger status (which otherwise
+      // looks like the progress bar never showed up until the page is reloaded).
+      jobPollTimer = setTimeout(() => pollJobStatus(company, { graceRetriesLeft: opts.graceRetriesLeft - 1 }), 700);
+    } else if (data.status === 'error') {
+      block.innerHTML = `<span class="badge badge-error">${t('errorLabel')}</span> <span class="field-hint">${esc(data.message)}</span>`;
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
+      if (cancelBtn) cancelBtn.style.display = 'none';
+    } else if (inferredDone) {
+      block.innerHTML = `<span class="badge badge-done">${t('lastRunLabel', data.completed, data.cited || 0)}</span> <span class="field-hint">${t('finishedAt')}${esc((data.finishedAt || '').slice(0, 16).replace('T', ' '))}</span>`;
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
+      if (cancelBtn) cancelBtn.style.display = 'none';
+    } else {
+      block.innerHTML = `<span class="badge badge-pending">${t('noAuditYet')}</span>`;
+      if (cancelBtn) cancelBtn.style.display = 'none';
+    }
+  } catch {
+    block.innerHTML = `<span class="field-hint">${t('couldNotLoadStatus')}</span>`;
+  }
+}
+
+async function cancelAudit() {
+  if (!currentCompany) return;
+  if (!confirm(t('cancelConfirm'))) return;
+  try {
+    await fetch('/api/audit-job?company=' + encodeURIComponent(currentCompany), { method: 'DELETE' });
+    if (jobPollTimer) clearTimeout(jobPollTimer);
+    pollJobStatus(currentCompany);
+  } catch (err) {
+    alert(t('failedToCancel') + err.message);
+  }
+}
+
+async function runAudit() {
+  if (!currentCompany) return;
+  if (!confirm(t('confirmRunAudit', currentCompany))) return;
+  const btn = document.getElementById('run-audit-btn');
+  btn.disabled = true;
+  btn.textContent = t('startingBtnLabel');
+  // Netlify acks a Background Function's invocation near-instantly regardless of how long the
+  // actual work takes, so this response arrives quickly whether the run was accepted or
+  // rejected (already running) — safe to await just far enough to check that, then fall back
+  // to polling the job-status endpoint for everything else, since the run itself can take minutes.
+  try {
+    const res = await fetch('/api/run-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company: currentCompany })
+    });
+    if (res.status === 409) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.message || t('alreadyRunning'));
+      btn.disabled = false;
+      btn.textContent = t('runAuditBtn');
+      return;
+    }
+  } catch { /* network-level failure only — polling below will surface anything else */ }
+  setTimeout(() => pollJobStatus(currentCompany, { graceRetriesLeft: 6 }), 500);
+}
+
+// ── Generate Prompts modal ──
+async function openGenModal() {
+  if (!currentCompany) return;
+  document.getElementById('gen-modal-title').textContent = t('genModalTitle', currentCompany);
+  document.getElementById('gen-count').value = '100';
+  document.querySelectorAll('.gen-lang-cb').forEach(cb => { cb.checked = cb.value === 'English'; });
+  document.getElementById('gen-engine-claude').checked = true;
+  document.getElementById('gen-engine-chatgpt').checked = true;
+  document.getElementById('gen-engine-gemini').checked = true;
+  document.getElementById('gen-confirm-btn').disabled = false;
+  document.getElementById('gen-confirm-btn').textContent = t('generateBtn');
+  document.getElementById('gen-progress-block').style.display = 'none';
+  document.getElementById('gen-modal').classList.add('open');
+
+  // If a generation is already in flight for this customer (e.g. the modal was closed and
+  // reopened mid-run), reflect that instead of letting them fire a conflicting second one.
+  try {
+    const jobRes = await fetch('/api/generate-job?company=' + encodeURIComponent(currentCompany));
+    const jobData = await jobRes.json();
+    if (jobData.status === 'running') {
+      document.getElementById('gen-confirm-btn').disabled = true;
+      document.getElementById('gen-confirm-btn').textContent = t('generatingBtnLabel');
+      document.getElementById('gen-progress-block').style.display = '';
+      pollGenerateJob(currentCompany);
+    }
+  } catch { /* status is a nice-to-have, not worth blocking the modal over */ }
+}
+
+function closeGenModal() {
+  document.getElementById('gen-modal').classList.remove('open');
+}
+
+let genPollTimer = null;
+
+async function confirmGenerate() {
+  if (!currentCompany) return;
+  const languages = Array.from(document.querySelectorAll('.gen-lang-cb:checked')).map(cb => cb.value);
+  const engines = ['claude', 'chatgpt', 'gemini'].filter(e => document.getElementById('gen-engine-' + e).checked);
+  if (!languages.length) { alert(t('selectLanguageAlert')); return; }
+  if (!engines.length) { alert(t('selectEngineAlert')); return; }
+  const count = parseInt(document.getElementById('gen-count').value) || 100;
+  const company = currentCompany;
+  const confirmBtn = document.getElementById('gen-confirm-btn');
+
+  // Guard against starting a second generation while one is already in flight for this
+  // customer — overlapping runs would race on the same stored prompts record.
+  try {
+    const statusRes = await fetch('/api/generate-job?company=' + encodeURIComponent(company));
+    const statusData = await statusRes.json().catch(() => ({}));
+    if (statusData.status === 'running') { alert(t('alreadyGenerating')); return; }
+  } catch { /* if the status check itself fails, fall through and let the POST below surface any real problem */ }
+
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = t('generatingBtnLabel');
+  document.getElementById('gen-progress-block').style.display = '';
+  document.getElementById('gen-progress-bar').style.width = '0%';
+  document.getElementById('gen-progress-label').textContent = '';
+  // Generating a large prompt set is a long-running Claude call — this background function's
+  // own HTTP response can take a while too, so this deliberately does NOT await it. Progress
+  // and completion come entirely from polling /api/generate-job instead.
+  fetch('/api/generate-prompts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ company, count, languages, engines })
+  }).catch(() => { /* network-level failure only — polling below will surface anything else */ });
+  setTimeout(() => pollGenerateJob(company, { graceRetriesLeft: 6 }), 500);
+}
+
+async function pollGenerateJob(company, opts) {
+  opts = opts || {};
+  if (genPollTimer) clearTimeout(genPollTimer);
+  const confirmBtn = document.getElementById('gen-confirm-btn');
+  if (!confirmBtn) return;
+  try {
+    const res = await fetch('/api/generate-job?company=' + encodeURIComponent(company));
+    const data = await res.json();
+    if (data.status === 'running') {
+      const pct = data.total ? Math.round((data.completed / data.total) * 100) : 0;
+      document.getElementById('gen-progress-bar').style.width = pct + '%';
+      document.getElementById('gen-progress-label').textContent = data.total ? t('generateProgress', data.completed || 0, data.total) : '';
+      genPollTimer = setTimeout(() => pollGenerateJob(company), 3000);
+    } else if (opts.graceRetriesLeft > 0) {
+      // A generation was just triggered, but the status store may still be reflecting an older
+      // (or no) job — keep polling briefly instead of treating stale data (e.g. a leftover
+      // 'done' from a previous generation) as this run already being finished.
+      genPollTimer = setTimeout(() => pollGenerateJob(company, { graceRetriesLeft: opts.graceRetriesLeft - 1 }), 700);
+    } else if (data.status === 'error') {
+      alert(t('failedToGenerate') + data.message);
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = t('generateBtn');
+      document.getElementById('gen-progress-block').style.display = 'none';
+    } else if (data.status === 'done') {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = t('generateBtn');
+      document.getElementById('gen-progress-block').style.display = 'none';
+      closeGenModal();
+      await loadCompany(company);
+    }
+  } catch {
+    genPollTimer = setTimeout(() => pollGenerateJob(company), 3000);
+  }
+}
+
+(function init() {
+  const params = new URLSearchParams(location.search);
+  const company = params.get('company');
+  // Portal is the one place to choose/search/create a customer now — this page only makes
+  // sense with a specific customer already selected, so bounce straight there instead of
+  // showing a redundant bare "Select a customer" dropdown here too.
+  if (!company) {
+    location.href = '/portal.html';
+    return;
+  }
+  applyStaticLang();
+  populateCompanyPicker(company);
+  loadCompany(company);
+})();
 </script>
 </body>
 </html>

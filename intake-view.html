@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akore Labs — Intake Responses</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<script>
+const SESSION_KEY = 'hieronymus_internal_auth'; // shared with portal.html/index.html — log in once, stay in across all three
+const USER_KEY = 'hieronymus_internal_user';
+const ROLE_KEY = 'hieronymus_internal_role';
+
+function checkAuth() {
+  return localStorage.getItem(SESSION_KEY) === 'true';
+}
+
+function showPasswordGate() {
+  // Only <body> is replaced here — the page's own <style> block (in <head>) stays active, so
+  // this reuses the exact same classes (.card, .logo-icon) as the rest of the app, rather than
+  // a separately-themed gate design.
+  document.body.innerHTML = `
+    <style>
+      body { background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: var(--mono); padding: 24px; }
+      .gate-input { width: 100%; font-family: var(--mono); font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--border-bright); border-radius: var(--radius-sm); padding: 12px 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+      .gate-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(28,114,147,0.15); }
+      .gate-input.error { border-color: var(--red); animation: shake 0.3s; }
+      @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+      .gate-btn { width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 999px; padding: 12px; font-family: var(--mono); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+      .gate-btn:hover { background: #4834b0; box-shadow: 0 4px 14px rgba(109,79,224,0.35); }
+    </style>
+    <div class="card" style="width:100%; max-width:380px; box-shadow:var(--shadow-lg); margin-bottom:0;">
+      <div style="display:flex; justify-content:center; margin-bottom:20px;">
+        <div class="logo-icon" style="width:48px; height:48px;"><img src="/brand/logo-mark.png" alt="Akore Labs"></div>
+      </div>
+      <div style="font-family:var(--display); font-size:22px; font-weight:700; color:var(--text); text-align:center; margin-bottom:4px;">Internal Portal</div>
+      <div style="font-size:12px; color:var(--text-dim); text-align:center; margin-bottom:28px;">Akore Labs — Restricted Access</div>
+      <input class="gate-input" id="user-input" type="text" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')document.getElementById('pw-input').focus()">
+      <input class="gate-input" id="pw-input" type="password" placeholder="Password" autocomplete="current-password" style="margin-bottom:16px;" onkeydown="if(event.key==='Enter')tryAuth()">
+      <button class="gate-btn" onclick="tryAuth()">Access →</button>
+      <div class="gate-error" id="pw-error" style="font-size:11px; color:var(--red); text-align:center; margin-top:10px; min-height:16px;"></div>
+      <div style="font-size:10px; color:var(--text-dim); text-align:center; margin-top:20px;">Akore Labs — Internal Use Only</div>
+    </div>`;
+  setTimeout(() => document.getElementById('user-input').focus(), 100);
+}
+
+async function tryAuth() {
+  const userInput = document.getElementById('user-input');
+  const passInput = document.getElementById('pw-input');
+  const username = userInput.value.trim().toLowerCase();
+  const password = passInput.value.trim();
+  if (!username || !password) return;
+  const errEl = document.getElementById('pw-error');
+  try {
+    let res = await fetch('/api/staff-users?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+    if (!res.ok) {
+      // Login failed — if no staff accounts exist anywhere yet, this is the very first visit:
+      // create the founding admin account with whatever was just typed, instead of erroring.
+      const listData = await (await fetch('/api/staff-users')).json().catch(() => ({ items: [] }));
+      if ((listData.items || []).length === 0) {
+        const createRes = await fetch('/api/staff-users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, role: 'admin' })
+        });
+        if (!createRes.ok) {
+          const createData = await createRes.json().catch(() => ({}));
+          throw new Error(createData.error || 'bootstrap failed');
+        }
+        res = await fetch('/api/staff-users?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+      }
+      if (!res.ok) throw new Error('bad credentials');
+    }
+    const data = await res.json();
+    localStorage.setItem(SESSION_KEY, 'true');
+    localStorage.setItem(USER_KEY, data.username);
+    localStorage.setItem(ROLE_KEY, data.role);
+    sessionStorage.setItem('geo_staff_password', password);
+    // Portal (customer list/search/create) is the real "home" — only stay on this page if a
+    // specific customer was already requested (e.g. a bookmarked/shared link with ?company=).
+    if (new URLSearchParams(location.search).get('company')) {
+      location.reload();
+    } else {
+      location.href = '/portal.html';
+    }
+  } catch (err) {
+    passInput.classList.add('error');
+    errEl.textContent = err.message === 'bad credentials' || !err.message ? 'Incorrect username or password. Try again.' : err.message;
+    passInput.value = '';
+    setTimeout(() => { passInput.classList.remove('error'); passInput.focus(); }, 400);
+  }
+}
+
+function staffLogout() {
+  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(ROLE_KEY);
+  sessionStorage.removeItem('geo_staff_password');
+  location.href = '/portal.html';
+}
+
+if (!checkAuth()) {
+  document.addEventListener('DOMContentLoaded', showPasswordGate);
+}
+</script>
+<style>
+:root {
+  --navy: #6d4fe0;
+  --violet-700: #4834b0;
+  --bg: #f4f6f8;
+  --surface: #FFFFFF;
+  --surface2: #f4f2fb;
+  --border: #e3e6ea;
+  --border-bright: #c3c8d0;
+  --text: #08090c;
+  --text-dim: #757f8f;
+  --text-mid: #3d4653;
+  --accent: #6d4fe0;
+  --accent-dim: rgba(109,79,224,0.10);
+  --focus-ring: rgba(109,79,224,0.35);
+  --red: #b03a3a;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius: 16px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 3px rgba(16,19,25,0.08), 0 1px 2px rgba(16,19,25,0.04);
+  --shadow-lg: 0 18px 40px rgba(16,19,25,0.12), 0 6px 12px rgba(16,19,25,0.06);
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --dur-base: 200ms;
+  --fs-h2: 1.5rem;
+  --fs-eyebrow: 0.6875rem;
+  --mono: "Manrope","Helvetica Neue",Arial,sans-serif;
+  --display: "Montserrat","Helvetica Neue",Arial,sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--mono); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 13px; line-height: 1.6; }
+.header {
+  border-bottom: 1px solid var(--border); padding: 20px 40px; display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; background: rgba(255,255,255,0.92); backdrop-filter: blur(20px); z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 14px; }
+.logo-lockup { height: 38px; width: auto; display: block; image-rendering: -webkit-optimize-contrast; }
+.logo-icon { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; }
+.logo-icon img { width: 100%; height: 100%; object-fit: contain; }
+.logo-name { font-family: var(--display); font-size: 16px; font-weight: 700; color: var(--text); }
+.logo-sub { font-size: var(--fs-eyebrow); font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.16em; display: flex; align-items: center; gap: 10px; }
+.logo-sub::before { content: ""; display: inline-block; width: 22px; height: 2px; background: var(--accent); border-radius: 2px; flex-shrink: 0; }
+.logo-divider { width: 1px; height: 18px; background: var(--border-bright); }
+.nav-link { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text-mid); text-decoration: none; border: 1px solid var(--border-bright); border-radius: var(--radius-pill); padding: 8px 16px; transition: all var(--dur-base) var(--ease-standard); }
+.nav-link:hover { background: var(--surface2); color: var(--text); }
+.main { max-width: 900px; margin: 0 auto; padding: 48px 24px 80px; }
+.page-title { font-family: var(--display); font-size: var(--fs-h2); font-weight: 700; color: var(--text); margin-bottom: 4px; letter-spacing: -0.01em; }
+.page-sub { font-size: 12px; color: var(--text-dim); margin-bottom: 28px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 18px; box-shadow: var(--shadow-sm); }
+.card-title { font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.kv { display: grid; grid-template-columns: 220px 1fr; gap: 4px 16px; margin-bottom: 10px; }
+.kv .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; color: var(--text-dim); padding-top: 2px; }
+.kv .v { font-size: 13px; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+.kv .v:empty::before, .kv .v.empty::before { content: '—'; color: var(--text-dim); }
+.sub-card { background: var(--surface2); border: 1px solid var(--border-bright); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 10px; }
+.sub-card:last-child { margin-bottom: 0; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { display: inline-flex; font-size: 11px; font-weight: 600; background: var(--accent-dim); color: var(--accent); border-radius: 999px; padding: 3px 10px; }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 13px; }
+.meta-line { font-size: 11px; color: var(--text-dim); margin-bottom: 20px; }
+@media (max-width: 640px) { .kv { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .header { padding: 14px 16px; } .logo-sub, .logo-divider { display: none; } }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">
+    <img class="logo-lockup" src="/brand/logo-horizontal-light.png" alt="Akore Labs">
+    <span class="logo-divider"></span>
+    <div class="logo-sub">Intake Responses</div>
+  </div>
+  <a class="nav-link" href="/portal.html">← Portal</a>
+  <button class="nav-link" onclick="staffLogout()" style="cursor:pointer;">Log out</button>
+</header>
+
+<main class="main" id="main-content">
+  <div class="empty-state">Loading…</div>
+</main>
+
+<script>
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function kv(label, value) {
+  const v = value === undefined || value === null || value === '' ? '' : esc(value);
+  return `<div class="kv"><div class="k">${esc(label)}</div><div class="v${v ? '' : ' empty'}">${v}</div></div>`;
+}
+function tagList(items) {
+  if (!items || !items.length) return '<span style="color:var(--text-dim)">—</span>';
+  return `<div class="tag-list">${items.map(i => `<span class="tag">${esc(i)}</span>`).join('')}</div>`;
+}
+
+async function load() {
+  const params = new URLSearchParams(location.search);
+  const company = params.get('company');
+  const main = document.getElementById('main-content');
+  if (!company) {
+    main.innerHTML = '<div class="empty-state">No company specified.</div>';
+    return;
+  }
+
+  let record;
+  try {
+    const res = await fetch('/api/intake?company=' + encodeURIComponent(company));
+    if (res.status === 404) {
+      main.innerHTML = `<div class="page-title">${esc(company)}</div><div class="empty-state">No intake submitted yet for this client.</div>`;
+      return;
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    record = await res.json();
+  } catch (err) {
+    main.innerHTML = '<div class="empty-state">Failed to load: ' + esc(err.message) + '</div>';
+    return;
+  }
+
+  const d = record.intake || {};
+  const g = d.general || {}, w = d.websites || {}, c = d.customer || {}, p = d.problem || {},
+        j = d.jobToBeDone || {}, cat = d.category || {}, comp = d.competitors || {},
+        sp = d.searchPatterns || {}, diff = d.differentiators || {}, pf = d.proof || {};
+
+  main.innerHTML = `
+    <div class="page-title">${esc(record.company || company)}</div>
+    <div class="meta-line">Saved ${record.savedAt ? esc(new Date(record.savedAt).toLocaleString()) : 'unknown'}</div>
+
+    <div class="card">
+      <div class="card-title">General</div>
+      ${kv('Website', g.website)}
+      ${kv('Industry', g.industry)}
+      ${kv('Contact', g.contact)}
+      ${kv('Role', g.role)}
+      ${kv('Email', g.email)}
+      ${kv('Primary language', g.language)}
+      ${kv('Platform', g.platform)}
+      ${kv('Google Business Profile', g.googleBusinessProfile)}
+      ${kv('Google presence', g.googlePresence)}
+      <div class="kv"><div class="k">Social platforms</div><div class="v">${tagList(g.socialPlatforms)}</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Websites</div>
+      ${kv('Primary site', w.primarySite)}
+      ${kv('Duplicates?', w.duplicates)}
+      ${kv('Cross-links?', w.crossLinks)}
+      ${kv('Authority site', w.authoritySite)}
+      ${kv('Known issues', w.knownIssues)}
+      ${(w.additionalSites || []).map(s => `
+        <div class="sub-card">
+          ${kv('URL', s.url)}
+          ${kv('Purpose', s.purpose)}
+          ${kv('Platform', s.platform)}
+          ${kv('Status', s.status)}
+          ${kv('Issues', s.issues)}
+        </div>`).join('') || ''}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Customer</div>
+      ${kv('Ideal customer', c.idealCustomer)}
+      ${kv('Buyer = user?', c.buyerUserSame)}
+      ${kv('Buyer/user detail', c.buyerUserDesc)}
+      ${kv('Trigger', c.trigger)}
+      ${(c.personas || []).map(p2 => `
+        <div class="sub-card">
+          ${kv('Job title', p2.title)}
+          ${kv('What they care about', p2.cares)}
+          ${kv('Metric', p2.metric)}
+        </div>`).join('')}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Problem</div>
+      ${kv('Description', p.description)}
+      ${kv('Pain type', p.painType)}
+      ${kv('Pain detail', p.painDetail)}
+      ${kv('Tried before', p.triedBefore)}
+      ${kv('Conference description', p.conferenceDesc)}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Job to be done</div>
+      ${kv('Outcome', j.outcome)}
+      ${kv('Success @ 30 days', j.success30)}
+      ${kv('Success @ 90 days', j.success90)}
+      ${kv('Success @ 180 days', j.success180)}
+      ${kv('Metrics', j.metrics)}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Category</div>
+      ${kv('Category', cat.category)}
+      ${kv('Other terms', cat.otherTerms)}
+      ${kv('Elevator pitch', cat.elevatorPitch)}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Competitors</div>
+      ${kv('Competitors', comp.competitors)}
+      ${kv('Status quo', comp.statusQuo)}
+      ${kv('Confusion', comp.confusion)}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Search patterns</div>
+      ${kv('FAQ questions', sp.faqQuestions)}
+      ${kv('Objections', sp.objections)}
+      ${kv('How found', sp.howFound)}
+      ${kv('Misconceptions', sp.misconceptions)}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Differentiators</div>
+      ${kv('Why choose us', diff.whyChoose)}
+      ${kv('Not a fit', diff.notFit)}
+      ${kv('Strongest fit', diff.strongest)}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Proof</div>
+      ${kv('Star clients', pf.starClients)}
+      ${kv('Years in business', pf.yearsBusiness)}
+      ${kv('Awards', pf.awards)}
+      ${kv('Reviews', pf.reviews)}
+      <div class="kv"><div class="k">Brands mentioned</div><div class="v">${tagList(pf.brands)}</div></div>
+    </div>
+  `;
+}
+
+load();
+</script>
+</body>
+</html>

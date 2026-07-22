@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEO Audit — Client Portal | Akore Labs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --navy: #6d4fe0;
+  --violet-700: #4834b0;
+  --violet-100: #ece7fd;
+  --emerald-700: #0f7d5b;
+  --ink: #08090c;
+  --ink-60: #757f8f;
+  --surface: #f4f6f8;
+  --card: #ffffff;
+  --accent: #6d4fe0;
+  --accent-light: #f4f2fb;
+  --border: #e3e6ea;
+  --border-strong: #c3c8d0;
+  --focus-ring: rgba(109,79,224,0.35);
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius: 16px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 3px rgba(16,19,25,0.08), 0 1px 2px rgba(16,19,25,0.04);
+  --shadow-md: 0 6px 16px rgba(16,19,25,0.08), 0 2px 4px rgba(16,19,25,0.04);
+  --shadow-lg: 0 18px 40px rgba(16,19,25,0.12), 0 6px 12px rgba(16,19,25,0.06);
+  --shadow-brand: 0 12px 30px rgba(109,79,224,0.28);
+  --shadow: var(--shadow-sm);
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --fs-h2: 1.5rem;
+  --fs-eyebrow: 0.6875rem;
+  --font-display: "Montserrat", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Manrope", "Helvetica Neue", Arial, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-body); background: var(--surface); color: var(--ink); min-height: 100vh; font-size: 15px; line-height: 1.6; }
+
+.app-header {
+  background: var(--card); border-bottom: 1px solid var(--border); padding: 0 40px; height: 64px;
+  display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: 0 1px 0 var(--border);
+}
+.logo { display: flex; align-items: center; gap: 14px; }
+.logo-lockup { height: 38px; width: auto; display: block; image-rendering: -webkit-optimize-contrast; }
+.logo-mark { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+.logo-mark img { width: 100%; height: 100%; object-fit: contain; }
+.logo-text { display: flex; flex-direction: column; }
+.logo-name { font-family: var(--font-display); font-size: 15px; font-weight: 700; }
+.logo-sub { font-size: var(--fs-eyebrow); font-weight: 600; color: var(--ink-60); text-transform: uppercase; letter-spacing: 0.16em; display: flex; align-items: center; gap: 10px; }
+.logo-sub::before { content: ""; width: 22px; height: 2px; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
+.logo-divider { width: 1px; height: 18px; background: var(--border-strong); }
+.lang-toggle { display: flex; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); overflow: hidden; }
+.lang-btn { font-family: var(--font-body); font-size: 11px; font-weight: 600; color: var(--ink-60); background: var(--card); border: none; padding: 7px 14px; cursor: pointer; }
+.lang-btn.active { background: var(--accent); color: #fff; }
+
+.access-gate { min-height: calc(100vh - 64px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.access-gate-inner { width: 100%; max-width: 400px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 40px 32px; text-align: center; }
+.access-gate-icon { width: 52px; height: 52px; margin: 0 auto 20px; border-radius: 50%; background: var(--violet-100); color: var(--navy); display: flex; align-items: center; justify-content: center; }
+.access-gate-inner h2 { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; letter-spacing: -0.01em; margin-bottom: 12px; }
+.access-gate-inner p { font-size: 13px; color: var(--ink-60); line-height: 1.6; margin-bottom: 24px; }
+.access-gate-inner input { width: 100%; font-family: var(--font-body); font-size: 15px; padding: 12px 16px; border: 1.5px solid var(--border-strong); border-radius: var(--radius-md); outline: none; margin-bottom: 14px; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
+.access-gate-inner input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+.access-gate-error { font-size: 12px; color: #b03a3a; margin-top: 12px; min-height: 16px; }
+.btn-accent { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-pill); padding: 13px 20px; min-height: 44px; font-family: var(--font-body); font-weight: 600; font-size: 14px; letter-spacing: 0.01em; cursor: pointer; width: 100%; box-shadow: var(--shadow-sm); transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-fast) var(--ease-standard); }
+.btn-accent:hover { background: var(--violet-700); box-shadow: var(--shadow-brand); }
+.btn-accent:active { transform: translateY(1px); }
+
+.main { max-width: 640px; margin: 0 auto; padding: 64px 24px 80px; display: none; }
+.page-title { font-family: var(--font-display); font-size: var(--fs-h2); font-weight: 700; letter-spacing: -0.01em; margin-bottom: 6px; }
+.page-sub { font-size: 13px; color: var(--ink-60); margin-bottom: 28px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); padding: 28px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard); }
+.card-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 4px; }
+.card-desc { font-size: 13px; color: var(--ink-60); }
+.card-link { background: var(--accent); color: #fff; border-radius: var(--radius-pill); padding: 10px 18px; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; text-decoration: none; white-space: nowrap; box-shadow: var(--shadow-sm); transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
+.card-link:hover { background: var(--violet-700); box-shadow: var(--shadow-brand); }
+.empty-state { text-align: center; padding: 40px 20px; color: var(--ink-60); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+.page-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.btn-ghost-sm { background: none; border: 1px solid var(--border-strong); color: var(--ink-60); border-radius: var(--radius-pill); padding: 7px 14px; font-family: var(--font-body); font-weight: 600; font-size: 12px; cursor: pointer; white-space: nowrap; transition: all var(--dur-base) var(--ease-standard); }
+.btn-ghost-sm:hover { background: var(--accent-light); color: var(--accent); }
+.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(8,9,12,0.5); align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+.modal-backdrop.open { display: flex; }
+.modal-box { background: var(--card); border-radius: var(--radius); padding: 28px; width: 100%; max-width: 420px; box-shadow: var(--shadow-lg); }
+.modal-box h3 { font-family: var(--font-display); font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.modal-section { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
+.modal-section:first-of-type { margin-top: 16px; padding-top: 0; border-top: none; }
+.modal-section-title { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+.field { margin-bottom: 10px; }
+.field input, .field select { width: 100%; font-family: var(--font-body); font-size: 14px; color: var(--ink); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 10px 12px; outline: none; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
+.field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+.field-msg { font-size: 12px; margin-top: 6px; min-height: 15px; }
+.field-msg.error { color: #b03a3a; }
+.field-msg.ok { color: #0f7d5b; }
+.lang-choice { display: flex; gap: 8px; }
+.lang-choice button { flex: 1; font-family: var(--font-body); font-size: 13px; padding: 9px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); cursor: pointer; }
+.lang-choice button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.modal-close-row { display: flex; justify-content: flex-end; margin-top: 20px; }
+.card-col { flex-direction: column; align-items: stretch; }
+.card-row-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.status-pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: var(--radius-pill); background: var(--violet-100); color: var(--navy); margin-top: 6px; letter-spacing: 0.02em; }
+.link-btn { background: none; border: none; color: var(--accent); font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer; padding: 0; margin-top: 10px; text-align: left; }
+.link-btn:hover { text-decoration: underline; }
+.kv-panel { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+.kv-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; margin-bottom: 12px; }
+.kv-card:last-child { margin-bottom: 0; }
+.kv-card-title { font-family: var(--font-display); font-size: 13px; font-weight: 700; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.kv { display: grid; grid-template-columns: 180px 1fr; gap: 3px 14px; margin-bottom: 8px; }
+.kv .k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; color: var(--ink-60); padding-top: 2px; }
+.kv .v { font-size: 13px; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.kv .v.empty::before { content: '—'; color: var(--ink-60); }
+.sub-card { background: var(--accent-light); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 8px; }
+.sub-card:last-child { margin-bottom: 0; }
+.tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { display: inline-flex; font-size: 11px; font-weight: 600; background: var(--accent-light); color: var(--accent); border-radius: var(--radius-pill); padding: 3px 10px; }
+@media (max-width: 640px) { .kv { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .app-header { padding: 0 16px; } .logo-sub, .logo-divider { display: none; } }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="logo">
+    <img class="logo-lockup" src="/brand/logo-horizontal-light.png" alt="Akore Labs">
+    <span class="logo-divider"></span>
+    <div class="logo-sub" id="logo-sub">GEO Audit — Client Portal</div>
+  </div>
+  <div class="lang-toggle">
+    <button class="lang-btn" id="lang-btn-en" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" id="lang-btn-es" onclick="setLang('es')">ES</button>
+  </div>
+</div>
+
+<div id="access-gate" class="access-gate">
+  <div class="access-gate-inner">
+    <div class="access-gate-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+    <h2 id="gate-title">Client Access</h2>
+    <p id="gate-desc">Enter the username and password from your invitation to view your GEO audit dashboard.</p>
+    <input type="text" id="gate-username-input" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')document.getElementById('gate-password-input').focus()">
+    <input type="password" id="gate-password-input" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitGate()">
+    <button class="btn-accent" id="gate-continue-btn" onclick="submitGate()">Continue</button>
+    <div id="gate-error" class="access-gate-error"></div>
+  </div>
+</div>
+
+<main class="main" id="main-content"></main>
+
+<div class="modal-backdrop" id="settings-modal">
+  <div class="modal-box">
+    <h3 data-t="settingsTitle">Settings</h3>
+
+    <div class="modal-section">
+      <div class="modal-section-title" data-t="changePasswordTitle">Change password</div>
+      <div class="field"><input type="password" id="set-current-password" autocomplete="current-password" data-t-placeholder="currentPasswordPlaceholder" placeholder="Current password"></div>
+      <div class="field"><input type="password" id="set-new-password" autocomplete="new-password" data-t-placeholder="newPasswordPlaceholder" placeholder="New password"></div>
+      <div class="field"><input type="password" id="set-confirm-password" autocomplete="new-password" data-t-placeholder="confirmPasswordPlaceholder" placeholder="Confirm new password"></div>
+      <button class="btn-accent" id="save-password-btn" onclick="savePassword()" data-t="savePasswordBtn">Save password</button>
+      <div class="field-msg" id="password-msg"></div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title" data-t="defaultLanguageTitle">Default language</div>
+      <div class="field-hint" style="font-size:12px;color:var(--ink-60);margin-bottom:10px;" data-t="defaultLanguageDesc">The language you'll see by default each time you log in.</div>
+      <div class="lang-choice">
+        <button id="set-lang-en" onclick="saveDefaultLanguage('en')">English</button>
+        <button id="set-lang-es" onclick="saveDefaultLanguage('es')">Español</button>
+      </div>
+      <div class="field-msg" id="language-msg"></div>
+    </div>
+
+    <div class="modal-close-row">
+      <button class="btn-ghost-sm" onclick="closeSettings()" data-t="closeBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let clientCompany = '';
+let clientMonitoring = false;
+let clientPassword = '';
+let clientDefaultLanguage = '';
+let clientSubmittedAt = '';
+let clientUsername = '';
+let clientRole = 'full';
+let intakeResponsesLoaded = false;
+function findMember(group, username) {
+  return (group.members || []).find(m => m.username === username);
+}
+
+const T = {
+  logoSub: { en: 'GEO Audit — Client Portal', es: 'Auditoría GEO — Portal del Cliente' },
+  gateTitle: { en: 'Client Access', es: 'Acceso de Cliente' },
+  gateDesc: { en: 'Enter the username and password from your invitation to view your GEO audit dashboard.', es: 'Ingresa el usuario y la contraseña de tu invitación para ver tu tablero de auditoría GEO.' },
+  usernamePlaceholder: { en: 'Username', es: 'Usuario' },
+  passwordPlaceholder: { en: 'Password', es: 'Contraseña' },
+  continueBtn: { en: 'Continue', es: 'Continuar' },
+  enterCreds: { en: 'Enter your username and password.', es: 'Ingresa tu usuario y contraseña.' },
+  invalidCreds: { en: 'Invalid username or password. Please check and try again.', es: 'Usuario o contraseña inválidos. Verifica e intenta de nuevo.' },
+  loading: { en: 'Loading…', es: 'Cargando…' },
+  notRunYet: { en: "Your GEO audit hasn't run yet — check back once it's complete.", es: 'Tu auditoría GEO aún no se ha ejecutado — vuelve a revisar cuando esté completa.' },
+  pageSub: { en: 'Your AI-visibility audit results.', es: 'Los resultados de tu auditoría de visibilidad en IA.' },
+  intakeCardTitle: { en: 'Intake form', es: 'Formulario de admisión' },
+  intakeDescPending: { en: 'Tell us about your business so we can build accurate audit prompts.', es: 'Cuéntanos sobre tu negocio para que podamos crear prompts de auditoría precisos.' },
+  intakeSubmittedOn: { en: (d) => `✓ Submitted ${d}`, es: (d) => `✓ Enviado el ${d}` },
+  completeIntakeBtn: { en: 'Complete Intake Form →', es: 'Completar Formulario →' },
+  viewResponsesLink: { en: 'View my responses', es: 'Ver mis respuestas' },
+  hideResponsesLink: { en: 'Hide my responses', es: 'Ocultar mis respuestas' },
+  loadingResponses: { en: 'Loading your responses…', es: 'Cargando tus respuestas…' },
+  failedToLoadResponses: { en: 'Could not load your responses: ', es: 'No se pudieron cargar tus respuestas: ' },
+  promptsCardTitle: { en: 'Audit prompts', es: 'Prompts de auditoría' },
+  promptsCardDesc: { en: "Review and approve the questions we'll ask AI engines about your business.", es: 'Revisa y aprueba las preguntas que le haremos a los motores de IA sobre tu negocio.' },
+  reviewPromptsBtn: { en: 'Review Prompts →', es: 'Revisar Prompts →' },
+  diagTitle: { en: 'Diagnostic Dashboard', es: 'Tablero de Diagnóstico' },
+  diagDesc: { en: 'Where your AI visibility stood as of your most recent audit.', es: 'Dónde estaba tu visibilidad en IA según tu auditoría más reciente.' },
+  openBtn: { en: 'Open →', es: 'Abrir →' },
+  monTitle: { en: 'Monitoring Dashboard', es: 'Tablero de Monitoreo' },
+  monDesc: { en: 'How your AI visibility has moved over time.', es: 'Cómo ha cambiado tu visibilidad en IA a través del tiempo.' },
+  monDisabled: { en: "Monthly monitoring isn't enabled for your account yet — ask your consultant to turn it on if you'd like ongoing tracking.", es: 'El monitoreo mensual aún no está activado para tu cuenta — pídele a tu consultor que lo active si quieres seguimiento continuo.' },
+  settingsBtn: { en: 'Settings', es: 'Ajustes' },
+  logoutBtn: { en: 'Log out', es: 'Cerrar sesión' },
+  settingsTitle: { en: 'Settings', es: 'Ajustes' },
+  changePasswordTitle: { en: 'Change password', es: 'Cambiar contraseña' },
+  currentPasswordPlaceholder: { en: 'Current password', es: 'Contraseña actual' },
+  newPasswordPlaceholder: { en: 'New password', es: 'Nueva contraseña' },
+  confirmPasswordPlaceholder: { en: 'Confirm new password', es: 'Confirma la nueva contraseña' },
+  savePasswordBtn: { en: 'Save password', es: 'Guardar contraseña' },
+  savingLabel: { en: 'Saving...', es: 'Guardando...' },
+  fillAllPasswordFields: { en: 'Fill in all three fields.', es: 'Completa los tres campos.' },
+  passwordsDontMatch: { en: "New passwords don't match.", es: 'Las contraseñas nuevas no coinciden.' },
+  passwordTooShort: { en: 'New password must be at least 6 characters.', es: 'La nueva contraseña debe tener al menos 6 caracteres.' },
+  incorrectCurrentPassword: { en: 'Current password is incorrect.', es: 'La contraseña actual es incorrecta.' },
+  passwordSaved: { en: 'Password updated.', es: 'Contraseña actualizada.' },
+  passwordSaveFailed: { en: 'Could not update password: ', es: 'No se pudo actualizar la contraseña: ' },
+  defaultLanguageTitle: { en: 'Default language', es: 'Idioma predeterminado' },
+  defaultLanguageDesc: { en: "The language you'll see by default each time you log in.", es: 'El idioma que verás de forma predeterminada cada vez que inicies sesión.' },
+  languageSaved: { en: 'Default language saved.', es: 'Idioma predeterminado guardado.' },
+  languageSaveFailed: { en: 'Could not save language: ', es: 'No se pudo guardar el idioma: ' },
+  closeBtn: { en: 'Close', es: 'Cerrar' }
+};
+let lang = localStorage.getItem('hieronymus_lang') || 'es';
+function t(key, ...args) {
+  const val = T[key][lang];
+  return typeof val === 'function' ? val(...args) : val;
+}
+function applyStaticLang() {
+  document.getElementById('logo-sub').textContent = t('logoSub');
+  document.getElementById('gate-title').textContent = t('gateTitle');
+  document.getElementById('gate-desc').textContent = t('gateDesc');
+  document.getElementById('gate-username-input').placeholder = t('usernamePlaceholder');
+  document.getElementById('gate-password-input').placeholder = t('passwordPlaceholder');
+  document.getElementById('gate-continue-btn').textContent = t('continueBtn');
+  document.getElementById('lang-btn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('lang-btn-es').classList.toggle('active', lang === 'es');
+  document.querySelectorAll('[data-t]').forEach(el => { el.textContent = t(el.getAttribute('data-t')); });
+  document.querySelectorAll('[data-t-placeholder]').forEach(el => { el.placeholder = t(el.getAttribute('data-t-placeholder')); });
+  document.getElementById('set-lang-en').classList.toggle('active', lang === 'en');
+  document.getElementById('set-lang-es').classList.toggle('active', lang === 'es');
+}
+function setLang(newLang) {
+  lang = newLang;
+  localStorage.setItem('hieronymus_lang', lang);
+  applyStaticLang();
+  if (document.getElementById('main-content').style.display === 'block') showApp();
+}
+
+// ── Settings modal ──
+function openSettings() {
+  document.getElementById('set-current-password').value = '';
+  document.getElementById('set-new-password').value = '';
+  document.getElementById('set-confirm-password').value = '';
+  document.getElementById('password-msg').textContent = '';
+  document.getElementById('password-msg').className = 'field-msg';
+  document.getElementById('language-msg').textContent = '';
+  document.getElementById('language-msg').className = 'field-msg';
+  document.getElementById('set-lang-en').classList.toggle('active', lang === 'en');
+  document.getElementById('set-lang-es').classList.toggle('active', lang === 'es');
+  document.getElementById('settings-modal').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+
+async function savePassword() {
+  const cur = document.getElementById('set-current-password').value.trim();
+  const next = document.getElementById('set-new-password').value.trim();
+  const confirm = document.getElementById('set-confirm-password').value.trim();
+  const msg = document.getElementById('password-msg');
+  const btn = document.getElementById('save-password-btn');
+  msg.className = 'field-msg';
+  if (!cur || !next || !confirm) { msg.textContent = t('fillAllPasswordFields'); msg.className = 'field-msg error'; return; }
+  if (next !== confirm) { msg.textContent = t('passwordsDontMatch'); msg.className = 'field-msg error'; return; }
+  if (next.length < 6) { msg.textContent = t('passwordTooShort'); msg.className = 'field-msg error'; return; }
+  btn.disabled = true;
+  const prevLabel = btn.textContent;
+  btn.textContent = t('savingLabel');
+  try {
+    const res = await fetch('/api/intake-codes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: sessionStorage.getItem('geo_portal_username'), currentPassword: cur, newPassword: next })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      msg.textContent = res.status === 401 ? t('incorrectCurrentPassword') : (t('passwordSaveFailed') + (data.error || res.status));
+      msg.className = 'field-msg error';
+      return;
+    }
+    clientPassword = next;
+    sessionStorage.setItem('geo_portal_password', next);
+    document.getElementById('set-current-password').value = '';
+    document.getElementById('set-new-password').value = '';
+    document.getElementById('set-confirm-password').value = '';
+    msg.textContent = t('passwordSaved');
+    msg.className = 'field-msg ok';
+  } catch (err) {
+    msg.textContent = t('passwordSaveFailed') + err.message;
+    msg.className = 'field-msg error';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prevLabel;
+  }
+}
+
+async function saveDefaultLanguage(newLang) {
+  const msg = document.getElementById('language-msg');
+  document.getElementById('set-lang-en').classList.toggle('active', newLang === 'en');
+  document.getElementById('set-lang-es').classList.toggle('active', newLang === 'es');
+  msg.className = 'field-msg';
+  msg.textContent = t('savingLabel');
+  try {
+    const res = await fetch('/api/intake-codes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: sessionStorage.getItem('geo_portal_username'), currentPassword: clientPassword, defaultLanguage: newLang })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    clientDefaultLanguage = newLang;
+    setLang(newLang);
+    msg.textContent = t('languageSaved');
+    msg.className = 'field-msg ok';
+  } catch (err) {
+    msg.textContent = t('languageSaveFailed') + err.message;
+    msg.className = 'field-msg error';
+  }
+}
+
+async function submitGate() {
+  const userInput = document.getElementById('gate-username-input');
+  const passInput = document.getElementById('gate-password-input');
+  const errEl = document.getElementById('gate-error');
+  const username = userInput.value.trim().toLowerCase();
+  const password = passInput.value.trim();
+  errEl.textContent = '';
+  if (!username || !password) {
+    errEl.textContent = t('enterCreds');
+    return;
+  }
+  try {
+    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+    if (!res.ok) throw new Error('bad credentials');
+    const data = await res.json();
+    clientCompany = data.company || '';
+    clientMonitoring = !!data.monitoringEnabled;
+    clientPassword = password;
+    clientDefaultLanguage = data.defaultLanguage || '';
+    clientSubmittedAt = data.submittedAt || '';
+    clientUsername = username;
+    clientRole = data.role || 'full';
+    sessionStorage.setItem('geo_portal_username', username);
+    sessionStorage.setItem('geo_portal_password', password);
+    if (clientDefaultLanguage && clientDefaultLanguage !== lang) { lang = clientDefaultLanguage; localStorage.setItem('hieronymus_lang', lang); applyStaticLang(); }
+    showApp();
+  } catch {
+    errEl.textContent = t('invalidCreds');
+    passInput.classList.add('error');
+  }
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+function parseCSV(text) {
+  const rows = [];
+  let field = '', row = [], inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  if (!rows.length) return [];
+  const headers = rows[0];
+  return rows.slice(1)
+    .filter(r => r.length === headers.length && r.some(v => v !== ''))
+    .map(r => { const obj = {}; headers.forEach((h, idx) => obj[h] = r[idx]); return obj; });
+}
+
+function titleRow() {
+  const settingsBtn = clientRole === 'viewer' ? '' : `<button class="btn-ghost-sm" onclick="openSettings()">${t('settingsBtn')}</button>`;
+  return `<div class="page-title-row"><div class="page-title">${esc(clientCompany)}</div><div style="display:flex; gap:8px;">${settingsBtn}<button class="btn-ghost-sm" onclick="clientLogout()">${t('logoutBtn')}</button></div></div>`;
+}
+function clientLogout() {
+  sessionStorage.removeItem('geo_portal_username');
+  sessionStorage.removeItem('geo_portal_password');
+  location.reload();
+}
+
+function kv(label, value) {
+  const v = value === undefined || value === null || value === '' ? '' : esc(value);
+  return `<div class="kv"><div class="k">${esc(label)}</div><div class="v${v ? '' : ' empty'}">${v}</div></div>`;
+}
+function tagList(items) {
+  if (!items || !items.length) return '<span style="color:var(--ink-60)">—</span>';
+  return `<div class="tag-list">${items.map(i => `<span class="tag">${esc(i)}</span>`).join('')}</div>`;
+}
+
+function intakeCard() {
+  const pending = !clientSubmittedAt;
+  return `
+    <div class="card card-col">
+      <div class="card-row-top">
+        <div>
+          <div class="card-title">${t('intakeCardTitle')}</div>
+          ${pending
+            ? `<div class="card-desc">${t('intakeDescPending')}</div>`
+            : `<div class="status-pill">${t('intakeSubmittedOn', esc(new Date(clientSubmittedAt).toLocaleDateString()))}</div>`}
+        </div>
+        ${pending ? `<a class="card-link" href="/intake.html?username=${encodeURIComponent(clientUsername)}">${t('completeIntakeBtn')}</a>` : ''}
+      </div>
+      ${!pending ? `
+        <button type="button" class="link-btn" id="intake-toggle-btn" onclick="toggleIntakeResponses()">${t('viewResponsesLink')}</button>
+        <div class="kv-panel" id="intake-responses-panel" style="display:none;"></div>
+      ` : ''}
+    </div>
+  `;
+}
+
+async function toggleIntakeResponses() {
+  const panel = document.getElementById('intake-responses-panel');
+  const btn = document.getElementById('intake-toggle-btn');
+  const isOpen = panel.style.display !== 'none';
+  if (isOpen) {
+    panel.style.display = 'none';
+    btn.textContent = t('viewResponsesLink');
+    return;
+  }
+  panel.style.display = 'block';
+  btn.textContent = t('hideResponsesLink');
+  if (intakeResponsesLoaded) return;
+  panel.innerHTML = `<div class="empty-state">${t('loadingResponses')}</div>`;
+  try {
+    const res = await fetch('/api/intake?company=' + encodeURIComponent(clientCompany));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const record = await res.json();
+    const d = record.intake || {};
+    const g = d.general || {}, w = d.websites || {}, c = d.customer || {}, p = d.problem || {},
+          j = d.jobToBeDone || {}, cat = d.category || {}, comp = d.competitors || {},
+          sp = d.searchPatterns || {}, diff = d.differentiators || {}, pf = d.proof || {};
+    panel.innerHTML = `
+      <div class="kv-card"><div class="kv-card-title">General</div>
+        ${kv('Website', g.website)}${kv('Industry', g.industry)}${kv('Contact', g.contact)}
+        ${kv('Role', g.role)}${kv('Email', g.email)}${kv('Primary language', g.language)}
+      </div>
+      <div class="kv-card"><div class="kv-card-title">Websites</div>
+        ${kv('Primary site', w.primarySite)}${kv('Known issues', w.knownIssues)}
+      </div>
+      <div class="kv-card"><div class="kv-card-title">Customer</div>
+        ${kv('Ideal customer', c.idealCustomer)}${kv('Trigger', c.trigger)}
+      </div>
+      <div class="kv-card"><div class="kv-card-title">Problem</div>
+        ${kv('Description', p.description)}${kv('Pain type', p.painType)}
+      </div>
+      <div class="kv-card"><div class="kv-card-title">Job to be done</div>
+        ${kv('Outcome', j.outcome)}${kv('Metrics', j.metrics)}
+      </div>
+      <div class="kv-card"><div class="kv-card-title">Category</div>
+        ${kv('Category', cat.category)}${kv('Elevator pitch', cat.elevatorPitch)}
+      </div>
+      <div class="kv-card"><div class="kv-card-title">Competitors</div>
+        ${kv('Competitors', comp.competitors)}${kv('Status quo', comp.statusQuo)}
+      </div>
+      <div class="kv-card"><div class="kv-card-title">Search patterns</div>
+        ${kv('FAQ questions', sp.faqQuestions)}${kv('Objections', sp.objections)}
+      </div>
+      <div class="kv-card"><div class="kv-card-title">Differentiators</div>
+        ${kv('Why choose us', diff.whyChoose)}${kv('Strongest fit', diff.strongest)}
+      </div>
+      <div class="kv-card"><div class="kv-card-title">Proof</div>
+        ${kv('Star clients', pf.starClients)}${kv('Years in business', pf.yearsBusiness)}
+        <div class="kv"><div class="k">Brands mentioned</div><div class="v">${tagList(pf.brands)}</div></div>
+      </div>
+    `;
+    intakeResponsesLoaded = true;
+  } catch (err) {
+    panel.innerHTML = `<div class="empty-state">${t('failedToLoadResponses')}${esc(err.message)}</div>`;
+  }
+}
+
+function promptsCard() {
+  return `
+    <div class="card">
+      <div>
+        <div class="card-title">${t('promptsCardTitle')}</div>
+        <div class="card-desc">${t('promptsCardDesc')}</div>
+      </div>
+      <a class="card-link" href="/prompt-review.html?username=${encodeURIComponent(clientUsername)}">${t('reviewPromptsBtn')}</a>
+    </div>
+  `;
+}
+
+async function showApp() {
+  document.getElementById('access-gate').style.display = 'none';
+  const main = document.getElementById('main-content');
+  main.style.display = 'block';
+  main.innerHTML = `${titleRow()}<div class="empty-state">${t('loading')}</div>`;
+
+  let hasRuns = false;
+  try {
+    const res = await fetch('/api/results');
+    const rows = parseCSV(await res.text());
+    hasRuns = rows.some(r => r.brand === clientCompany);
+  } catch { /* if this fails, just fall back to "not ready yet" below */ }
+
+  main.innerHTML = `
+    ${titleRow()}
+    <div class="page-sub">${t('pageSub')}</div>
+    ${intakeCard()}
+    ${promptsCard()}
+    ${hasRuns ? `
+      <div class="card">
+        <div>
+          <div class="card-title">${t('diagTitle')}</div>
+          <div class="card-desc">${t('diagDesc')}</div>
+        </div>
+        <a class="card-link" href="/dashboard-diagnostic.html?company=${encodeURIComponent(clientCompany)}">${t('openBtn')}</a>
+      </div>
+      ${clientMonitoring ? `
+      <div class="card">
+        <div>
+          <div class="card-title">${t('monTitle')}</div>
+          <div class="card-desc">${t('monDesc')}</div>
+        </div>
+        <a class="card-link" href="/dashboard-monitoring.html?company=${encodeURIComponent(clientCompany)}">${t('openBtn')}</a>
+      </div>
+      ` : `
+      <div class="empty-state">${t('monDisabled')}</div>
+      `}
+    ` : `
+      <div class="empty-state">${t('notRunYet')}</div>
+    `}
+  `;
+}
+
+applyStaticLang();
+
+(async function initGate() {
+  const params = new URLSearchParams(location.search);
+  const usernameFromUrl = params.get('username');
+
+  // Staff already logged into the internal Portal can open a customer's link straight
+  // through, without also needing that customer's own password.
+  if (usernameFromUrl && localStorage.getItem('hieronymus_internal_auth') === 'true') {
+    try {
+      const res = await fetch('/api/intake-codes');
+      const data = await res.json();
+      const group = (data.items || []).find(i => findMember(i, usernameFromUrl));
+      const member = group && findMember(group, usernameFromUrl);
+      if (group && member) {
+        clientCompany = group.company || '';
+        clientMonitoring = !!group.monitoringEnabled;
+        clientDefaultLanguage = member.defaultLanguage || '';
+        clientSubmittedAt = group.submittedAt || '';
+        clientUsername = usernameFromUrl;
+        clientRole = member.role || 'full';
+        if (clientDefaultLanguage && clientDefaultLanguage !== lang) { lang = clientDefaultLanguage; localStorage.setItem('hieronymus_lang', lang); applyStaticLang(); }
+        showApp();
+        return;
+      }
+    } catch { /* fall through to the normal client login gate */ }
+  }
+
+  if (usernameFromUrl) {
+    const userInput = document.getElementById('gate-username-input');
+    if (userInput) userInput.value = usernameFromUrl;
+  }
+  const usernameToTry = sessionStorage.getItem('geo_portal_username');
+  const passwordToTry = sessionStorage.getItem('geo_portal_password');
+  if (usernameToTry && passwordToTry) {
+    document.getElementById('gate-username-input').value = usernameToTry;
+    document.getElementById('gate-password-input').value = passwordToTry;
+    submitGate();
+  }
+})();
+</script>
+</body>
+</html>

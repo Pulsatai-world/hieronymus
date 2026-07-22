@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akore Labs — Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<script>
+const SESSION_KEY = 'hieronymus_internal_auth'; // shared with index.html/intake-view.html — log in once, stay in across all three
+const USER_KEY = 'hieronymus_internal_user';
+const ROLE_KEY = 'hieronymus_internal_role';
+const GATE_T = {
+  title: { en: 'Internal Portal', es: 'Portal Interno' },
+  sub: { en: 'Akore Labs — Restricted Access', es: 'Akore Labs — Acceso Restringido' },
+  userPlaceholder: { en: 'Username', es: 'Usuario' },
+  placeholder: { en: 'Password', es: 'Contraseña' },
+  btn: { en: 'Access →', es: 'Acceder →' },
+  error: { en: 'Incorrect username or password. Try again.', es: 'Usuario o contraseña incorrectos. Intenta de nuevo.' },
+  footer: { en: 'Akore Labs — Internal Use Only', es: 'Akore Labs — Solo Uso Interno' }
+};
+function gt(key) { return GATE_T[key][localStorage.getItem('hieronymus_lang') || 'es']; }
+
+function checkAuth() {
+  return localStorage.getItem(SESSION_KEY) === 'true';
+}
+function isAdmin() {
+  return localStorage.getItem(ROLE_KEY) === 'admin';
+}
+function staffLogout() {
+  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(ROLE_KEY);
+  sessionStorage.removeItem('geo_staff_password');
+  location.reload();
+}
+
+function setGateLang(newLang) {
+  localStorage.setItem('hieronymus_lang', newLang);
+  showPasswordGate();
+}
+
+function showPasswordGate() {
+  const currentLang = localStorage.getItem('hieronymus_lang') || 'es';
+  // Only <body> is replaced here — the page's own <style> block (in <head>) stays active, so
+  // this reuses the exact same classes (.card, .btn, .lang-toggle, .logo-icon) as the rest of
+  // the app, rather than a separately-themed gate design.
+  document.body.innerHTML = `
+    <style>
+      body { background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: var(--mono); padding: 24px; }
+      .gate-input { width: 100%; font-family: var(--mono); font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--border-bright); border-radius: var(--radius-sm); padding: 12px 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+      .gate-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+      .gate-input.error { border-color: var(--red); animation: shake 0.3s; }
+      @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+    </style>
+    <div class="card" style="width:100%; max-width:380px; box-shadow:var(--shadow-lg); margin-bottom:0;">
+      <div style="display:flex; justify-content:flex-end; margin-bottom:20px;">
+        <div class="lang-toggle">
+          <button class="lang-btn ${currentLang === 'en' ? 'active' : ''}" onclick="setGateLang('en')">EN</button>
+          <button class="lang-btn ${currentLang === 'es' ? 'active' : ''}" onclick="setGateLang('es')">ES</button>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:center; margin-bottom:20px;">
+        <div class="logo-icon" style="width:48px; height:48px;"><img src="/brand/logo-mark.png" alt="Akore Labs"></div>
+      </div>
+      <div style="font-family:var(--display); font-size:22px; font-weight:700; color:var(--text); text-align:center; margin-bottom:4px;">${gt('title')}</div>
+      <div style="font-size:12px; color:var(--text-dim); text-align:center; margin-bottom:28px;">${gt('sub')}</div>
+      <input class="gate-input" id="user-input" type="text" placeholder="${gt('userPlaceholder')}" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')document.getElementById('pw-input').focus()">
+      <input class="gate-input" id="pw-input" type="password" placeholder="${gt('placeholder')}" autocomplete="current-password" style="margin-bottom:16px;" onkeydown="if(event.key==='Enter')tryAuth()">
+      <button class="btn" onclick="tryAuth()" style="width:100%; justify-content:center; padding:12px; font-size:14px;">${gt('btn')}</button>
+      <div class="gate-error" id="pw-error" style="font-size:11px; color:var(--red); text-align:center; margin-top:10px; min-height:16px;"></div>
+      <div style="font-size:10px; color:var(--text-dim); text-align:center; margin-top:20px;">${gt('footer')}</div>
+    </div>`;
+  setTimeout(() => document.getElementById('user-input').focus(), 100);
+}
+
+async function tryAuth() {
+  const userInput = document.getElementById('user-input');
+  const passInput = document.getElementById('pw-input');
+  const username = userInput.value.trim().toLowerCase();
+  const password = passInput.value.trim();
+  if (!username || !password) return;
+  const errEl = document.getElementById('pw-error');
+  try {
+    let res = await fetch('/api/staff-users?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+    if (!res.ok) {
+      // Login failed — if no staff accounts exist anywhere yet, this is the very first visit:
+      // create the founding admin account with whatever was just typed, instead of erroring.
+      const listData = await (await fetch('/api/staff-users')).json().catch(() => ({ items: [] }));
+      if ((listData.items || []).length === 0) {
+        const createRes = await fetch('/api/staff-users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password, role: 'admin' })
+        });
+        if (!createRes.ok) {
+          const createData = await createRes.json().catch(() => ({}));
+          throw new Error(createData.error || 'bootstrap failed');
+        }
+        res = await fetch('/api/staff-users?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+      }
+      if (!res.ok) throw new Error('bad credentials');
+    }
+    const data = await res.json();
+    localStorage.setItem(SESSION_KEY, 'true');
+    localStorage.setItem(USER_KEY, data.username);
+    localStorage.setItem(ROLE_KEY, data.role);
+    sessionStorage.setItem('geo_staff_password', password);
+    location.reload();
+  } catch (err) {
+    passInput.classList.add('error');
+    errEl.textContent = err.message === 'bad credentials' || !err.message ? gt('error') : err.message;
+    passInput.value = '';
+    setTimeout(() => { passInput.classList.remove('error'); passInput.focus(); }, 400);
+  }
+}
+
+if (!checkAuth()) {
+  document.addEventListener('DOMContentLoaded', showPasswordGate);
+}
+</script>
+<style>
+:root {
+  --navy: #6d4fe0;
+  --violet-700: #4834b0;
+  --violet-100: #ece7fd;
+  --violet-50: #f6f3fe;
+  --emerald-700: #0f7d5b;
+  --emerald-100: #d5f4e8;
+  --bg: #f4f6f8;
+  --surface: #FFFFFF;
+  --surface2: #f4f2fb;
+  --border: #e3e6ea;
+  --border-bright: #c3c8d0;
+  --text: #08090c;
+  --text-dim: #757f8f;
+  --text-mid: #3d4653;
+  --accent: #6d4fe0;
+  --accent-glow: rgba(109,79,224,0.18);
+  --accent-dim: rgba(109,79,224,0.10);
+  --focus-ring: rgba(109,79,224,0.35);
+  --green: #0f7d5b;
+  --green-dim: #eefaf4;
+  --yellow: #8a6a12;
+  --yellow-dim: #fbf1de;
+  --red: #b03a3a;
+  --red-dim: #fce9e9;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+  --shadow-xs: 0 1px 2px rgba(16,19,25,0.06);
+  --shadow-sm: 0 1px 3px rgba(16,19,25,0.08), 0 1px 2px rgba(16,19,25,0.04);
+  --shadow-md: 0 6px 16px rgba(16,19,25,0.08), 0 2px 4px rgba(16,19,25,0.04);
+  --shadow-lg: 0 18px 40px rgba(16,19,25,0.12), 0 6px 12px rgba(16,19,25,0.06);
+  --shadow-brand: 0 12px 30px rgba(109,79,224,0.28);
+  --shadow-accent: 0 12px 30px rgba(30,169,124,0.24);
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --fs-h1: 2.5rem;
+  --fs-h2: 1.5rem;
+  --fs-h3: 1.125rem;
+  --fs-eyebrow: 0.6875rem;
+  --mono: "Manrope","Helvetica Neue",Arial,sans-serif;
+  --display: "Montserrat","Helvetica Neue",Arial,sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--mono); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 13px; line-height: 1.6; }
+.header {
+  border-bottom: 1px solid var(--border); padding: 20px 40px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  position: sticky; top: 0; background: rgba(255,255,255,0.92); backdrop-filter: blur(20px); z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 14px; }
+.logo-lockup { height: 38px; width: auto; display: block; image-rendering: -webkit-optimize-contrast; }
+.logo-icon { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; }
+.logo-icon img { width: 100%; height: 100%; object-fit: contain; }
+.logo-name { font-family: var(--display); font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+.logo-sub { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-size: var(--fs-eyebrow); font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.16em; }
+.logo-sub::before { content: ""; width: 22px; height: 2px; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
+.logo-divider { width: 1px; height: 18px; background: var(--border-bright); }
+.nav-link { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text-mid); text-decoration: none; border: 1px solid var(--border-bright); border-radius: var(--radius-pill); padding: 8px 16px; transition: all var(--dur-base) var(--ease-standard); white-space: nowrap; }
+.nav-link:hover { background: var(--surface2); color: var(--text); }
+@media (max-width: 720px) {
+  .header { padding: 14px 16px; }
+  .header-right { flex-wrap: wrap; row-gap: 8px; justify-content: flex-end; }
+  .main { padding: 24px 16px 60px; }
+}
+.main { max-width: 1100px; margin: 0 auto; padding: 48px 24px 80px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow-sm); transition: box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard); }
+.card-title { font-family: var(--display); font-size: var(--fs-h3); font-weight: 700; color: var(--text); margin-bottom: 4px; letter-spacing: -0.01em; }
+.card-caption { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5; }
+.two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; align-items: end; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 7px; font-weight: 600; }
+.field input, .field select { width: 100%; font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--radius-md); padding: 11px 14px; outline: none; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
+.field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+.field-hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; line-height: 1.5; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--mono); font-weight: 600; font-size: 13px; letter-spacing: 0.01em; padding: 11px 20px; min-height: 40px; border-radius: var(--radius-pill); border: none; cursor: pointer; background: var(--navy); color: white; box-shadow: var(--shadow-sm); transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-fast) var(--ease-standard); white-space: nowrap; }
+.btn:hover { background: var(--violet-700); box-shadow: var(--shadow-brand); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; transform: none; }
+.btn-ghost { background: transparent; color: var(--navy); border: 1px solid var(--border-bright); box-shadow: none; }
+.btn-ghost:hover { background: var(--violet-50); box-shadow: none; }
+.btn-sm { padding: 8px 16px; font-size: 11px; min-height: 34px; }
+.result-box { background: var(--green-dim); border: 1px solid rgba(18,97,126,0.25); border-radius: var(--radius-md); padding: 16px; margin-top: 16px; display: none; }
+.result-box .link-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.result-box input { flex: 1; font-family: var(--mono); font-size: 12px; background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--radius-sm); padding: 8px 12px; color: var(--text); }
+.error-box { background: var(--red-dim); color: var(--red); border: 1px solid rgba(142,51,44,0.25); border-radius: var(--radius-md); padding: 12px 16px; margin-top: 16px; font-size: 12px; display: none; }
+table { width: 100%; border-collapse: collapse; }
+th { background: var(--surface2); padding: 10px 14px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); border-bottom: 1px solid var(--border); white-space: nowrap; font-weight: 600; }
+td { padding: 12px 14px; font-size: 12px; border-bottom: 1px solid var(--border); color: var(--text-mid); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tbody tr { transition: background var(--dur-base) var(--ease-standard); }
+tbody tr:hover { background: var(--bg); }
+.company-name { font-weight: 700; color: var(--text); font-size: 13px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: var(--radius-pill); letter-spacing: 0.02em; white-space: nowrap; }
+.badge-submitted, .badge-done { background: var(--emerald-100); color: var(--emerald-700); }
+.badge-pending { background: var(--surface2); color: var(--text-dim); }
+.badge-partial { background: var(--yellow-dim); color: var(--yellow); }
+.action-list { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 160px; }
+.action-list a, .action-list button { width: 100%; justify-content: center; text-decoration: none; }
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); font-size: 13px; }
+code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: 3px; }
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+@media (max-width: 720px) {
+  table, thead, tbody, tr, td { display: block; width: 100%; }
+  thead { display: none; }
+  table { border: none; }
+  tr { border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 14px; padding: 10px 12px; overflow: hidden; }
+  td { border-bottom: 1px solid var(--surface2); padding: 10px 0; }
+  td:last-child { border-bottom: none; }
+  td[data-label]:before { content: attr(data-label); display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim); font-weight: 700; margin-bottom: 6px; }
+  .action-list { min-width: 0; }
+}
+.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(27,39,51,0.5); align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+.modal-backdrop.open { display: flex; }
+.modal-box { background: var(--surface); border-radius: var(--radius); padding: 28px; width: 100%; max-width: 440px; box-shadow: var(--shadow-lg); }
+.progress-wrap { width: 100%; height: 6px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+.progress-bar { height: 100%; background: var(--accent); transition: width 0.3s; }
+.job-status { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.lang-toggle { display: flex; border: 1px solid var(--border-bright); border-radius: var(--radius-pill); overflow: hidden; }
+.lang-btn { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-mid); background: var(--surface); border: none; padding: 6px 12px; cursor: pointer; }
+.lang-btn.active { background: var(--accent); color: #fff; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo">
+    <img class="logo-lockup" src="/brand/logo-horizontal-light.png" alt="Akore Labs">
+    <span class="logo-divider"></span>
+    <div class="logo-sub" data-t="logoSub">Internal Portal</div>
+  </div>
+  <div class="header-right">
+    <div class="lang-toggle">
+      <button class="lang-btn" id="lang-btn-en" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" id="lang-btn-es" onclick="setLang('es')">ES</button>
+    </div>
+    <button class="nav-link" id="manage-staff-nav-btn" onclick="openManageStaffModal()" style="display:none; cursor:pointer;" data-t="manageStaffNav">Staff Logins</button>
+    <button class="nav-link" onclick="staffLogout()" style="cursor:pointer;" data-t="logoutBtn">Log out</button>
+  </div>
+</header>
+
+<main class="main">
+  <div class="card" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+    <div class="card-title" style="margin-bottom:0;" data-t="customersTitle">Customers</div>
+    <div class="row" style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn" onclick="openNewCustomerModal()" data-t="newCustomerBtn">+ New Customer</button>
+    </div>
+  </div>
+
+  <div class="card" style="padding-bottom:16px;">
+    <input type="text" id="customer-search" data-t-placeholder="searchPlaceholder" placeholder="Search customers…" oninput="renderCustomerTable()" style="width:100%; font-family:inherit; font-size:14px; padding:11px 14px; border:1px solid var(--border-bright); border-radius:var(--radius-md); background:var(--surface); color:var(--text);">
+  </div>
+
+  <div class="card">
+    <div id="customers-list"></div>
+  </div>
+</main>
+
+<div class="modal-backdrop" id="new-customer-modal">
+  <div class="modal-box">
+    <div class="card-title" data-t="newCustomerModalTitle">New customer</div>
+    <div class="field">
+      <label data-t="companyLabel">Client / Company Name</label>
+      <input type="text" id="new-company" placeholder="" onkeydown="if(event.key==='Enter')generateCode()">
+    </div>
+    <div class="field">
+      <label><span data-t="claudeKeyLabel">Claude API Key</span> <span class="field-hint" data-t="optionalHint">(optional)</span></label>
+      <input type="password" id="new-claude-key" placeholder="" autocomplete="off">
+    </div>
+    <div class="field">
+      <label><span data-t="chatgptKeyLabel">ChatGPT API Key</span> <span class="field-hint" data-t="optionalHint">(optional)</span></label>
+      <input type="password" id="new-chatgpt-key" placeholder="" autocomplete="off">
+    </div>
+    <div class="field">
+      <label><span data-t="geminiKeyLabel">Gemini API Key</span> <span class="field-hint" data-t="optionalHint">(optional)</span></label>
+      <input type="password" id="new-gemini-key" placeholder="" autocomplete="off">
+    </div>
+    <div class="field-hint" style="margin-bottom:14px;" data-t="keysHint">Optional here — you can also add or update keys anytime from the customer's Akore Labs page (Generate Prompts → API Keys).</div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button class="btn btn-ghost" id="new-customer-close-btn" onclick="closeNewCustomerModal()" data-t="cancelBtn">Cancel</button>
+      <button class="btn" onclick="generateCode()" data-t="createBtn">+ Create Customer</button>
+    </div>
+    <div class="result-box" id="result-box">
+      <div><strong id="result-company"></strong> — <span data-t="usernameLabel">username</span> <code id="result-username"></code> / <span data-t="passwordLabel">password</span> <code id="result-password"></code></div>
+      <div class="field-hint" style="margin:6px 0 0;" data-t="resultSendHint">Send both to the client — the password is only ever shown here, once.</div>
+      <div class="link-row">
+        <input type="text" id="result-link" readonly>
+        <button class="btn btn-ghost" onclick="copyResultLink()" data-t="copyLinkBtn">Copy Link</button>
+      </div>
+    </div>
+    <div class="error-box" id="error-box"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="manage-users-modal">
+  <div class="modal-box">
+    <div class="card-title" id="manage-users-title">Manage Users</div>
+    <div class="field-hint" style="margin-bottom:14px;" data-t="manageUsersHint">Anyone in this list can log into this customer's Client Portal, Intake form, and Prompt Review with their own username/password. "Viewer" accounts can view only — they can't approve prompts, edit intake, or change account settings.</div>
+    <div id="members-list" style="margin-bottom:16px;"></div>
+    <div class="field-hint" style="font-weight:700; text-transform:uppercase; font-size:11px; color:var(--text-mid); margin-bottom:8px;" data-t="addUserTitle">Add a user</div>
+    <div class="field">
+      <label data-t="usernameLabel">username</label>
+      <input type="text" id="new-member-username" placeholder="" autocomplete="off" autocapitalize="off">
+    </div>
+    <div class="field">
+      <label data-t="passwordLabel">password</label>
+      <input type="text" id="new-member-password" placeholder="" autocomplete="off">
+    </div>
+    <div class="field">
+      <label data-t="roleLabel">Role</label>
+      <select id="new-member-role">
+        <option value="full" data-t="roleFull">Full access</option>
+        <option value="viewer" data-t="roleViewer">Viewer (read-only)</option>
+      </select>
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeManageUsersModal()" data-t="closeBtn">Close</button>
+      <button class="btn" onclick="addMember()" data-t="addUserBtn">+ Add User</button>
+    </div>
+    <div class="error-box" id="member-error-box"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="manage-staff-modal">
+  <div class="modal-box">
+    <div class="card-title" data-t="manageStaffTitle">Manage Staff Logins</div>
+    <div class="field-hint" style="margin-bottom:14px;" data-t="manageStaffHint">Admins can do everything, including deleting customers/results, toggling monitoring, and managing other staff logins. Users can do everything else.</div>
+    <div id="staff-list" style="margin-bottom:16px;"></div>
+    <div class="field-hint" style="font-weight:700; text-transform:uppercase; font-size:11px; color:var(--text-mid); margin-bottom:8px;" data-t="addStaffTitle">Add a staff login</div>
+    <div class="field">
+      <label data-t="usernameLabel">username</label>
+      <input type="text" id="new-staff-username" placeholder="" autocomplete="off" autocapitalize="off">
+    </div>
+    <div class="field">
+      <label data-t="passwordLabel">password</label>
+      <input type="text" id="new-staff-password" placeholder="" autocomplete="off">
+    </div>
+    <div class="field">
+      <label data-t="roleLabel">Role</label>
+      <select id="new-staff-role">
+        <option value="user" data-t="roleStaffUser">User</option>
+        <option value="admin" data-t="roleStaffAdmin">Admin</option>
+      </select>
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeManageStaffModal()" data-t="closeBtn">Close</button>
+      <button class="btn" onclick="addStaffUser()" data-t="addUserBtn">+ Add User</button>
+    </div>
+    <div class="error-box" id="staff-error-box"></div>
+  </div>
+</div>
+
+<script>
+function slugify(name) {
+  return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+}
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ── Language ──
+const T = {
+  logoSub: { en: 'Internal Portal', es: 'Portal Interno' },
+  logoutBtn: { en: 'Log out', es: 'Cerrar sesión' },
+  customersTitle: { en: 'Customers', es: 'Clientes' },
+  searchPlaceholder: { en: 'Search customers…', es: 'Buscar clientes…' },
+  noSearchResults: { en: 'No customers match your search.', es: 'Ningún cliente coincide con tu búsqueda.' },
+  newCustomerBtn: { en: '+ New Customer', es: '+ Nuevo Cliente' },
+  noCustomers: { en: 'No customers yet. Create one above.', es: 'Aún no hay clientes. Crea uno arriba.' },
+  failedToLoad: { en: 'Failed to load: ', es: 'Error al cargar: ' },
+  newCustomerModalTitle: { en: 'New customer', es: 'Nuevo cliente' },
+  companyLabel: { en: 'Client / Company Name', es: 'Nombre del Cliente / Empresa' },
+  claudeKeyLabel: { en: 'Claude API Key', es: 'Clave API de Claude' },
+  chatgptKeyLabel: { en: 'ChatGPT API Key', es: 'Clave API de ChatGPT' },
+  geminiKeyLabel: { en: 'Gemini API Key', es: 'Clave API de Gemini' },
+  optionalHint: { en: '(optional)', es: '(opcional)' },
+  keysHint: { en: "Optional here — you can also add or update keys anytime from the customer's Akore Labs page (Generate Prompts → API Keys).", es: 'Opcional aquí — también puedes agregar o actualizar las claves cuando quieras desde la página de Akore Labs del cliente (Generar Prompts → Claves API).' },
+  cancelBtn: { en: 'Cancel', es: 'Cancelar' },
+  createBtn: { en: '+ Create Customer', es: '+ Crear Cliente' },
+  doneBtn: { en: 'Done', es: 'Listo' },
+  usernameLabel: { en: 'username', es: 'usuario' },
+  passwordLabel: { en: 'password', es: 'contraseña' },
+  resultSendHint: { en: 'Send both to the client — the password is only ever shown here, once.', es: 'Envía ambos al cliente — la contraseña solo se muestra aquí, una vez.' },
+  copyLinkBtn: { en: 'Copy Link', es: 'Copiar Enlace' },
+  enterCompanyAlert: { en: 'Enter a client/company name first.', es: 'Primero ingresa el nombre del cliente/empresa.' },
+  failedGenCode: { en: 'Failed to generate code: ', es: 'Error al generar el código: ' },
+  failedKeysMsg: { en: 'Customer created, but failed to save API keys: ', es: 'Cliente creado, pero no se pudieron guardar las claves API: ' },
+  linkCopiedAlert: { en: 'Link copied!', es: '¡Enlace copiado!' },
+  thCompany: { en: 'Company', es: 'Empresa' },
+  thIntake: { en: 'Intake', es: 'Formulario' },
+  thPrompts: { en: 'Prompts', es: 'Prompts' },
+  thAudit: { en: 'Audit', es: 'Auditoría' },
+  thActions: { en: 'Actions', es: 'Acciones' },
+  badgeSubmitted: { en: 'Submitted ', es: 'Enviado ' },
+  badgeAwaitingClient: { en: 'Awaiting client', es: 'Esperando al cliente' },
+  badgeApproved: { en: 'Approved ', es: 'Aprobado ' },
+  badgeAwaitingReview: { en: 'Awaiting review', es: 'Esperando revisión' },
+  badgeNotYet: { en: 'Not yet', es: 'Aún no' },
+  run: { en: 'run', es: 'ejecución' },
+  runs: { en: 'runs', es: 'ejecuciones' },
+  usernameRowLabel: { en: 'username', es: 'usuario' },
+  usersCountLabel: { en: (n) => `${n} user${n === 1 ? '' : 's'}`, es: (n) => `${n} usuario${n === 1 ? '' : 's'}` },
+  monitoringLabel: { en: 'Monitoring', es: 'Monitoreo' },
+  adminOnlyTitle: { en: 'Admin only', es: 'Solo administradores' },
+  manageUsersBtn: { en: 'Manage Users', es: 'Gestionar Usuarios' },
+  manageUsersHint: { en: "Anyone in this list can log into this customer's Client Portal, Intake form, and Prompt Review with their own username/password. \"Viewer\" accounts can view only — they can't approve prompts, edit intake, or change account settings.", es: 'Cualquiera en esta lista puede iniciar sesión en el Portal del Cliente, el Formulario de Admisión y la Revisión de Prompts de este cliente con su propio usuario/contraseña. Las cuentas de "Solo lectura" solo pueden ver — no pueden aprobar prompts, editar el formulario ni cambiar la configuración de la cuenta.' },
+  addUserTitle: { en: 'Add a user', es: 'Agregar un usuario' },
+  roleLabel: { en: 'Role', es: 'Rol' },
+  roleFull: { en: 'Full access', es: 'Acceso completo' },
+  roleViewer: { en: 'Viewer (read-only)', es: 'Solo lectura' },
+  roleStaffUser: { en: 'User', es: 'Usuario' },
+  roleStaffAdmin: { en: 'Admin', es: 'Administrador' },
+  addUserBtn: { en: '+ Add User', es: '+ Agregar Usuario' },
+  closeBtn: { en: 'Close', es: 'Cerrar' },
+  memberOwnerTag: { en: '(owner)', es: '(propietario)' },
+  removeMemberBtn: { en: 'Remove', es: 'Quitar' },
+  resetPasswordBtn: { en: 'Reset Password', es: 'Restablecer Contraseña' },
+  newPasswordPrompt: { en: (u) => `New password for "${u}" (min. 6 characters):`, es: (u) => `Nueva contraseña para "${u}" (mín. 6 caracteres):` },
+  passwordTooShortAlert: { en: 'Password must be at least 6 characters.', es: 'La contraseña debe tener al menos 6 caracteres.' },
+  passwordResetDone: { en: (u, p) => `Password reset for "${u}". New password: ${p}\n\nShare this with them now — it won't be shown again.`, es: (u, p) => `Contraseña restablecida para "${u}". Nueva contraseña: ${p}\n\nCompártela con ellos ahora — no se volverá a mostrar.` },
+  failedResetPassword: { en: 'Failed to reset password: ', es: 'Error al restablecer la contraseña: ' },
+  confirmRemoveMember: { en: (u) => `Remove "${u}"? They will no longer be able to log in.`, es: (u) => `¿Quitar a "${u}"? Ya no podrá iniciar sesión.` },
+  failedAddMember: { en: 'Failed to add user: ', es: 'Error al agregar usuario: ' },
+  failedRemoveMember: { en: 'Failed to remove user: ', es: 'Error al quitar usuario: ' },
+  fillUserPassword: { en: 'Enter a username and password.', es: 'Ingresa un usuario y una contraseña.' },
+  manageStaffNav: { en: 'Staff Logins', es: 'Accesos de Personal' },
+  manageStaffTitle: { en: 'Manage Staff Logins', es: 'Gestionar Accesos de Personal' },
+  manageStaffHint: { en: 'Admins can do everything, including deleting customers/results, toggling monitoring, and managing other staff logins. Users can do everything else.', es: 'Los administradores pueden hacer todo, incluyendo eliminar clientes/resultados, activar el monitoreo y gestionar otros accesos de personal. Los usuarios pueden hacer todo lo demás.' },
+  addStaffTitle: { en: 'Add a staff login', es: 'Agregar un acceso de personal' },
+  failedAddStaff: { en: 'Failed to add staff login: ', es: 'Error al agregar el acceso de personal: ' },
+  failedRemoveStaff: { en: 'Failed to remove staff login: ', es: 'Error al quitar el acceso de personal: ' },
+  confirmRemoveStaff: { en: (u) => `Remove staff login "${u}"?`, es: (u) => `¿Quitar el acceso de personal "${u}"?` },
+  youTag: { en: '(you)', es: '(tú)' },
+  reenterPasswordPrompt: { en: 'Re-enter your admin password to confirm:', es: 'Vuelve a ingresar tu contraseña de administrador para confirmar:' },
+  openHieronymus: { en: 'Open in Akore Labs →', es: 'Abrir en Akore Labs →' },
+  copyIntakeLink: { en: 'Copy Intake Link', es: 'Copiar Enlace de Formulario' },
+  openBtn: { en: 'Open →', es: 'Abrir →' },
+  copyReviewLink: { en: 'Copy Review Link', es: 'Copiar Enlace de Revisión' },
+  copyPortalLink: { en: 'Copy Client Portal Link', es: 'Copiar Enlace del Portal del Cliente' },
+  deleteBtn: { en: 'Delete', es: 'Eliminar' },
+  linkCopiedPasswordNote: { en: 'Link copied (password was only shown once, at creation — resend it separately if the client needs it again).', es: 'Enlace copiado (la contraseña solo se mostró una vez, al crearlo — reenvíala por separado si el cliente la necesita de nuevo).' },
+  reviewLinkCopied: { en: 'Review link copied!', es: '¡Enlace de revisión copiado!' },
+  portalLinkCopied: { en: 'Client portal link copied!', es: '¡Enlace del portal del cliente copiado!' },
+  deleteConfirm: { en: (c) => `Delete "${c}"? This removes their intake link/login. This cannot be undone.`, es: (c) => `¿Eliminar a "${c}"? Esto elimina su enlace/acceso al formulario. Esta acción no se puede deshacer.` },
+  failedDelete: { en: 'Failed to delete: ', es: 'Error al eliminar: ' },
+  failedMonitoring: { en: 'Failed to update monitoring: ', es: 'Error al actualizar el monitoreo: ' },
+  runningStatus: { en: (c, t, ci) => `Running: ${c}/${t} (${ci} cited)`, es: (c, t, ci) => `En proceso: ${c}/${t} (${ci} citados)` },
+  lastRunStatus: { en: (c, ci) => `Last run: ${c} rows, ${ci} cited`, es: (c, ci) => `Última ejecución: ${c} filas, ${ci} citados` }
+};
+let lang = localStorage.getItem('hieronymus_lang') || 'es';
+
+function t(key, ...args) {
+  const entry = T[key];
+  if (!entry) return key;
+  const val = entry[lang];
+  return typeof val === 'function' ? val(...args) : val;
+}
+
+function applyStaticLang() {
+  document.querySelectorAll('[data-t]').forEach(el => {
+    el.textContent = t(el.getAttribute('data-t'));
+  });
+  document.querySelectorAll('[data-t-placeholder]').forEach(el => {
+    el.placeholder = t(el.getAttribute('data-t-placeholder'));
+  });
+  document.getElementById('lang-btn-en').classList.toggle('active', lang === 'en');
+  document.getElementById('lang-btn-es').classList.toggle('active', lang === 'es');
+}
+
+function setLang(newLang) {
+  lang = newLang;
+  localStorage.setItem('hieronymus_lang', lang);
+  applyStaticLang();
+  loadAll();
+}
+
+function openNewCustomerModal() {
+  document.getElementById('new-company').value = '';
+  document.getElementById('new-claude-key').value = '';
+  document.getElementById('new-chatgpt-key').value = '';
+  document.getElementById('new-gemini-key').value = '';
+  document.getElementById('result-box').style.display = 'none';
+  document.getElementById('error-box').style.display = 'none';
+  document.getElementById('new-customer-close-btn').textContent = t('cancelBtn');
+  document.getElementById('new-customer-modal').classList.add('open');
+}
+
+function closeNewCustomerModal() {
+  document.getElementById('new-customer-modal').classList.remove('open');
+  loadAll();
+}
+
+async function generateCode() {
+  const company = document.getElementById('new-company').value.trim();
+  const claudeKey = document.getElementById('new-claude-key').value.trim();
+  const chatgptKey = document.getElementById('new-chatgpt-key').value.trim();
+  const geminiKey = document.getElementById('new-gemini-key').value.trim();
+  const resultBox = document.getElementById('result-box');
+  const errorBox = document.getElementById('error-box');
+  resultBox.style.display = 'none';
+  errorBox.style.display = 'none';
+  if (!company) { alert(t('enterCompanyAlert')); return; }
+
+  try {
+    const res = await fetch('/api/intake-codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+
+    if (claudeKey || chatgptKey || geminiKey) {
+      const keyPayload = { company };
+      if (claudeKey) keyPayload.claude = claudeKey;
+      if (chatgptKey) keyPayload.chatgpt = chatgptKey;
+      if (geminiKey) keyPayload.gemini = geminiKey;
+      const keysRes = await fetch('/api/customer-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(keyPayload)
+      });
+      if (!keysRes.ok) {
+        const err = await keysRes.json().catch(() => ({}));
+        throw new Error(t('failedKeysMsg') + (err.error || 'HTTP ' + keysRes.status));
+      }
+    }
+
+    const link = location.origin + '/intake.html?username=' + encodeURIComponent(data.username);
+    document.getElementById('result-company').textContent = company;
+    document.getElementById('result-username').textContent = data.username;
+    document.getElementById('result-password').textContent = data.password;
+    document.getElementById('result-link').value = link;
+    resultBox.style.display = 'block';
+    document.getElementById('new-company').value = '';
+    document.getElementById('new-claude-key').value = '';
+    document.getElementById('new-chatgpt-key').value = '';
+    document.getElementById('new-gemini-key').value = '';
+    document.getElementById('new-customer-close-btn').textContent = t('doneBtn');
+    loadAll();
+  } catch (err) {
+    errorBox.textContent = t('failedGenCode') + err.message;
+    errorBox.style.display = 'block';
+  }
+}
+
+function copyResultLink() {
+  const input = document.getElementById('result-link');
+  input.select();
+  navigator.clipboard.writeText(input.value).then(() => alert(t('linkCopiedAlert')));
+}
+
+// ── CSV parsing (same as the dashboards) — used only to count audit runs per company ──
+function parseCSV(text) {
+  const rows = [];
+  let field = '', row = [], inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+      else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  if (!rows.length) return [];
+  const headers = rows[0];
+  return rows.slice(1)
+    .filter(r => r.length === headers.length && r.some(v => v !== ''))
+    .map(r => { const obj = {}; headers.forEach((h, idx) => obj[h] = r[idx]); return obj; });
+}
+
+let allCustomerItems = [], promptsBySlug = {}, runsByCompany = {};
+
+async function loadAll() {
+  const container = document.getElementById('customers-list');
+  try {
+    const [codesRes, promptsRes, resultsRes] = await Promise.all([
+      fetch('/api/intake-codes'),
+      fetch('/api/prompts'),
+      fetch('/api/results')
+    ]);
+    const codesData = await codesRes.json();
+    const promptsData = await promptsRes.json().catch(() => ({ items: [] }));
+    const resultsText = await resultsRes.text().catch(() => '');
+
+    allCustomerItems = codesData.items || [];
+    if (allCustomerItems.length === 0) {
+      container.innerHTML = `<div class="empty-state">${t('noCustomers')}</div>`;
+      return;
+    }
+
+    promptsBySlug = {};
+    (promptsData.items || []).forEach(p => { promptsBySlug[p.key] = p; });
+
+    const allRows = parseCSV(resultsText);
+    runsByCompany = {};
+    allRows.forEach(r => {
+      if (!r.brand) return;
+      runsByCompany[r.brand] = runsByCompany[r.brand] || new Set();
+      runsByCompany[r.brand].add(r.snapshot_date);
+    });
+
+    renderCustomerTable();
+  } catch (err) {
+    container.innerHTML = `<div class="empty-state">${t('failedToLoad')}${err.message}</div>`;
+  }
+}
+
+function renderCustomerTable() {
+  const container = document.getElementById('customers-list');
+  const searchInput = document.getElementById('customer-search');
+  const query = (searchInput ? searchInput.value : '').trim().toLowerCase();
+  const items = query ? allCustomerItems.filter(i => (i.company || '').toLowerCase().includes(query)) : allCustomerItems;
+
+  if (items.length === 0) {
+    container.innerHTML = `<div class="empty-state">${t('noSearchResults')}</div>`;
+    return;
+  }
+
+  try {
+    container.innerHTML = `
+      <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>${t('thCompany')}</th><th>${t('thIntake')}</th><th>${t('thPrompts')}</th><th>${t('thAudit')}</th><th>${t('thActions')}</th></tr></thead>
+        <tbody>
+          ${items.map(i => {
+            const members = i.members || [];
+            const owner = members[0] || { username: slugify(i.company) };
+            const slug = owner.username;
+            const prompts = promptsBySlug[slug];
+            const runs = runsByCompany[i.company];
+            const companyAttr = escapeHtml(i.company);
+            const intakeCell = i.submittedAt
+              ? `<span class="badge badge-submitted">${t('badgeSubmitted')}${i.submittedAt.slice(0, 10)}</span>`
+              : `<span class="badge badge-pending">${t('badgeAwaitingClient')}</span>`;
+            const promptsCell = prompts
+              ? (prompts.approvedAt
+                  ? `<span class="badge badge-done">${t('badgeApproved')}${prompts.approvedAt.slice(0, 10)}</span>`
+                  : `<span class="badge badge-partial">${t('badgeAwaitingReview')}</span>`)
+              : `<span class="badge badge-pending">${t('badgeNotYet')}</span>`;
+            const auditCell = runs
+              ? `<span class="badge badge-done">${runs.size} ${runs.size === 1 ? t('run') : t('runs')}</span>`
+              : `<span class="badge badge-pending">${t('badgeNotYet')}</span>`;
+            return `
+            <tr data-row-company="${companyAttr}">
+              <td data-label="${t('thCompany')}"><div class="company-name">${companyAttr}</div><div class="field-hint">${t('usernameRowLabel')} <code>${owner.username}</code> &middot; ${t('usersCountLabel', members.length)}</div></td>
+              <td data-label="${t('thIntake')}">${intakeCell}</td>
+              <td data-label="${t('thPrompts')}">${promptsCell}</td>
+              <td data-label="${t('thAudit')}">${auditCell}<div class="job-status" data-job-status></div><div class="progress-wrap" data-job-progress style="display:none;"><div class="progress-bar" style="width:0%"></div></div>
+                <label style="display:flex; align-items:center; gap:6px; margin-top:8px; text-transform:none; font-size:11px; color:var(--text-mid); cursor:${isAdmin() ? 'pointer' : 'not-allowed'};" title="${isAdmin() ? '' : t('adminOnlyTitle')}">
+                  <input type="checkbox" data-action="toggle-monitoring" data-username="${owner.username}" ${i.monitoringEnabled ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'} style="width:auto;"> ${t('monitoringLabel')}
+                </label>
+              </td>
+              <td data-label="${t('thActions')}">
+                <div class="action-list">
+                  <a class="btn btn-sm" href="/index.html?company=${encodeURIComponent(i.company)}">${t('openHieronymus')}</a>
+                  <button class="btn btn-ghost btn-sm" data-action="manage-users" data-company="${companyAttr}" style="width:100%;">${t('manageUsersBtn')}</button>
+                  <div style="display:flex; gap:6px; width:100%;">
+                    <button class="btn btn-ghost btn-sm" data-action="copy-link" data-username="${owner.username}" style="width:auto; flex-grow:1;">${t('copyIntakeLink')}</button>
+                    <a class="btn btn-ghost btn-sm" href="/intake.html?username=${encodeURIComponent(owner.username)}" target="_blank" rel="noopener" style="width:auto; flex-grow:0; flex-shrink:0;">${t('openBtn')}</a>
+                  </div>
+                  ${prompts ? `<div style="display:flex; gap:6px; width:100%;">
+                    <button class="btn btn-ghost btn-sm" data-action="copy-review-link" data-username="${owner.username}" style="width:auto; flex-grow:1;">${t('copyReviewLink')}</button>
+                    <a class="btn btn-ghost btn-sm" href="/prompt-review.html?username=${encodeURIComponent(owner.username)}" target="_blank" rel="noopener" style="width:auto; flex-grow:0; flex-shrink:0;">${t('openBtn')}</a>
+                  </div>` : ''}
+                  <div style="display:flex; gap:6px; width:100%;">
+                    <button class="btn btn-ghost btn-sm" data-action="copy-portal-link" data-username="${owner.username}" style="width:auto; flex-grow:1;">${t('copyPortalLink')}</button>
+                    <a class="btn btn-ghost btn-sm" href="/client-portal.html?username=${encodeURIComponent(owner.username)}" target="_blank" rel="noopener" style="width:auto; flex-grow:0; flex-shrink:0;">${t('openBtn')}</a>
+                  </div>
+                  <button class="btn btn-ghost btn-sm" data-action="delete-customer" data-username="${owner.username}" data-company="${companyAttr}" style="color:var(--red);" ${isAdmin() ? '' : 'disabled title="' + t('adminOnlyTitle') + '"'}>${t('deleteBtn')}</button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      </div>
+    `;
+    items.forEach(i => pollJobStatus(i.company, { once: true }));
+  } catch (err) {
+    container.innerHTML = `<div class="empty-state">${t('failedToLoad')}${err.message}</div>`;
+  }
+}
+
+document.getElementById('customers-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  if (btn.dataset.action === 'copy-link') {
+    const link = location.origin + '/intake.html?username=' + encodeURIComponent(btn.dataset.username);
+    navigator.clipboard.writeText(link).then(() => alert(t('linkCopiedPasswordNote')));
+  } else if (btn.dataset.action === 'copy-review-link') {
+    const link = location.origin + '/prompt-review.html?username=' + encodeURIComponent(btn.dataset.username);
+    navigator.clipboard.writeText(link).then(() => alert(t('reviewLinkCopied')));
+  } else if (btn.dataset.action === 'copy-portal-link') {
+    const link = location.origin + '/client-portal.html?username=' + encodeURIComponent(btn.dataset.username);
+    navigator.clipboard.writeText(link).then(() => alert(t('portalLinkCopied')));
+  } else if (btn.dataset.action === 'delete-customer') {
+    if (!isAdmin()) return;
+    await deleteCustomer(btn.dataset.username, btn.dataset.company);
+  } else if (btn.dataset.action === 'manage-users') {
+    openManageUsersModal(btn.dataset.company);
+  }
+});
+
+document.getElementById('customers-list').addEventListener('change', async (e) => {
+  const checkbox = e.target.closest('input[data-action="toggle-monitoring"]');
+  if (!checkbox || !isAdmin()) return;
+  try {
+    const res = await fetch('/api/intake-codes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: checkbox.dataset.username, monitoringEnabled: checkbox.checked })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+  } catch (err) {
+    checkbox.checked = !checkbox.checked;
+    alert(t('failedMonitoring') + err.message);
+  }
+});
+
+async function deleteCustomer(username, company) {
+  if (!confirm(t('deleteConfirm', company))) return;
+  try {
+    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username), { method: 'DELETE' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await loadAll();
+  } catch (err) {
+    alert(t('failedDelete') + err.message);
+  }
+}
+
+// ── Read-only audit progress polling — Generate/Run are triggered from the per-customer
+// Hieronymus detail page, but the Portal still shows live status if a run is in flight ──
+const activePolls = {};
+
+async function pollJobStatus(company, opts = {}) {
+  const row = document.querySelector(`tr[data-row-company="${CSS.escape(company)}"]`);
+  if (!row) return;
+  const statusEl = row.querySelector('[data-job-status]');
+  const progressWrap = row.querySelector('[data-job-progress]');
+  const progressBar = progressWrap ? progressWrap.querySelector('.progress-bar') : null;
+
+  if (activePolls[company]) clearTimeout(activePolls[company]);
+
+  try {
+    const res = await fetch('/api/audit-job?company=' + encodeURIComponent(company));
+    const data = await res.json();
+
+    // Netlify Blobs can occasionally return a read shortly after a write with a field missing
+    // (eventual consistency, not a real state change) — 'status' has been the one that drops
+    // most often. Infer "still running" from total/completed rather than requiring an exact
+    // status match, so a dropped field doesn't make an in-progress run look stale/blank.
+    const inferredRunning = data.status === 'running' || (!data.status && data.total > 0 && (data.completed || 0) < data.total && !data.finishedAt);
+    const inferredDone = data.status === 'done' || (!data.status && data.total > 0 && (data.completed || 0) >= data.total);
+    if (inferredRunning) {
+      const pct = data.total ? Math.round((data.completed / data.total) * 100) : 0;
+      statusEl.textContent = t('runningStatus', data.completed || 0, data.total || '?', data.cited || 0);
+      if (progressWrap) { progressWrap.style.display = 'block'; progressBar.style.width = pct + '%'; }
+      activePolls[company] = setTimeout(() => pollJobStatus(company), 2500);
+    } else if (data.status === 'error') {
+      statusEl.textContent = data.message;
+      if (progressWrap) progressWrap.style.display = 'none';
+    } else if (inferredDone) {
+      statusEl.textContent = t('lastRunStatus', data.completed, data.cited || 0);
+      if (progressWrap) progressWrap.style.display = 'none';
+      if (!opts.once) await loadAll();
+    } else if (!opts.once) {
+      activePolls[company] = setTimeout(() => pollJobStatus(company), 2500);
+    }
+  } catch { /* transient poll failure — next tick will retry */ }
+}
+
+// ── Manage Users (per-company group members) ──
+let manageUsersCompany = '';
+
+async function openManageUsersModal(company) {
+  manageUsersCompany = company;
+  document.getElementById('manage-users-title').textContent = t('manageUsersBtn') + ' — ' + company;
+  document.getElementById('new-member-username').value = '';
+  document.getElementById('new-member-password').value = '';
+  document.getElementById('new-member-role').value = 'full';
+  document.getElementById('member-error-box').style.display = 'none';
+  document.getElementById('manage-users-modal').classList.add('open');
+  await renderMembersList();
+}
+function closeManageUsersModal() {
+  document.getElementById('manage-users-modal').classList.remove('open');
+}
+
+async function renderMembersList() {
+  const list = document.getElementById('members-list');
+  list.innerHTML = t('loading') || 'Loading…';
+  try {
+    const res = await fetch('/api/intake-codes?company=' + encodeURIComponent(manageUsersCompany));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const record = await res.json();
+    const members = record.members || [];
+    list.innerHTML = members.map((m, idx) => `
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border);">
+        <div>
+          <code>${escapeHtml(m.username)}</code> ${idx === 0 ? `<span class="field-hint">${t('memberOwnerTag')}</span>` : ''}
+          <span class="field-hint" style="margin-left:8px;">${m.role === 'viewer' ? t('roleViewer') : t('roleFull')}</span>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="resetMemberPassword('${escapeHtml(m.username)}')">${t('resetPasswordBtn')}</button>
+          ${idx === 0 ? '' : `<button class="btn btn-ghost btn-sm" onclick="removeMember('${escapeHtml(m.username)}')">${t('removeMemberBtn')}</button>`}
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    list.innerHTML = `<div class="field-hint">${t('failedToLoad')}${err.message}</div>`;
+  }
+}
+
+async function addMember() {
+  const username = document.getElementById('new-member-username').value.trim().toLowerCase();
+  const password = document.getElementById('new-member-password').value.trim();
+  const role = document.getElementById('new-member-role').value;
+  const errBox = document.getElementById('member-error-box');
+  errBox.style.display = 'none';
+  if (!username || !password) {
+    errBox.textContent = t('fillUserPassword');
+    errBox.style.display = 'block';
+    return;
+  }
+  try {
+    const res = await fetch('/api/intake-codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ addMember: true, company: manageUsersCompany, username, password, role })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    document.getElementById('new-member-username').value = '';
+    document.getElementById('new-member-password').value = '';
+    await renderMembersList();
+    await loadAll();
+  } catch (err) {
+    errBox.textContent = t('failedAddMember') + err.message;
+    errBox.style.display = 'block';
+  }
+}
+
+async function removeMember(username) {
+  if (!confirm(t('confirmRemoveMember', username))) return;
+  try {
+    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username) + '&memberOnly=true', { method: 'DELETE' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await renderMembersList();
+    await loadAll();
+  } catch (err) {
+    alert(t('failedRemoveMember') + err.message);
+  }
+}
+
+async function resetMemberPassword(username) {
+  const newPassword = prompt(t('newPasswordPrompt', username));
+  if (!newPassword) return;
+  if (newPassword.trim().length < 6) { alert(t('passwordTooShortAlert')); return; }
+  try {
+    const res = await fetch('/api/intake-codes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username, adminReset: true, newPassword: newPassword.trim(),
+        requestingStaffUsername: localStorage.getItem(USER_KEY),
+        requestingStaffPassword: getStaffPassword()
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    alert(t('passwordResetDone', username, newPassword.trim()));
+  } catch (err) {
+    alert(t('failedResetPassword') + err.message);
+  }
+}
+
+// Persistent login (localStorage) can outlive the password cached in sessionStorage (e.g. the
+// browser was closed and reopened) — admin actions need the password again to prove admin
+// status server-side, so ask for it just-in-time rather than failing silently.
+function getStaffPassword() {
+  let pw = sessionStorage.getItem('geo_staff_password');
+  if (!pw) {
+    pw = prompt(t('reenterPasswordPrompt')) || '';
+    if (pw) sessionStorage.setItem('geo_staff_password', pw);
+  }
+  return pw;
+}
+
+// ── Manage Staff Logins (internal Admin/User accounts) ──
+function openManageStaffModal() {
+  document.getElementById('new-staff-username').value = '';
+  document.getElementById('new-staff-password').value = '';
+  document.getElementById('new-staff-role').value = 'user';
+  document.getElementById('staff-error-box').style.display = 'none';
+  document.getElementById('manage-staff-modal').classList.add('open');
+  renderStaffList();
+}
+function closeManageStaffModal() {
+  document.getElementById('manage-staff-modal').classList.remove('open');
+}
+
+async function renderStaffList() {
+  const list = document.getElementById('staff-list');
+  list.innerHTML = t('loading') || 'Loading…';
+  try {
+    const res = await fetch('/api/staff-users');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const me = localStorage.getItem(USER_KEY);
+    list.innerHTML = (data.items || []).map(u => `
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border);">
+        <div>
+          <code>${escapeHtml(u.username)}</code> ${u.username === me ? `<span class="field-hint">${t('youTag')}</span>` : ''}
+          <span class="field-hint" style="margin-left:8px;">${u.role === 'admin' ? t('roleStaffAdmin') : t('roleStaffUser')}</span>
+        </div>
+        ${u.username === me ? '' : `<button class="btn btn-ghost btn-sm" onclick="removeStaffUser('${escapeHtml(u.username)}')">${t('removeMemberBtn')}</button>`}
+      </div>
+    `).join('');
+  } catch (err) {
+    list.innerHTML = `<div class="field-hint">${t('failedToLoad')}${err.message}</div>`;
+  }
+}
+
+async function addStaffUser() {
+  const username = document.getElementById('new-staff-username').value.trim().toLowerCase();
+  const password = document.getElementById('new-staff-password').value.trim();
+  const role = document.getElementById('new-staff-role').value;
+  const errBox = document.getElementById('staff-error-box');
+  errBox.style.display = 'none';
+  if (!username || !password) {
+    errBox.textContent = t('fillUserPassword');
+    errBox.style.display = 'block';
+    return;
+  }
+  try {
+    const res = await fetch('/api/staff-users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username, password, role,
+        requestingUsername: localStorage.getItem(USER_KEY),
+        requestingPassword: getStaffPassword()
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    document.getElementById('new-staff-username').value = '';
+    document.getElementById('new-staff-password').value = '';
+    await renderStaffList();
+  } catch (err) {
+    errBox.textContent = t('failedAddStaff') + err.message;
+    errBox.style.display = 'block';
+  }
+}
+
+async function removeStaffUser(username) {
+  if (!confirm(t('confirmRemoveStaff', username))) return;
+  try {
+    const params = new URLSearchParams({
+      username,
+      requestingUsername: localStorage.getItem(USER_KEY) || '',
+      requestingPassword: getStaffPassword()
+    });
+    const res = await fetch('/api/staff-users?' + params.toString(), { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    await renderStaffList();
+  } catch (err) {
+    alert(t('failedRemoveStaff') + err.message);
+  }
+}
+
+if (isAdmin()) document.getElementById('manage-staff-nav-btn').style.display = '';
+
+applyStaticLang();
+loadAll();
+</script>
+</body>
+</html>

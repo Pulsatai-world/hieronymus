@@ -1,0 +1,1886 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GEO Audit — Client Intake | Akore Labs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+:root {
+  --navy: #6d4fe0;
+  --violet-700: #4834b0;
+  --violet-100: #ece7fd;
+  --grad-violet: linear-gradient(150deg, #8168ea 0%, #6d4fe0 55%, #4834b0 100%);
+  --ink: #08090c;
+  --ink-60: #757f8f;
+  --ink-30: #c3c8d0;
+  --ink-10: rgba(109,79,224,0.08);
+  --surface: #f4f6f8;
+  --card: #ffffff;
+  --accent: #6d4fe0;
+  --accent-light: #f4f2fb;
+  --accent-mid: #8467e6;
+  --focus-ring: rgba(109,79,224,0.35);
+  --warning: #8a6a12;
+  --warning-bg: #fbf1de;
+  --warning-border: #d9b65c;
+  --success: #0f7d5b;
+  --success-bg: #eefaf4;
+  --danger: #b03a3a;
+  --danger-bg: #fce9e9;
+  --border: #e3e6ea;
+  --border-strong: #c3c8d0;
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius: 16px;
+  --radius-pill: 999px;
+  --shadow: 0 1px 3px rgba(16,19,25,0.08), 0 1px 2px rgba(16,19,25,0.04);
+  --shadow-md: 0 6px 16px rgba(16,19,25,0.08), 0 2px 4px rgba(16,19,25,0.04);
+  --shadow-lg: 0 18px 40px rgba(16,19,25,0.12), 0 6px 12px rgba(16,19,25,0.06);
+  --shadow-brand: 0 12px 30px rgba(109,79,224,0.28);
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --fs-h2: 1.5rem;
+  --fs-eyebrow: 0.6875rem;
+  --font-display: "Montserrat", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Manrope", "Helvetica Neue", Arial, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--surface);
+  color: var(--ink);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ── HEADER ── */
+.app-header {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 40px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 0 var(--border);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-lockup {
+  height: 38px;
+  width: auto;
+  display: block;
+  image-rendering: -webkit-optimize-contrast;
+}
+
+.logo-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-strong);
+}
+
+.logo-mark {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.logo-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.2px;
+}
+
+.logo-sub {
+  font-size: var(--fs-eyebrow);
+  font-weight: 600;
+  color: var(--ink-60);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-sub::before {
+  content: "";
+  width: 22px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.lang-toggle {
+  display: flex;
+  background: var(--ink-10);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.lang-btn {
+  padding: 5px 14px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-60);
+  cursor: pointer;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  min-height: 36px;
+  min-width: 44px;
+}
+
+.lang-btn.active {
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* ── TAB BAR ── */
+.tab-bar {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  position: sticky;
+  top: 64px;
+  z-index: 99;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 14px;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  min-width: 60px;
+}
+.tab:hover { background: var(--surface); }
+.tab.active { border-bottom-color: var(--accent); background: var(--accent-light); }
+.tab.done .tab-num { background: var(--success) !important; color: white !important; }
+.tab-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--ink-10); color: var(--ink-60);
+  font-size: 10px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-body);
+}
+.tab.active .tab-num { background: var(--accent); color: white; }
+.tab-label {
+  font-size: 10px; font-weight: 500;
+  color: var(--ink-60); font-family: var(--font-body);
+}
+.tab.active .tab-label { color: var(--accent); font-weight: 600; }
+
+/* ── PROGRESS ── */
+.progress-rail {
+  height: 3px;
+  background: var(--border);
+  position: sticky;
+  top: 117px;
+  z-index: 98;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── LAYOUT ── */
+.app-body {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 24px 60px;
+}
+
+/* ── SECTION HEADER ── */
+.section-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.section-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--navy);
+  color: white;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.section-badge.special {
+  background: var(--accent);
+}
+
+.section-meta { flex: 1; }
+
+.section-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--ink);
+  line-height: 1.2;
+  letter-spacing: -0.3px;
+}
+
+.section-desc {
+  font-size: 13px;
+  color: var(--ink-60);
+  margin-top: 2px;
+}
+
+/* ── INTRO CARD ── */
+.intro-card {
+  background: var(--grad-violet);
+  color: white;
+  border-radius: var(--radius);
+  padding: 32px;
+  margin-bottom: 40px;
+  box-shadow: var(--shadow-brand);
+}
+
+.intro-card h1 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  margin-bottom: 10px;
+  letter-spacing: -0.5px;
+}
+
+.intro-card p {
+  font-size: 14px;
+  opacity: 0.75;
+  line-height: 1.7;
+  max-width: 560px;
+}
+
+.intro-meta {
+  display: flex;
+  gap: 24px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.intro-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.intro-stat-label {
+  font-size: 11px;
+  opacity: 0.5;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.intro-stat-value {
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+/* ── PANELS ── */
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ── CARDS ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.card-subtitle {
+  font-size: 12px;
+  color: var(--ink-60);
+  margin-top: 2px;
+}
+
+/* ── ALERTS ── */
+.alert {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.alert-warning {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  color: var(--warning);
+}
+
+.alert-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── FIELDS ── */
+.field-group { margin-bottom: 20px; }
+.field-group:last-child { margin-bottom: 0; }
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--ink-60);
+  margin-top: 5px;
+  display: block;
+  line-height: 1.5;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="url"],
+select,
+textarea {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  appearance: none;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="url"]:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(109,79,224,0.1);
+  background: white;
+}
+
+textarea { min-height: 90px; resize: vertical; line-height: 1.6; }
+
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%2308090c' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+/* ── TAGS ── */
+.tag-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+  cursor: text;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tag-wrapper:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(109,79,224,0.1);
+  background: white;
+}
+
+.tag-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--accent-light);
+  color: var(--accent);
+  border: 1px solid rgba(109,79,224,0.2);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 10px 3px 10px;
+  border-radius: 20px;
+}
+
+.tag-chip button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.tag-chip button:hover { opacity: 1; }
+
+.tag-input {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--ink);
+  min-width: 140px;
+  flex: 1;
+  padding: 2px 4px !important;
+  box-shadow: none !important;
+}
+
+/* ── PERSONA / SITE CARDS ── */
+.sub-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 18px;
+  margin-bottom: 12px;
+}
+
+.sub-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.sub-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.remove-btn {
+  font-size: 12px;
+  color: var(--danger);
+  background: none;
+  border: 1px solid rgba(176,58,58,0.2);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: all 0.15s;
+}
+
+.remove-btn:hover {
+  background: var(--danger-bg);
+}
+
+.add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  background: var(--accent-light);
+  border: 1px solid rgba(109,79,224,0.2);
+  border-radius: var(--radius-sm);
+  padding: 8px 16px;
+  cursor: pointer;
+  font-family: var(--font-body);
+  transition: all 0.15s;
+  margin-top: 8px;
+}
+
+.add-btn:hover {
+  background: rgba(109,79,224,0.12);
+}
+
+/* ── ACCESS GATE ── */
+.access-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.access-gate-inner {
+  width: 100%;
+  max-width: 380px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.access-gate-icon { width: 52px; height: 52px; margin: 0 auto 20px; border-radius: 50%; background: var(--violet-100); color: var(--navy); display: flex; align-items: center; justify-content: center; }
+
+.access-gate-inner h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.access-gate-inner p {
+  font-size: 13px;
+  color: var(--ink-60);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.access-gate-inner input {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 15px;
+  text-align: center;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 12px 16px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  margin-bottom: 14px;
+}
+
+.access-gate-inner input:focus { border-color: var(--accent); }
+
+.access-gate-inner .btn-accent { width: 100%; justify-content: center; }
+.access-gate-inner input.gate-field-normal { text-transform: none; letter-spacing: normal; text-align: left; }
+
+.access-gate-error {
+  font-size: 12px;
+  color: var(--danger);
+  margin-top: 12px;
+  min-height: 16px;
+}
+
+/* ── COMPLETION ── */
+.completion-screen {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.completion-icon {
+  width: 72px;
+  height: 72px;
+  background: var(--success-bg);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 24px;
+  font-size: 32px;
+}
+
+.completion-title {
+  font-family: var(--font-display);
+  font-size: 32px;
+  color: var(--ink);
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+.completion-sub {
+  font-size: 15px;
+  color: var(--ink-60);
+  margin-bottom: 36px;
+  max-width: 440px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 36px;
+  text-align: left;
+}
+
+.summary-stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+}
+
+.summary-stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ink-60);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.summary-stat-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── BUTTONS ── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--navy);
+  color: white;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 12px 24px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  min-height: 44px;
+}
+
+.btn-primary:hover { background: var(--violet-700); box-shadow: var(--shadow-brand); }
+.btn-primary:active { transform: translateY(1px); }
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  color: var(--ink);
+  border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  padding: 12px 24px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  min-height: 44px;
+}
+
+.btn-secondary:hover { background: var(--surface); }
+.btn-secondary:active { transform: translateY(1px); }
+
+.btn-accent {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 12px 24px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+
+.btn-accent:hover { background: var(--violet-700); box-shadow: var(--shadow-brand); }
+.btn-accent:active { transform: translateY(1px); }
+
+/* ── SECTION DIVIDER ── */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 28px 0;
+}
+
+/* ── STATUS BADGES ── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.status-active { background: var(--success-bg); color: var(--success); }
+.status-warning { background: var(--warning-bg); color: var(--warning); }
+.status-danger { background: var(--danger-bg); color: var(--danger); }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 600px) {
+  .app-header { padding: 0 16px; }
+  .logo-sub, .logo-divider { display: none; }
+  .app-body { padding: 24px 16px 100px; }
+  .two-col, .three-col { grid-template-columns: 1fr; }
+  .intro-meta { flex-wrap: wrap; gap: 16px; }
+  .summary-grid { grid-template-columns: 1fr 1fr; }
+  .nav-footer { padding: 12px 16px; }
+  .intro-card { padding: 20px; }
+  .intro-card h1 { font-size: 22px; }
+}
+
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="logo">
+    <img class="logo-lockup" src="/brand/logo-horizontal-light.png" alt="Akore Labs">
+    <span class="logo-divider"></span>
+    <div class="logo-sub">GEO Audit System</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <a href="javascript:void(0)" onclick="window.saveProgress();return false;" id="save-progress-btn" style="text-decoration:none;font-family:var(--font-body);font-size:12px;font-weight:500;color:var(--accent);background:var(--accent-light);border:1px solid rgba(109,79,224,0.2);border-radius:999px;padding:6px 12px;-webkit-tap-highlight-color:transparent;" data-en="Save" data-es="Guardar">Save</a>
+    <div class="lang-toggle">
+      <a class="lang-btn active" id="btn-en" href="javascript:void(0)" onclick="window.setLang('en');return false;" style="text-decoration:none;">EN</a>
+      <a class="lang-btn" id="btn-es" href="javascript:void(0)" onclick="window.setLang('es');return false;" style="text-decoration:none;">ES</a>
+    </div>
+    <a href="javascript:void(0)" onclick="window.clientLogout();return false;" id="logout-btn" style="display:none;text-decoration:none;font-family:var(--font-body);font-size:12px;font-weight:500;color:var(--ink-60);border:1px solid var(--border-strong);border-radius:999px;padding:6px 12px;-webkit-tap-highlight-color:transparent;" data-en="Log out" data-es="Cerrar sesión">Log out</a>
+  </div>
+</div>
+
+<!-- ACCESS GATE — shown until a valid per-client code is entered -->
+<div id="access-gate" class="access-gate">
+  <div class="access-gate-inner">
+    <div class="access-gate-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+    <h2 data-en="Client Access" data-es="Acceso de Cliente">Client Access</h2>
+    <p data-en="Enter the username and password from your invitation to begin your GEO intake questionnaire." data-es="Ingresa el usuario y la contraseña de tu invitación para comenzar tu cuestionario de admisión GEO.">Enter the username and password from your invitation to begin your GEO intake questionnaire.</p>
+    <input type="text" id="gate-username-input" class="gate-field-normal" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')document.getElementById('gate-password-input').focus()">
+    <input type="password" id="gate-password-input" class="gate-field-normal" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')window.submitGateCode()">
+    <button class="btn-accent" id="gate-submit-btn" onclick="window.submitGateCode()">
+      <span data-en="Continue" data-es="Continuar">Continue</span>
+    </button>
+    <div id="gate-error" class="access-gate-error"></div>
+  </div>
+</div>
+
+<div id="app-content" style="display:none">
+
+<div class="tab-bar" id="tab-bar">
+  <a class="tab active" id="tab-0" href="javascript:void(0)" onclick="window.goTab(0);return false;">
+    <span class="tab-num">0</span>
+    <span class="tab-label" data-en="General" data-es="General">General</span>
+  </a>
+  <a class="tab" id="tab-websites" href="javascript:void(0)" onclick="window.goTab(1);return false;">
+    <span class="tab-num">W</span>
+    <span class="tab-label" data-en="Websites" data-es="Sitios Web">Websites</span>
+  </a>
+  <a class="tab" id="tab-1" href="javascript:void(0)" onclick="window.goTab(2);return false;">
+    <span class="tab-num">1</span>
+    <span class="tab-label" data-en="Customer" data-es="Cliente">Customer</span>
+  </a>
+  <a class="tab" id="tab-2" href="javascript:void(0)" onclick="window.goTab(3);return false;">
+    <span class="tab-num">2</span>
+    <span class="tab-label" data-en="Problem" data-es="Problema">Problem</span>
+  </a>
+  <a class="tab" id="tab-3" href="javascript:void(0)" onclick="window.goTab(4);return false;">
+    <span class="tab-num">3</span>
+    <span class="tab-label" data-en="Job" data-es="Trabajo">Job</span>
+  </a>
+  <a class="tab" id="tab-4" href="javascript:void(0)" onclick="window.goTab(5);return false;">
+    <span class="tab-num">4</span>
+    <span class="tab-label" data-en="Category" data-es="Categoría">Category</span>
+  </a>
+  <a class="tab" id="tab-5" href="javascript:void(0)" onclick="window.goTab(6);return false;">
+    <span class="tab-num">5</span>
+    <span class="tab-label" data-en="Competitors" data-es="Competidores">Competitors</span>
+  </a>
+  <a class="tab" id="tab-6" href="javascript:void(0)" onclick="window.goTab(7);return false;">
+    <span class="tab-num">6</span>
+    <span class="tab-label" data-en="Search" data-es="Búsquedas">Search</span>
+  </a>
+  <a class="tab" id="tab-7" href="javascript:void(0)" onclick="window.goTab(8);return false;">
+    <span class="tab-num">7</span>
+    <span class="tab-label" data-en="Differentiators" data-es="Diferenciadores">Diff.</span>
+  </a>
+  <a class="tab" id="tab-8" href="javascript:void(0)" onclick="window.goTab(9);return false;">
+    <span class="tab-num">8</span>
+    <span class="tab-label" data-en="Proof" data-es="Prueba">Proof</span>
+  </a>
+  <a class="tab" id="tab-complete" href="javascript:void(0)" onclick="window.goTab(10);return false;">
+    <span class="tab-num">✓</span>
+    <span class="tab-label" data-en="Submit" data-es="Enviar">Submit</span>
+  </a>
+</div>
+
+<div class="progress-rail">
+  <div class="progress-bar" id="progress-bar" style="width: 10%"></div>
+</div>
+
+<main class="app-body">
+
+  <!-- PANEL 0 — General -->
+  <div class="panel active" id="panel-0">
+    <div class="intro-card">
+      <h1 id="intro-title">GEO Audit — Client Intake</h1>
+      <p id="intro-desc">This questionnaire is the first stage of your GEO (Generative Engine Optimization) diagnosis. Your answers build the buyer profiles we'll simulate across ChatGPT, Claude, Perplexity, and Google AI to audit how your brand appears. Be as specific as possible and use your customers' actual language.</p>
+      <div class="intro-meta">
+        <div class="intro-stat">
+          <span class="intro-stat-label" data-en="Sections" data-es="Secciones">Sections</span>
+          <span class="intro-stat-value">10</span>
+        </div>
+        <div class="intro-stat">
+          <span class="intro-stat-label" data-en="Est. Time" data-es="Tiempo est.">Est. Time</span>
+          <span class="intro-stat-value" data-en="30–45 min" data-es="30–45 min">30–45 min</span>
+        </div>
+        <div class="intro-stat">
+          <span class="intro-stat-label" data-en="Output" data-es="Resultado">Output</span>
+          <span class="intro-stat-value" data-en="100+ AI queries" data-es="100+ consultas IA">100+ AI queries</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-eyebrow">
+      <div class="section-badge special">0</div>
+      <div class="section-meta">
+        <div class="section-title" data-en="General Information" data-es="Datos Generales">General Information</div>
+        <div class="section-desc" data-en="Company details and contact information" data-es="Datos de la empresa e información de contacto">Company details and contact information</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="two-col">
+        <div class="field-group">
+          <label data-en="Company Name" data-es="Nombre de la Empresa">Company Name</label>
+          <input type="text" id="company" placeholder="">
+        </div>
+        <div class="field-group">
+          <label data-en="Primary Website" data-es="Sitio Web Principal">Primary Website</label>
+          <input type="url" id="website" placeholder="https://...">
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="field-group">
+          <label data-en="Industry / Sector" data-es="Industria / Sector">Industry / Sector</label>
+          <input type="text" id="industry" placeholder="">
+        </div>
+        <div class="field-group">
+          <label data-en="Contact Person" data-es="Persona de Contacto">Contact Person</label>
+          <input type="text" id="contact" placeholder="Full name">
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="field-group">
+          <label data-en="Role / Title" data-es="Cargo">Role / Title</label>
+          <input type="text" id="role" placeholder="">
+        </div>
+        <div class="field-group">
+          <label data-en="Email" data-es="Correo Electrónico">Email</label>
+          <input type="email" id="email" placeholder="contact@company.com">
+        </div>
+      </div>
+      <div class="field-group">
+        <label data-en="Primary Business Language" data-es="Idioma Principal del Negocio">Primary Business Language</label>
+        <select id="language">
+          <option value="Spanish" data-en="Spanish" data-es="Español">Spanish</option>
+          <option value="English" data-en="English" data-es="Inglés">English</option>
+          <option value="Bilingual" data-en="Both (Bilingual)" data-es="Ambos (Bilingüe)">Both (Bilingual)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="section-eyebrow" style="margin-top: 32px;">
+      <div class="section-badge special">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
+      </div>
+      <div class="section-meta">
+        <div class="section-title" data-en="Digital Presence" data-es="Presencia Digital">Digital Presence</div>
+        <div class="section-desc" data-en="Current online footprint" data-es="Huella digital actual">Current online footprint</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="two-col">
+        <div class="field-group">
+          <label data-en="Website Platform" data-es="Plataforma del Sitio Web">Website Platform</label>
+          <select id="platform">
+            <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
+            <option>WordPress</option>
+            <option>Shopify</option>
+            <option>Wix</option>
+            <option>Squarespace</option>
+            <option>Systeme.io</option>
+            <option data-en="Custom / Other" data-es="Personalizado / Otro">Custom / Other</option>
+            <option data-en="Unknown" data-es="Desconocido">Unknown</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label data-en="Google Business Profile?" data-es="¿Perfil de Negocio en Google?">Google Business Profile?</label>
+          <select id="gbp">
+            <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
+            <option value="complete" data-en="Yes — fully completed" data-es="Sí — completamente lleno">Yes — fully completed</option>
+            <option value="partial" data-en="Yes — partially filled" data-es="Sí — parcialmente lleno">Yes — partially filled</option>
+            <option value="no" data-en="No" data-es="No">No</option>
+            <option value="unknown" data-en="Not sure" data-es="No sé">Not sure</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-group">
+        <label data-en="Active Social Media Platforms" data-es="Redes Sociales Activas">Active Social Media Platforms</label>
+        <div class="tag-wrapper" id="social-wrap" onclick="document.getElementById('social-input').focus()">
+          <input class="tag-input" id="social-input" placeholder="Type and press Enter">
+        </div>
+        <span class="field-hint" data-en="Press Enter after each platform" data-es="Presiona Enter después de cada plataforma">Press Enter after each platform</span>
+      </div>
+      <div class="field-group">
+        <label data-en="Appear in Google for main service?" data-es="¿Aparece en Google para su servicio principal?">Appear in Google for main service?</label>
+        <select id="google-presence">
+          <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
+          <option value="page1" data-en="Yes — page 1" data-es="Sí — primera página">Yes — page 1</option>
+          <option value="other" data-en="Yes — page 2 or beyond" data-es="Sí — página 2 o más">Yes — page 2 or beyond</option>
+          <option value="no" data-en="No / not sure" data-es="No / no sé">No / not sure</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL WEBSITES -->
+  <div class="panel" id="panel-websites">
+    <div class="section-eyebrow">
+      <div class="section-badge special">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>
+      </div>
+      <div class="section-meta">
+        <div class="section-title" data-en="Website Inventory" data-es="Inventario de Sitios Web">Website Inventory</div>
+        <div class="section-desc" data-en="Document every web property — this is often where GEO problems hide" data-es="Documenta cada propiedad web — aquí se esconden muchos problemas de GEO">Document every web property</div>
+      </div>
+    </div>
+
+    <div class="alert alert-warning">
+      <span class="alert-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 2 20h20L12 3z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17.5" r="0.5" fill="currentColor"/></svg></span>
+      <span id="alert-websites-text">Multiple websites split your authority signal. AI engines get confused about which is the real brand and may cite a competitor instead. We audit every site.</span>
+    </div>
+
+    <div class="card">
+      <div class="field-group">
+        <label data-en="Total websites the company has" data-es="Total de sitios web que tiene la empresa">Total websites the company has</label>
+        <select id="site-count">
+          <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
+          <option value="1" data-en="1 — just the primary site" data-es="1 — solo el sitio principal">1 — just the primary site</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4+" data-en="4 or more" data-es="4 o más">4 or more</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="additional-sites-container"></div>
+    <a class="add-btn" id="add-site-btn" href="javascript:void(0)" onclick="window.addSite();return false;" style="text-decoration:none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span data-en="Add another website" data-es="Agregar otro sitio web">Add another website</span>
+    </a>
+
+    <div class="card" style="margin-top: 20px;">
+      <div class="field-group">
+        <label data-en="Do any sites duplicate content from another?" data-es="¿Algún sitio duplica contenido de otro?">Do any sites duplicate content?</label>
+        <select id="duplicates">
+          <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
+          <option value="yes" data-en="Yes — same content on multiple domains" data-es="Sí — mismo contenido en varios dominios">Yes — same content on multiple domains</option>
+          <option value="partial" data-en="Partially — some overlap" data-es="Parcialmente — hay traslape">Partially</option>
+          <option value="no" data-en="No — each serves a different purpose" data-es="No — cada uno tiene un propósito diferente">No</option>
+          <option value="unknown" data-en="Not sure" data-es="No sé">Not sure</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label data-en="Do the sites link to each other?" data-es="¿Los sitios se enlazan entre sí?">Do the sites link to each other?</label>
+        <select id="cross-links">
+          <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
+          <option value="all" data-en="Yes — all link to each other" data-es="Sí — todos se enlazan entre sí">Yes — all</option>
+          <option value="some" data-en="Some do, some don't" data-es="Algunos sí, otros no">Some do</option>
+          <option value="no" data-en="No cross-linking" data-es="Sin enlaces cruzados">No</option>
+          <option value="unknown" data-en="Not sure" data-es="No sé">Not sure</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label data-en="Which site should be the authoritative brand hub?" data-es="¿Cuál debería ser el sitio principal y más autoritativo?">Which should be the brand hub?</label>
+        <input type="text" id="authority-site" placeholder="">
+      </div>
+      <div class="field-group">
+        <label data-en="Known issues with the current web presence" data-es="Problemas conocidos con la presencia web actual">Known issues with current web presence</label>
+        <span class="field-hint" data-en="Outdated content, broken pages, wrong phone numbers, old branding, duplicate pages..." data-es="Contenido desactualizado, páginas rotas, teléfonos incorrectos, marca antigua...">Outdated content, broken pages, wrong phone numbers, old branding...</span>
+        <textarea id="known-issues" placeholder=""></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 1 — Customer -->
+  <div class="panel" id="panel-1">
+    <div class="section-eyebrow">
+      <div class="section-badge">1</div>
+      <div class="section-meta">
+        <div class="section-title" data-en="Who Is the Customer?" data-es="¿Quién Es el Cliente?">Who Is the Customer?</div>
+        <div class="section-desc" data-en="Buyer personas become the search profiles we test in AI engines" data-es="Los perfiles de comprador se convierten en las búsquedas que simulamos en los motores de IA">Buyer personas become the AI search profiles</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="field-group">
+        <label data-en="Describe your ideal customer in one paragraph" data-es="Describe a tu cliente ideal en un párrafo">Describe your ideal customer</label>
+        <span class="field-hint" data-en="Include role, company size, industry, seniority level" data-es="Incluye puesto, tamaño de empresa, industria y nivel jerárquico">Include role, company size, industry, seniority</span>
+        <textarea id="ideal-customer" placeholder=""></textarea>
+      </div>
+      <div class="divider"></div>
+      <div class="field-group">
+        <label data-en="Buyer Personas — add 3 to 5" data-es="Perfiles de Comprador — agrega 3 a 5">Buyer Personas</label>
+        <span class="field-hint" data-en="For each: job title, what they care about, the metric they're evaluated on" data-es="Para cada uno: puesto, qué le importa, métrica en la que se le evalúa">Job title, priorities, and success metric for each</span>
+      </div>
+      <div id="personas-container">
+        <div class="sub-card">
+          <div class="sub-card-header">
+            <span class="sub-card-title" data-en="Persona 1" data-es="Perfil 1">Persona 1</span>
+          </div>
+          <div class="two-col">
+            <div class="field-group">
+              <label data-en="Job Title" data-es="Puesto">Job Title</label>
+              <input type="text" class="p-title" placeholder="">
+            </div>
+            <div class="field-group">
+              <label data-en="What They Care About" data-es="Qué Le Importa">What They Care About</label>
+              <input type="text" class="p-cares" placeholder="">
+            </div>
+          </div>
+          <div class="field-group" style="margin-bottom:0">
+            <label data-en="Metric They're Evaluated On" data-es="Métrica en la que se le Evalúa">Metric They're Evaluated On</label>
+            <input type="text" class="p-metric" placeholder="">
+          </div>
+        </div>
+      </div>
+      <a class="add-btn" href="javascript:void(0)" onclick="window.addPersona();return false;" style="text-decoration:none;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span data-en="Add persona" data-es="Agregar perfil">Add persona</span>
+      </a>
+      <div class="divider"></div>
+      <div class="field-group">
+        <label data-en="Are buyer and end user the same person?" data-es="¿El comprador y el usuario final son la misma persona?">Buyer = End user?</label>
+        <select id="buyer-user" onchange="document.getElementById('buyer-detail').style.display=this.value==='no'?'block':'none'">
+          <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
+          <option value="yes" data-en="Yes" data-es="Sí">Yes</option>
+          <option value="no" data-en="No — describe both below" data-es="No — describir a ambos abajo">No — describe both</option>
+        </select>
+      </div>
+      <div id="buyer-detail" style="display:none" class="field-group">
+        <label data-en="Describe buyer and end user separately" data-es="Describe al comprador y al usuario final por separado">Describe buyer vs end user</label>
+        <textarea id="buyer-user-desc" placeholder="Buyer: Plant Director who approves purchase&#10;End user: Maintenance technician who operates the equipment"></textarea>
+      </div>
+      <div class="field-group" style="margin-bottom:0">
+        <label data-en="What triggers someone to start looking for a solution like yours?" data-es="¿Qué detona que alguien empiece a buscar una solución como la tuya?">What triggers the search?</label>
+        <span class="field-hint" data-en="Equipment failure, new role, cost pressure, regulation change..." data-es="Falla de equipo, nuevo puesto, presión de costos, cambio regulatorio...">Equipment failure, new role, cost pressure, regulation...</span>
+        <textarea id="trigger" placeholder=""></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 2 — Problem -->
+  <div class="panel" id="panel-2">
+    <div class="section-eyebrow">
+      <div class="section-badge">2</div>
+      <div class="section-meta">
+        <div class="section-title" data-en="The Problem You Solve" data-es="El Problema que Resuelves">The Problem You Solve</div>
+        <div class="section-desc" data-en="Use your customers' words — not yours" data-es="Usa las palabras de tus clientes — no las tuyas">Use your customers' words</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="field-group">
+        <label data-en="What problem does your customer have before finding you?" data-es="¿Qué problema tiene tu cliente antes de encontrarte?">The problem before they find you</label>
+        <textarea id="problem" placeholder=""></textarea>
+      </div>
+      <div class="field-group">
+        <label data-en="Primary type of pain" data-es="Tipo principal de dolor">Primary type of pain</label>
+        <select id="pain-type">
+          <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
+          <option value="financial" data-en="Financial — lost revenue, high costs" data-es="Financiero — pérdida de ingresos, costos elevados">Financial</option>
+          <option value="operational" data-en="Operational — downtime, inefficiency" data-es="Operativo — paros, ineficiencia">Operational</option>
+          <option value="emotional" data-en="Emotional — stress, career risk" data-es="Emocional — estrés, riesgo de carrera">Emotional</option>
+          <option value="multiple" data-en="Multiple" data-es="Múltiple">Multiple</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label data-en="Describe the pain in detail" data-es="Describe el dolor con detalle">Describe the pain in detail</label>
+        <textarea id="pain-detail" placeholder=""></textarea>
+      </div>
+      <div class="field-group">
+        <label data-en="What have they tried before that didn't work?" data-es="¿Qué han intentado antes que no les funcionó?">Previous failed solutions</label>
+        <textarea id="tried-before" placeholder=""></textarea>
+      </div>
+      <div class="field-group" style="margin-bottom:0">
+        <label data-en="How would they describe the problem to a colleague at a conference?" data-es="¿Cómo describirían el problema a un colega en una conferencia?">In their own words to a peer</label>
+        <textarea id="conference-desc" placeholder=""></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 3 — Job -->
+  <div class="panel" id="panel-3">
+    <div class="section-eyebrow">
+      <div class="section-badge">3</div>
+      <div class="section-meta">
+        <div class="section-title" data-en="The Job to Be Done" data-es="El Trabajo a Realizar">The Job to Be Done</div>
+        <div class="section-desc" data-en="Outcomes, success metrics, and timelines" data-es="Resultados, métricas de éxito y plazos">Outcomes, success metrics, and timelines</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="field-group">
+        <label data-en="What outcome are they really trying to achieve?" data-es="¿Qué resultado están tratando de lograr realmente?">The real outcome they want</label>
+        <textarea id="outcome" placeholder=""></textarea>
+      </div>
+      <div class="divider"></div>
+      <div class="field-group">
+        <label data-en="Success at 30 days" data-es="Éxito a 30 días">Success at 30 days</label>
+        <textarea id="success-30" placeholder=""></textarea>
+      </div>
+      <div class="field-group">
+        <label data-en="Success at 90 days" data-es="Éxito a 90 días">Success at 90 days</label>
+        <textarea id="success-90" placeholder=""></textarea>
+      </div>
+      <div class="field-group">
+        <label data-en="Success at 180 days" data-es="Éxito a 180 días">Success at 180 days</label>
+        <textarea id="success-180" placeholder=""></textarea>
+      </div>
+      <div class="field-group" style="margin-bottom:0">
+        <label data-en="Specific metrics that improve because of you" data-es="Métricas concretas que mejoran gracias a ti">Specific metrics that improve</label>
+        <textarea id="metrics" placeholder=""></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 4 — Category -->
+  <div class="panel" id="panel-4">
+    <div class="section-eyebrow">
+      <div class="section-badge">4</div>
+      <div class="section-meta">
+        <div class="section-title" data-en="Category & Language" data-es="Categoría y Lenguaje">Category & Language</div>
+        <div class="section-desc" data-en="How customers describe you — critical for generating accurate AI queries" data-es="Cómo te describen tus clientes — crítico para generar consultas precisas de IA">How customers describe you</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="field-group">
+        <label data-en="What category would your customer say you're in?" data-es="¿En qué categoría diría tu cliente que estás?">Category in customers' words</label>
+        <span class="field-hint" data-en="Not what you'd say — what they actually say" data-es="No lo que tú dirías — lo que ellos dicen realmente">Not what you'd say — what they actually say</span>
+        <input type="text" id="category" placeholder="">
+      </div>
+      <div class="field-group">
+        <label data-en="Other terms customers use" data-es="Otros términos que usan los clientes">Other terms customers use</label>
+        <span class="field-hint" data-en="Technical jargon, abbreviations, Spanish and English versions, older names" data-es="Jerga técnica, abreviaciones, versiones en español e inglés, nombres anteriores">Jargon, abbreviations, Spanish and English versions</span>
+        <textarea id="other-terms" placeholder=""></textarea>
+      </div>
+      <div class="field-group" style="margin-bottom:0">
+        <label data-en="Your elevator pitch — 'We're like X but for Y'" data-es="Tu pitch de elevador — 'Somos como X pero para Y'">Elevator pitch</label>
+        <input type="text" id="elevator-pitch" placeholder="">
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 5 — Competitors -->
+  <div class="panel" id="panel-5">
+    <div class="section-eyebrow">
+      <div class="section-badge">5</div>
+      <div class="section-meta">
+        <div class="section-title" data-en="Alternatives & Competitors" data-es="Alternativas y Competidores">Alternatives & Competitors</div>
+        <div class="section-desc" data-en="Who AI engines recommend instead of you right now" data-es="A quién recomiendan los motores de IA en lugar de ti ahora mismo">Who AI recommends instead of you right now</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="field-group">
+        <label data-en="Who do you lose to most often or get compared with?" data-es="¿A quién pierdes más seguido o con quién te comparan?">Main competitors</label>
+        <textarea id="competitors" placeholder=""></textarea>
+      </div>
+      <div class="field-group">
+        <label data-en="What do prospects do if they don't hire anyone?" data-es="¿Qué hacen los prospectos que no contratan a nadie?">The status quo alternative</label>
+        <span class="field-hint" data-en="In-house repair, ordering online, doing nothing, spreadsheets..." data-es="Reparación interna, pedidos en línea, no hacer nada...">In-house repair, ordering online, doing nothing...</span>
+        <textarea id="status-quo" placeholder=""></textarea>
+      </div>
+      <div class="field-group" style="margin-bottom:0">
+        <label data-en="Similar companies people confuse you with?" data-es="¿Empresas similares con las que te confunden?">Confusion with similar companies</label>
+        <textarea id="confusion" placeholder=""></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 6 — Search Patterns -->
+  <div class="panel" id="panel-6">
+    <div class="section-eyebrow">
+      <div class="section-badge">6</div>
+      <div class="section-meta">
+        <div class="section-title" data-en="Search Patterns & FAQs" data-es="Patrones de Búsqueda y Preguntas Frecuentes">Search Patterns & FAQs</div>
+        <div class="section-desc" data-en="These become your FAQ page and directly feed the Phase 2 query generation" data-es="Estas se convierten en tu página de preguntas frecuentes y alimentan directamente la Fase 2">These become your FAQ page and Phase 2 queries</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="field-group">
+        <label data-en="Top 10 questions prospects ask on sales calls" data-es="Las 10 preguntas que más hacen los prospectos en llamadas de ventas">Top questions on sales calls</label>
+        <span class="field-hint" data-en="Be specific — these become your FAQ page content" data-es="Sé específico — estas se convierten directamente en tu página de preguntas frecuentes">Be specific — these feed directly into your FAQ page</span>
+        <textarea id="faq-questions" style="min-height: 160px;" placeholder=""></textarea>
+      </div>
+      <div class="field-group">
+        <label data-en="Most common objections" data-es="Objeciones más frecuentes">Most common objections</label>
+        <textarea id="objections" placeholder=""></textarea>
+      </div>
+      <div class="field-group">
+        <label data-en="How did current clients find you before contacting?" data-es="¿Cómo te encontraron tus clientes actuales antes de contactarte?">How clients found you</label>
+        <textarea id="how-found" placeholder=""></textarea>
+      </div>
+      <div class="field-group" style="margin-bottom:0">
+        <label data-en="Common misconceptions you constantly correct" data-es="Ideas erróneas comunes que corriges constantemente">Misconceptions you correct</label>
+        <textarea id="misconceptions" placeholder=""></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 7 — Differentiators -->
+  <div class="panel" id="panel-7">
+    <div class="section-eyebrow">
+      <div class="section-badge">7</div>
+      <div class="section-meta">
+        <div class="section-title" data-en="Differentiators & Ideal Profile" data-es="Diferenciadores y Perfil Ideal">Differentiators & Ideal Profile</div>
+        <div class="section-desc" data-en="Why you win and who you serve best" data-es="Por qué ganas y a quién sirves mejor">Why you win and who you serve best</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="field-group">
+        <label data-en="Why do customers choose you — in their words?" data-es="¿Por qué te eligen los clientes — en sus propias palabras?">Why customers choose you</label>
+        <textarea id="why-choose" placeholder=""></textarea>
+      </div>
+      <div class="field-group">
+        <label data-en="Who is NOT a good fit and why?" data-es="¿Quién NO es un buen perfil para ti y por qué?">Who is not a good fit</label>
+        <textarea id="not-fit" placeholder=""></textarea>
+      </div>
+      <div class="field-group" style="margin-bottom:0">
+        <label data-en="Industries or use cases you're strongest in" data-es="Industrias o casos de uso en los que eres más fuerte">Where you're strongest</label>
+        <textarea id="strongest" placeholder=""></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL 8 — Proof -->
+  <div class="panel" id="panel-8">
+    <div class="section-eyebrow">
+      <div class="section-badge">8</div>
+      <div class="section-meta">
+        <div class="section-title" data-en="Proof & Credibility" data-es="Prueba y Credibilidad">Proof & Credibility</div>
+        <div class="section-desc" data-en="Authority signals AI engines use to decide who to cite" data-es="Señales de autoridad que los motores de IA usan para decidir a quién citar">Authority signals AI engines use to decide who to cite</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="field-group">
+        <label data-en="Star clients, case studies, notable logos" data-es="Clientes estrella, casos de éxito y logos destacados">Star clients and notable logos</label>
+        <textarea id="star-clients" placeholder=""></textarea>
+      </div>
+      <div class="two-col">
+        <div class="field-group">
+          <label data-en="Years in business" data-es="Años en el negocio">Years in business</label>
+          <input type="text" id="years-business" placeholder="">
+        </div>
+        <div class="field-group">
+          <label data-en="Where clients leave reviews" data-es="Dónde dejan reseñas los clientes">Where clients leave reviews</label>
+          <input type="text" id="reviews" placeholder="">
+        </div>
+      </div>
+      <div class="field-group">
+        <label data-en="Awards, certifications, recognitions" data-es="Premios, certificaciones y reconocimientos">Awards and certifications</label>
+        <textarea id="awards" placeholder=""></textarea>
+      </div>
+      <div class="field-group" style="margin-bottom:0">
+        <label data-en="Brands and product lines carried" data-es="Marcas y líneas de producto que manejan">Brands carried</label>
+        <span class="field-hint" data-en="These become brand-specific search queries in Phase 2 — press Enter after each" data-es="Estas se convierten en búsquedas específicas por marca en la Fase 2 — presiona Enter después de cada una">These become brand-specific queries in Phase 2</span>
+        <div class="tag-wrapper" id="brands-wrap" onclick="document.getElementById('brands-input').focus()">
+          <input class="tag-input" id="brands-input" placeholder="Type brand name and press Enter">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL COMPLETE -->
+  <div class="panel" id="panel-complete">
+    <div class="completion-screen" id="pre-submit-screen">
+      <div class="completion-icon">✓</div>
+      <h2 class="completion-title" data-en="Ready to Submit" data-es="Listo para Enviar">Ready to Submit</h2>
+      <p class="completion-sub" id="completion-sub">All sections completed. Review the summary below, then submit your answers.</p>
+      <div class="summary-grid" id="summary-grid"></div>
+      <div class="action-buttons">
+        <a class="btn-accent" href="javascript:void(0)" onclick="window.submitIntake();return false;" id="submit-intake-btn" style="text-decoration:none;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+          <span data-en="Submit" data-es="Enviar">Submit</span>
+        </a>
+      </div>
+      <div id="submit-status" style="text-align:center; margin-top:10px; font-size:13px;"></div>
+    </div>
+
+    <div class="completion-screen" id="thank-you-screen" style="display:none">
+      <div class="completion-icon">✓</div>
+      <h2 class="completion-title" data-en="Thank You!" data-es="¡Gracias!">Thank You!</h2>
+      <p class="completion-sub" data-en="Your answers have been submitted. We'll be in touch with the next steps of your GEO audit." data-es="Tus respuestas han sido enviadas. Nos pondremos en contacto con los siguientes pasos de tu auditoría GEO.">Your answers have been submitted. We'll be in touch with the next steps of your GEO audit.</p>
+    </div>
+  </div>
+
+</main>
+
+</div><!-- /#app-content -->
+
+<script>
+const PANELS = ['panel-0','panel-websites','panel-1','panel-2','panel-3','panel-4','panel-5','panel-6','panel-7','panel-8','panel-complete'];
+const TAB_IDS = ['tab-0','tab-websites','tab-1','tab-2','tab-3','tab-4','tab-5','tab-6','tab-7','tab-8','tab-complete'];
+const LABELS_EN = ['General Info','Website Inventory','The Customer','The Problem','Job to Be Done','Category & Language','Competitors','Search Patterns','Differentiators','Proof & Credibility','Complete'];
+const LABELS_ES = ['Datos Generales','Inventario Web','El Cliente','El Problema','Trabajo a Realizar','Categoría y Lenguaje','Competidores','Patrones de Búsqueda','Diferenciadores','Prueba y Credibilidad','Completado'];
+
+let current = 0;
+let lang = 'es';
+let personaCount = 1;
+let siteCount = 0;
+const socialTags = [];
+const brandTags = [];
+
+// ── NAVIGATION via TABS ──
+window.goTab = function(idx) {
+  document.getElementById(PANELS[current]).classList.remove('active');
+  document.getElementById(TAB_IDS[current]).classList.remove('active');
+  current = Math.max(0, Math.min(PANELS.length - 1, idx));
+  document.getElementById(PANELS[current]).classList.add('active');
+  document.getElementById(TAB_IDS[current]).classList.add('active');
+  // Scroll tab into view
+  var activeTab = document.getElementById(TAB_IDS[current]);
+  if (activeTab) activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+  try { window.scrollTo(0, 0); } catch(e) {}
+  updateProgress();
+  if (current === PANELS.length - 1) buildSummary();
+};
+
+// Keep navigate as alias for any remaining calls
+window.navigate = function(dir) { window.goTab(current + dir); };
+
+function updateProgress() {
+  const pct = Math.round(((current + 1) / PANELS.length) * 100);
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+// ── LANGUAGE — exposed as window global for iOS ──
+window.setLang = function(l) {
+  lang = l;
+  document.getElementById('btn-en').classList.toggle('active', l === 'en');
+  document.getElementById('btn-es').classList.toggle('active', l === 'es');
+  document.querySelectorAll('[data-en]').forEach(el => {
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') return;
+    el.textContent = el.getAttribute('data-' + l) || el.getAttribute('data-en');
+  });
+  document.getElementById('intro-title').textContent = l === 'es' ? 'Diagnóstico GEO — Cuestionario Inicial' : 'GEO Audit — Client Intake';
+  document.getElementById('intro-desc').textContent = l === 'es'
+    ? 'Este cuestionario es la primera etapa del diagnóstico GEO. Tus respuestas construyen los perfiles de búsqueda que simularemos en ChatGPT, Claude, Perplexity y Google AI. Usa el lenguaje real de tus clientes. Tiempo estimado: 30–45 minutos.'
+    : 'This questionnaire is the first stage of your GEO diagnosis. Your answers build the buyer profiles we simulate across ChatGPT, Claude, Perplexity, and Google AI. Use your customers\' actual language. Est. time: 30–45 minutes.';
+  document.getElementById('alert-websites-text').textContent = l === 'es'
+    ? 'Tener múltiples sitios web divide tu señal de autoridad. Los motores de IA se confunden sobre cuál es la marca real y pueden citar a un competidor en su lugar. Auditamos cada sitio.'
+    : 'Multiple websites split your authority signal. AI engines get confused about which is the real brand and may cite a competitor instead. We audit every site.';
+  document.getElementById('completion-sub').textContent = l === 'es'
+    ? 'Todas las secciones completadas. Revisa el resumen abajo y envía tus respuestas.'
+    : 'All sections completed. Review the summary below, then submit your answers.';
+  updateProgress();
+  updateSelectOptions();
+  updatePlaceholders();
+}
+
+function updateSelectOptions() {
+  document.querySelectorAll('select option[data-' + lang + ']').forEach(opt => {
+    opt.textContent = opt.getAttribute('data-' + lang);
+  });
+}
+
+function updatePlaceholders() {
+  const ph = {
+    'company': { en: '', es: '' },
+    'website': { en: 'https://...', es: 'https://...' },
+    'industry': { en: '', es: '' },
+    'contact': { en: 'Full name', es: 'Nombre completo' },
+    'role': { en: '', es: '' },
+    'email': { en: 'contact@company.com', es: 'contacto@empresa.com' },
+    'social-input': { en: 'Type and press Enter', es: 'Escribe y presiona Enter' },
+    'brands-input': { en: 'Type brand name and press Enter', es: 'Escribe la marca y presiona Enter' },
+    'category': { en: '', es: '' },
+    'elevator-pitch': { en: '', es: '' },
+    'years-business': { en: '', es: '' },
+    'reviews': { en: '', es: '' },
+    'authority-site': { en: '', es: '' }
+  };
+  Object.keys(ph).forEach(id => {
+    const el = document.getElementById(id);
+    if (el && ph[id][lang]) el.placeholder = ph[id][lang];
+  });
+}
+
+// ── TAGS ──
+function setupTag(inputId, wrapId, arr) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  inp.addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ',') && inp.value.trim()) {
+      e.preventDefault();
+      const v = inp.value.trim().replace(/,$/, '');
+      if (v && !arr.includes(v)) {
+        arr.push(v);
+        const chip = document.createElement('span');
+        chip.className = 'tag-chip';
+        chip.setAttribute('data-val', v);
+        chip.innerHTML = v + '<button type="button" onclick="removeTag(\'' + wrapId + '\',\'' + v + '\',window.' + (wrapId === 'social-wrap' ? 'socialTags' : 'brandTags') + ')">×</button>';
+        document.getElementById(wrapId).insertBefore(chip, inp);
+      }
+      inp.value = '';
+    }
+  });
+}
+
+window.socialTags = socialTags;
+window.brandTags = brandTags;
+
+function removeTag(wrapId, val, arr) {
+  const idx = arr.indexOf(val);
+  if (idx > -1) arr.splice(idx, 1);
+  document.getElementById(wrapId).querySelectorAll('.tag-chip').forEach(c => { if (c.getAttribute('data-val') === val) c.remove(); });
+}
+
+setupTag('social-input', 'social-wrap', socialTags);
+setupTag('brands-input', 'brands-wrap', brandTags);
+
+// ── PERSONAS ──
+// ── PERSONAS — window global ──
+window.addPersona = function() {
+  personaCount++;
+  const n = personaCount;
+  const div = document.createElement('div');
+  div.className = 'sub-card';
+  div.innerHTML = '<div class="sub-card-header"><span class="sub-card-title">' + (lang === 'es' ? 'Perfil ' : 'Persona ') + n + '</span><button class="remove-btn" onclick="this.closest(\'.sub-card\').remove()">' + (lang === 'es' ? 'Eliminar' : 'Remove') + '</button></div><div class="two-col"><div class="field-group"><label>' + (lang === 'es' ? 'Puesto' : 'Job Title') + '</label><input type="text" class="p-title" placeholder=""></div><div class="field-group"><label>' + (lang === 'es' ? 'Qué le importa' : 'What They Care About') + '</label><input type="text" class="p-cares" placeholder=""></div></div><div class="field-group" style="margin-bottom:0"><label>' + (lang === 'es' ? 'Métrica en la que se le evalúa' : 'Metric They\'re Evaluated On') + '</label><input type="text" class="p-metric" placeholder=""></div>';
+  document.getElementById('personas-container').appendChild(div);
+}
+
+// ── SITES ──
+// ── SITES — window global ──
+window.addSite = function() {
+  siteCount++;
+  const n = siteCount;
+  const div = document.createElement('div');
+  div.className = 'sub-card';
+  div.id = 'site-' + n;
+  const isEs = lang === 'es';
+  div.innerHTML = '<div class="sub-card-header"><span class="sub-card-title">' + (isEs ? 'Sitio Web ' : 'Website ') + (n + 1) + '</span><button class="remove-btn" onclick="document.getElementById(\'site-' + n + '\').remove()">' + (isEs ? 'Eliminar' : 'Remove') + '</button></div><div class="two-col"><div class="field-group"><label>URL</label><input type="url" class="s-url" placeholder="https://..."></div><div class="field-group"><label>' + (isEs ? 'Propósito de este sitio' : 'Purpose of this site') + '</label><input type="text" class="s-purpose" placeholder=""></div></div><div class="two-col"><div class="field-group"><label>' + (isEs ? 'Plataforma' : 'Platform') + '</label><select class="s-platform"><option value="">' + (isEs ? 'Seleccionar...' : 'Select...') + '</option><option>WordPress</option><option>Wix</option><option>Squarespace</option><option>' + (isEs ? 'Personalizado / Otro' : 'Custom / Other') + '</option><option>' + (isEs ? 'Desconocido' : 'Unknown') + '</option></select></div><div class="field-group"><label>' + (isEs ? 'Estado actual' : 'Current status') + '</label><select class="s-status"><option value="">' + (isEs ? 'Seleccionar...' : 'Select...') + '</option><option value="good">' + (isEs ? 'Activo y actualizado' : 'Active and maintained') + '</option><option value="outdated">' + (isEs ? 'Activo pero desactualizado' : 'Active but outdated') + '</option><option value="broken">' + (isEs ? 'Tiene errores o páginas rotas' : 'Has broken pages or errors') + '</option><option value="duplicate">' + (isEs ? 'Duplicado / redundante' : 'Duplicate / redundant') + '</option><option value="abandoned">' + (isEs ? 'Abandonado' : 'Abandoned') + '</option></select></div></div><div class="field-group" style="margin-bottom:0"><label>' + (isEs ? 'Problemas conocidos con este sitio' : 'Known issues with this site') + '</label><textarea class="s-issues" style="min-height:70px" placeholder=""></textarea></div>';
+  document.getElementById('additional-sites-container').appendChild(div);
+}
+
+// ── DATA COLLECTION ──
+function getPersonas() {
+  return Array.from(document.querySelectorAll('.persona-card, #personas-container .sub-card')).map(c => ({
+    title: c.querySelector('.p-title') ? c.querySelector('.p-title').value : '',
+    cares: c.querySelector('.p-cares') ? c.querySelector('.p-cares').value : '',
+    metric: c.querySelector('.p-metric') ? c.querySelector('.p-metric').value : ''
+  })).filter(p => p.title);
+}
+
+function getSites() {
+  return Array.from(document.querySelectorAll('#additional-sites-container .sub-card')).map(c => ({
+    url: c.querySelector('.s-url') ? c.querySelector('.s-url').value : '',
+    purpose: c.querySelector('.s-purpose') ? c.querySelector('.s-purpose').value : '',
+    platform: c.querySelector('.s-platform') ? c.querySelector('.s-platform').value : '',
+    status: c.querySelector('.s-status') ? c.querySelector('.s-status').value : '',
+    issues: c.querySelector('.s-issues') ? c.querySelector('.s-issues').value : ''
+  })).filter(s => s.url);
+}
+
+function g(id) { return (document.getElementById(id) || {}).value || ''; }
+
+function collectData() {
+  return {
+    general: { company: g('company'), website: g('website'), industry: g('industry'), contact: g('contact'), role: g('role'), email: g('email'), language: g('language'), platform: g('platform'), googleBusinessProfile: g('gbp'), socialPlatforms: [...socialTags], googlePresence: g('google-presence') },
+    websites: { primarySite: g('website'), additionalSites: getSites(), duplicates: g('duplicates'), crossLinks: g('cross-links'), authoritySite: g('authority-site'), knownIssues: g('known-issues') },
+    customer: { idealCustomer: g('ideal-customer'), personas: getPersonas(), buyerUserSame: g('buyer-user'), buyerUserDesc: g('buyer-user-desc'), trigger: g('trigger') },
+    problem: { description: g('problem'), painType: g('pain-type'), painDetail: g('pain-detail'), triedBefore: g('tried-before'), conferenceDesc: g('conference-desc') },
+    jobToBeDone: { outcome: g('outcome'), success30: g('success-30'), success90: g('success-90'), success180: g('success-180'), metrics: g('metrics') },
+    category: { category: g('category'), otherTerms: g('other-terms'), elevatorPitch: g('elevator-pitch') },
+    competitors: { competitors: g('competitors'), statusQuo: g('status-quo'), confusion: g('confusion') },
+    searchPatterns: { faqQuestions: g('faq-questions'), objections: g('objections'), howFound: g('how-found'), misconceptions: g('misconceptions') },
+    differentiators: { whyChoose: g('why-choose'), notFit: g('not-fit'), strongest: g('strongest') },
+    proof: { starClients: g('star-clients'), yearsBusiness: g('years-business'), awards: g('awards'), reviews: g('reviews'), brands: [...brandTags] }
+  };
+}
+
+// ── SUMMARY ──
+function buildSummary() {
+  const d = collectData();
+  const sites = [d.general.website, ...d.websites.additionalSites.map(s => s.url)].filter(Boolean);
+  const issues = d.websites.additionalSites.filter(s => s.status === 'broken' || s.status === 'outdated' || s.status === 'abandoned').length;
+  const isEs = lang === 'es';
+  const stats = [
+    { label: isEs ? 'Empresa' : 'Company', value: d.general.company || '—' },
+    { label: isEs ? 'Sitios web' : 'Websites', value: sites.length + (issues > 0 ? ' (' + issues + (isEs ? ' con problemas' : ' with issues') + ')' : '') },
+    { label: isEs ? 'Perfiles' : 'Personas', value: d.customer.personas.length + (isEs ? ' definidos' : ' defined') },
+    { label: isEs ? 'Marcas' : 'Brands', value: d.proof.brands.length > 0 ? d.proof.brands.length : '—' },
+    { label: isEs ? 'Preguntas FAQ' : 'FAQ Questions', value: d.searchPatterns.faqQuestions.split('\n').filter(l => l.trim()).length },
+    { label: isEs ? 'Idioma' : 'Language', value: d.general.language || '—' }
+  ];
+  document.getElementById('summary-grid').innerHTML = stats.map(s =>
+    '<div class="summary-stat"><div class="summary-stat-label">' + s.label + '</div><div class="summary-stat-value">' + s.value + '</div></div>'
+  ).join('');
+}
+
+// ── ACCESS GATE ──
+let clientUsername = '';
+let clientPassword = '';
+let clientCompany = '';
+let clientRole = 'full';
+let isStaffBypass = false;
+function findMember(group, username) {
+  return (group.members || []).find(m => m.username === username);
+}
+
+window.clientLogout = function() {
+  sessionStorage.removeItem('geo_intake_username');
+  sessionStorage.removeItem('geo_intake_password');
+  location.reload();
+};
+
+window.submitGateCode = async function() {
+  const userInput = document.getElementById('gate-username-input');
+  const passInput = document.getElementById('gate-password-input');
+  const errEl = document.getElementById('gate-error');
+  const username = userInput.value.trim().toLowerCase();
+  const password = passInput.value.trim();
+  errEl.textContent = '';
+  if (!username || !password) {
+    errEl.textContent = lang === 'es' ? 'Ingresa tu usuario y contraseña.' : 'Enter your username and password.';
+    return;
+  }
+  const data = await validateGateCode(username, password);
+  if (!data) {
+    errEl.textContent = lang === 'es' ? 'Usuario o contraseña inválidos. Verifica e intenta de nuevo.' : 'Invalid username or password. Please check and try again.';
+    passInput.classList.add('error');
+    setTimeout(() => passInput.classList.remove('error'), 400);
+    return;
+  }
+  sessionStorage.setItem('geo_intake_username', username);
+  sessionStorage.setItem('geo_intake_password', password);
+  clientUsername = username;
+  clientPassword = password;
+  clientCompany = data.company || '';
+  clientRole = data.role || 'full';
+  showApp();
+  await restoreSavedProgress();
+};
+
+async function validateGateCode(username, password) {
+  try {
+    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function restoreSavedProgress() {
+  if (!clientCompany) return;
+  try {
+    const res = await fetch('/api/intake?company=' + encodeURIComponent(clientCompany));
+    if (res.ok) {
+      const saved = await res.json();
+      if (saved && saved.intake) populateForm(saved.intake);
+    }
+  } catch { /* nothing saved yet, or a transient error — form just starts blank */ }
+}
+
+function showApp() {
+  document.getElementById('access-gate').style.display = 'none';
+  document.getElementById('logout-btn').style.display = '';
+  if (clientRole === 'viewer') {
+    const saveBtn = document.getElementById('save-progress-btn');
+    if (saveBtn) saveBtn.style.display = 'none';
+    const gate = document.getElementById('access-gate');
+    gate.style.display = 'flex';
+    gate.innerHTML = `<div style="max-width:420px; text-align:center; padding:24px;">
+      <div style="width:52px; height:52px; margin:0 auto 20px; border-radius:50%; background:var(--violet-100); color:var(--navy); display:flex; align-items:center; justify-content:center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
+      <h2 style="margin-bottom:12px;">${lang === 'es' ? 'Acceso de solo lectura' : 'View-only access'}</h2>
+      <p style="color:var(--ink-60); line-height:1.6;">${lang === 'es' ? 'Tu cuenta tiene acceso de solo lectura y no puede enviar ni editar el formulario de admisión. Contacta a un administrador si necesitas hacer cambios.' : "Your account has view-only access and can't submit or edit the intake form. Contact an admin if you need to make changes."}</p>
+    </div>`;
+    return;
+  }
+  document.getElementById('app-content').style.display = '';
+  const companyInput = document.getElementById('company');
+  if (companyInput && !companyInput.value.trim() && clientCompany) companyInput.value = clientCompany;
+}
+
+// ── Restore previously saved answers for this client, if any exist ──
+function populateForm(d) {
+  const fields = {
+    'company': d.general.company, 'website': d.general.website, 'industry': d.general.industry,
+    'contact': d.general.contact, 'role': d.general.role, 'email': d.general.email,
+    'language': d.general.language, 'platform': d.general.platform, 'gbp': d.general.googleBusinessProfile,
+    'google-presence': d.general.googlePresence, 'duplicates': d.websites.duplicates,
+    'cross-links': d.websites.crossLinks, 'authority-site': d.websites.authoritySite,
+    'known-issues': d.websites.knownIssues, 'ideal-customer': d.customer.idealCustomer,
+    'buyer-user': d.customer.buyerUserSame, 'buyer-user-desc': d.customer.buyerUserDesc,
+    'trigger': d.customer.trigger, 'problem': d.problem.description,
+    'pain-type': d.problem.painType, 'pain-detail': d.problem.painDetail,
+    'tried-before': d.problem.triedBefore, 'conference-desc': d.problem.conferenceDesc,
+    'outcome': d.jobToBeDone.outcome, 'success-30': d.jobToBeDone.success30,
+    'success-90': d.jobToBeDone.success90, 'success-180': d.jobToBeDone.success180,
+    'metrics': d.jobToBeDone.metrics, 'category': d.category.category,
+    'other-terms': d.category.otherTerms, 'elevator-pitch': d.category.elevatorPitch,
+    'competitors': d.competitors.competitors, 'status-quo': d.competitors.statusQuo,
+    'confusion': d.competitors.confusion, 'faq-questions': d.searchPatterns.faqQuestions,
+    'objections': d.searchPatterns.objections, 'how-found': d.searchPatterns.howFound,
+    'misconceptions': d.searchPatterns.misconceptions, 'why-choose': d.differentiators.whyChoose,
+    'not-fit': d.differentiators.notFit, 'strongest': d.differentiators.strongest,
+    'star-clients': d.proof.starClients, 'years-business': d.proof.yearsBusiness,
+    'awards': d.proof.awards, 'reviews': d.proof.reviews
+  };
+  Object.keys(fields).forEach(id => {
+    const el = document.getElementById(id);
+    if (el && fields[id] !== undefined) el.value = fields[id] || '';
+  });
+  const buyerSel = document.getElementById('buyer-user');
+  if (buyerSel && buyerSel.value === 'no') document.getElementById('buyer-detail').style.display = 'block';
+
+  (d.general.socialPlatforms || []).forEach(v => {
+    if (!socialTags.includes(v)) {
+      socialTags.push(v);
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip';
+      chip.setAttribute('data-val', v);
+      chip.innerHTML = v + '<button type="button" onclick="removeTag(\'social-wrap\',\'' + v + '\',window.socialTags)">×</button>';
+      document.getElementById('social-wrap').insertBefore(chip, document.getElementById('social-input'));
+    }
+  });
+  (d.proof.brands || []).forEach(v => {
+    if (!brandTags.includes(v)) {
+      brandTags.push(v);
+      const chip = document.createElement('span');
+      chip.className = 'tag-chip';
+      chip.setAttribute('data-val', v);
+      chip.innerHTML = v + '<button type="button" onclick="removeTag(\'brands-wrap\',\'' + v + '\',window.brandTags)">×</button>';
+      document.getElementById('brands-wrap').insertBefore(chip, document.getElementById('brands-input'));
+    }
+  });
+
+  (d.customer.personas || []).forEach(p => {
+    window.addPersona();
+    const card = document.getElementById('personas-container').lastElementChild;
+    if (!card) return;
+    if (card.querySelector('.p-title')) card.querySelector('.p-title').value = p.title || '';
+    if (card.querySelector('.p-cares')) card.querySelector('.p-cares').value = p.cares || '';
+    if (card.querySelector('.p-metric')) card.querySelector('.p-metric').value = p.metric || '';
+  });
+
+  (d.websites.additionalSites || []).forEach(s => {
+    window.addSite();
+    const card = document.getElementById('additional-sites-container').lastElementChild;
+    if (!card) return;
+    if (card.querySelector('.s-url')) card.querySelector('.s-url').value = s.url || '';
+    if (card.querySelector('.s-purpose')) card.querySelector('.s-purpose').value = s.purpose || '';
+    if (card.querySelector('.s-platform')) card.querySelector('.s-platform').value = s.platform || '';
+    if (card.querySelector('.s-status')) card.querySelector('.s-status').value = s.status || '';
+    if (card.querySelector('.s-issues')) card.querySelector('.s-issues').value = s.issues || '';
+  });
+
+  updateProgress();
+}
+
+(async function initGate() {
+  const params = new URLSearchParams(location.search);
+  const usernameFromUrl = params.get('username');
+
+  // Staff already logged into the internal Portal can open a customer's link straight
+  // through, without also needing that customer's own password.
+  if (usernameFromUrl && localStorage.getItem('hieronymus_internal_auth') === 'true') {
+    try {
+      const res = await fetch('/api/intake-codes');
+      const data = await res.json();
+      const group = (data.items || []).find(i => findMember(i, usernameFromUrl));
+      if (group) {
+        clientUsername = usernameFromUrl;
+        clientPassword = '';
+        clientCompany = group.company || '';
+        clientRole = 'full'; // staff bypass — full unrestricted access regardless of the member's own role
+        isStaffBypass = true;
+        showApp();
+        await restoreSavedProgress();
+        return;
+      }
+    } catch { /* fall through to the normal client login gate */ }
+  }
+
+  // The password is never carried in the URL — only a remembered same-session login can
+  // skip straight past the gate. A fresh visit always requires typing the password.
+  const usernameToTry = sessionStorage.getItem('geo_intake_username');
+  const passwordToTry = sessionStorage.getItem('geo_intake_password');
+  if (usernameFromUrl && !usernameToTry) {
+    const userInput = document.getElementById('gate-username-input');
+    if (userInput) userInput.value = usernameFromUrl;
+  }
+  if (!usernameToTry || !passwordToTry) return;
+  const data = await validateGateCode(usernameToTry, passwordToTry);
+  if (data) {
+    clientUsername = usernameToTry;
+    clientPassword = passwordToTry;
+    clientCompany = data.company || '';
+    clientRole = data.role || 'full';
+    showApp();
+    await restoreSavedProgress();
+  }
+})();
+
+// ── SUBMIT — window global ──
+window.submitIntake = async function() {
+  const data = collectData();
+  const company = data.general.company;
+  const statusEl = document.getElementById('submit-status');
+  if (!company) {
+    statusEl.textContent = lang === 'es' ? 'Falta el nombre de la empresa (Sección 0).' : 'Missing company name (Section 0).';
+    statusEl.style.color = '#8E332C';
+    return;
+  }
+  const btn = document.getElementById('submit-intake-btn');
+  btn.style.pointerEvents = 'none';
+  btn.style.opacity = '0.6';
+  statusEl.style.color = '';
+  statusEl.textContent = lang === 'es' ? 'Enviando...' : 'Submitting...';
+  try {
+    const res = await fetch('/api/intake', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company, intake: data, requestingUsername: isStaffBypass ? '' : clientUsername, requestingPassword: clientPassword })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (clientUsername) {
+      fetch('/api/intake-codes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: clientUsername, markSubmitted: true })
+      }).catch(() => {});
+    }
+    document.getElementById('pre-submit-screen').style.display = 'none';
+    document.getElementById('thank-you-screen').style.display = 'block';
+    const tabBar = document.getElementById('tab-bar');
+    if (tabBar) tabBar.style.display = 'none';
+  } catch (err) {
+    statusEl.style.color = '#8E332C';
+    statusEl.textContent = (lang === 'es' ? 'Error al guardar: ' : 'Failed to save: ') + err.message;
+    btn.style.pointerEvents = '';
+    btn.style.opacity = '';
+  }
+};
+
+// ── SAVE PROGRESS — persists to the server, keyed by company, so reopening the same link restores it ──
+window.saveProgress = async function() {
+  const data = collectData();
+  const company = data.general.company;
+  const btn = document.getElementById('save-progress-btn');
+  if (!company) {
+    alert(lang === 'es' ? 'Falta el nombre de la empresa (Sección 0) antes de guardar.' : 'Missing company name (Section 0) before saving.');
+    return;
+  }
+  const orig = btn.textContent;
+  btn.textContent = lang === 'es' ? '⏳ Guardando...' : '⏳ Saving...';
+  try {
+    const res = await fetch('/api/intake', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company, intake: data, requestingUsername: isStaffBypass ? '' : clientUsername, requestingPassword: clientPassword })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    btn.textContent = '✓ ' + (lang === 'es' ? 'Guardado' : 'Saved');
+  } catch (err) {
+    btn.textContent = orig;
+    alert((lang === 'es' ? 'Error al guardar: ' : 'Failed to save: ') + err.message);
+    return;
+  }
+  setTimeout(() => { btn.textContent = orig; }, 2000);
+}
+
+window.setLang('es');
+updateProgress();
+</script>
+</body>
+</html>

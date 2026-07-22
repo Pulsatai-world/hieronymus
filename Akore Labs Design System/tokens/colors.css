@@ -1,0 +1,76 @@
+/* Akore Labs — color system
+   Sampled from the brand mark: violet "A", emerald locator dot, near-black ink. */
+:root {
+  /* ---- Brand core ---- */
+  --violet-900: #2a1f6b;
+  --violet-700: #4834b0;
+  --violet-600: #6d4fe0; /* primary brand violet (the "A") */
+  --violet-500: #8168ea;
+  --violet-400: #9b86f2;
+  --violet-300: #bcaef7;
+  --violet-100: #ece7fd;
+  --violet-50:  #f6f3fe;
+
+  --emerald-700: #0f7d5b;
+  --emerald-600: #159066;
+  --emerald-500: #1ea97c; /* brand emerald (the locator dot / "LABS") */
+  --emerald-400: #34c592;
+  --emerald-300: #7bdcb6;
+  --emerald-100: #d5f4e8;
+  --emerald-50:  #eefaf4;
+
+  /* ---- Ink / neutral (cool slate) ---- */
+  --ink-950: #08090c; /* near-black brand background */
+  --ink-900: #101319;
+  --ink-800: #1a1f28;
+  --ink-700: #2a313d;
+  --ink-600: #3d4653;
+  --ink-500: #566172;
+  --ink-400: #757f8f; /* slate tagline gray */
+  --ink-300: #969aa3;
+  --ink-200: #c3c8d0;
+  --ink-100: #e3e6ea;
+  --ink-50:  #f4f6f8;
+  --white:   #ffffff;
+
+  /* ---- Brand gradient (mark violet ramp) ---- */
+  --grad-violet: linear-gradient(150deg, #8168ea 0%, #6d4fe0 55%, #4834b0 100%); /* @kind color */
+  --grad-violet-emerald: linear-gradient(120deg, #6d4fe0 0%, #1ea97c 100%); /* @kind color */
+
+  /* ---- Semantic aliases ---- */
+  --brand:            var(--violet-600);
+  --brand-strong:     var(--violet-700);
+  --accent:           var(--emerald-500);
+  --accent-strong:    var(--emerald-600);
+
+  --bg-canvas:        var(--white);
+  --bg-subtle:        var(--ink-50);
+  --bg-inverse:       var(--ink-950);
+  --surface-card:     var(--white);
+  --surface-raised:   var(--white);
+  --surface-sunken:   var(--ink-50);
+  --surface-inverse:  var(--ink-900);
+
+  --text-strong:      var(--ink-950);
+  --text-body:        var(--ink-700);
+  --text-muted:       var(--ink-400);
+  --text-on-brand:    var(--white);
+  --text-on-dark:     var(--white);
+  --text-on-dark-muted: var(--ink-300);
+  --text-brand:       var(--violet-600);
+  --text-accent:      var(--emerald-500);
+
+  --border-subtle:    var(--ink-100);
+  --border-default:   var(--ink-200);
+  --border-strong:    var(--ink-300);
+  --border-brand:     var(--violet-600);
+  --border-inverse:   rgba(255,255,255,0.12);
+
+  --focus-ring:       rgba(109,79,224,0.35);
+
+  /* ---- Status ---- */
+  --success: #1ea97c;
+  --warning: #d99312;
+  --danger:  #d94a4a;
+  --info:    #6d4fe0;
+}

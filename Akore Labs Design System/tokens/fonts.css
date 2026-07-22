@@ -1,0 +1,8 @@
+/* Akore Labs webfonts.
+   NOTE: the wordmark uses custom geometric lettering. These Google Fonts are
+   the closest available substitutes — flagged for the client to replace with
+   licensed brand fonts if available.
+   - Montserrat  → display / brand (geometric caps, wide tracking, matches mark)
+   - Manrope     → body & UI
+   - JetBrains Mono → data, code, technical labels */
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");

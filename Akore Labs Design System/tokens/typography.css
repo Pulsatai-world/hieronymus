@@ -1,0 +1,41 @@
+/* Akore Labs — typography
+   Display = Montserrat (geometric, wide-tracked caps like the wordmark)
+   Body/UI = Manrope
+   Mono    = JetBrains Mono */
+:root {
+  --font-display: "Montserrat", "Helvetica Neue", Arial, sans-serif;
+  --font-body:    "Manrope", "Helvetica Neue", Arial, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Weights */
+  --fw-regular: 400; /* @kind font */
+  --fw-medium:  500; /* @kind font */
+  --fw-semibold:600; /* @kind font */
+  --fw-bold:    700; /* @kind font */
+  --fw-extra:   800; /* @kind font */
+
+  /* Type scale (rem, 16px base) */
+  --fs-display: 4.5rem;   /* 72 */
+  --fs-h1:      3rem;     /* 48 */
+  --fs-h2:      2.25rem;  /* 36 */
+  --fs-h3:      1.75rem;  /* 28 */
+  --fs-h4:      1.375rem; /* 22 */
+  --fs-lead:    1.25rem;  /* 20 */
+  --fs-body:    1rem;     /* 16 */
+  --fs-sm:      0.875rem; /* 14 */
+  --fs-xs:      0.75rem;  /* 12 */
+  --fs-eyebrow: 0.75rem;  /* 12 — letter-spaced label */
+
+  /* Line heights */
+  --lh-tight:   1.05; /* @kind font */
+  --lh-snug:    1.2; /* @kind font */
+  --lh-normal:  1.5; /* @kind font */
+  --lh-relaxed: 1.65; /* @kind font */
+
+  /* Letter spacing */
+  --ls-tight:   -0.02em; /* @kind font */
+  --ls-normal:  0; /* @kind font */
+  --ls-wide:    0.08em; /* @kind font */
+  --ls-wider:   0.16em; /* @kind font */
+  --ls-widest:  0.24em; /* @kind font */
+}

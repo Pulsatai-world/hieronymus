@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="styles.css" />
+<style>
+  html,body{margin:0}
+  .tile{width:1280px;height:854px;display:flex;font-family:var(--font-display)}
+  .main{flex:1;background:var(--ink-950);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+  .main::before{content:"";position:absolute;width:900px;height:900px;top:-320px;right:-220px;background:radial-gradient(circle,rgba(109,79,224,.42),transparent 62%)}
+  .main::after{content:"";position:absolute;width:640px;height:640px;bottom:-260px;left:-180px;background:radial-gradient(circle,rgba(30,169,124,.28),transparent 60%)}
+  .main img{position:relative;height:420px;width:auto}
+  .strip{width:150px;display:flex;flex-direction:column}
+  .strip div{flex:1}
+</style>
+</head>
+<body>
+<div class="tile">
+  <div class="main"><img src="assets/logo-stacked-dark.png" alt="Akore Labs" /></div>
+  <div class="strip">
+    <div style="background:var(--violet-300)"></div>
+    <div style="background:var(--emerald-400)"></div>
+    <div style="background:var(--violet-600)"></div>
+    <div style="background:var(--emerald-700)"></div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Akore Labs — Brand & Design System</title>
+<link rel="stylesheet" href="../styles.css" />
+<style>
+  doc-page:not(:defined){visibility:hidden}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{margin:0;background:#5b616b;font-family:var(--font-body);color:var(--text-body)}
+  h1,h2,h3,h4{font-family:var(--font-display);color:var(--text-strong);letter-spacing:-.01em}
+  .eb{display:inline-flex;align-items:center;gap:9px;font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--violet-600)}
+  .eb::before{content:"";width:20px;height:2px;background:currentColor;border-radius:2px}
+  h2.sec{font-size:24px;margin:0 0 4px;display:flex;align-items:baseline;gap:12px}
+  h2.sec .no{font-family:var(--font-mono);font-size:15px;color:var(--violet-600);font-weight:600}
+  .sub{font-size:13px;color:var(--text-muted);margin:0 0 20px;max-width:64ch;line-height:1.55}
+  h3{font-size:15px;margin:22px 0 10px}
+  p{font-size:12.5px;line-height:1.6;margin:0 0 10px;text-wrap:pretty}
+  .page{break-before:page}
+  .doc-header{display:flex;align-items:center;justify-content:space-between;width:100%;padding-bottom:10px}
+  .doc-header .conf{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-400)}
+  .doc-footer{display:flex;align-items:center;justify-content:space-between;width:100%;padding-top:8px;border-top:1px solid var(--ink-100);font-family:var(--font-mono);font-size:9px;color:var(--ink-400)}
+  /* cover */
+  .cover{background:var(--ink-950);color:#fff;margin:-0.75in;margin-bottom:0.4in;padding:0.9in 0.75in 0.8in;position:relative;overflow:hidden}
+  .cover::before{content:"";position:absolute;width:760px;height:760px;top:-260px;right:-200px;background:radial-gradient(circle,rgba(109,79,224,.4),transparent 62%)}
+  .cover::after{content:"";position:absolute;width:520px;height:520px;bottom:-220px;left:-140px;background:radial-gradient(circle,rgba(30,169,124,.26),transparent 60%)}
+  .cover .in{position:relative}
+  .cover img{height:118px;margin-bottom:26px}
+  .cover h1{color:#fff;font-size:44px;line-height:1.02;margin:0 0 14px;max-width:15ch}
+  .cover .tag{font-size:15px;color:var(--ink-300);font-family:var(--font-mono);max-width:56ch;line-height:1.5}
+  .cover .meta{margin-top:34px;display:flex;gap:40px;font-size:11px}
+  .cover .meta .k{font-family:var(--font-display);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--violet-300);margin-bottom:4px}
+  /* swatches */
+  .ramp{display:flex;border-radius:12px;overflow:hidden;border:1px solid var(--ink-100);margin:0 0 14px}
+  .ramp .sw{flex:1;height:74px;display:flex;flex-direction:column;justify-content:flex-end;padding:7px 9px}
+  .ramp .sw span{font-family:var(--font-mono);font-size:9px;line-height:1.3}
+  .ramp .sw .n{font-weight:700}
+  .semantic{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:6px 0 8px}
+  .semantic .s{border-radius:10px;height:64px;color:#fff;display:flex;flex-direction:column;justify-content:flex-end;padding:9px 11px}
+  .semantic .s .n{font-family:var(--font-display);font-weight:700;font-size:12px}
+  .semantic .s .h{font-family:var(--font-mono);font-size:9px;opacity:.9}
+  .grads{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grads .g{height:70px;border-radius:12px;color:#fff;font-family:var(--font-mono);font-size:10px;display:flex;align-items:flex-end;padding:10px 12px}
+  /* type */
+  .specimen{border:1px solid var(--ink-100);border-radius:12px;padding:18px 20px;margin-bottom:12px}
+  .specimen .lab{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-bottom:8px}
+  .scale div{font-family:var(--font-display);color:var(--text-strong);line-height:1.1;letter-spacing:-.02em}
+  /* components */
+  .btn{display:inline-flex;align-items:center;gap:8px;font-family:var(--font-body);font-weight:600;font-size:13px;padding:10px 20px;border-radius:999px;border:1px solid transparent;line-height:1}
+  .b-pri{background:var(--violet-600);color:#fff}
+  .b-acc{background:var(--emerald-500);color:#fff}
+  .b-sec{background:#fff;color:var(--ink-900);border-color:var(--border-default)}
+  .b-ghost{background:var(--violet-50);color:var(--violet-600)}
+  .badge2{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-body);font-weight:600;font-size:11px;padding:5px 12px;border-radius:999px}
+  .g-vi{background:var(--violet-100);color:var(--violet-700)}
+  .g-em{background:var(--emerald-100);color:var(--emerald-700)}
+  .g-ne{background:var(--ink-100);color:var(--ink-700)}
+  .g-ol{background:transparent;color:var(--ink-600);border:1px solid var(--border-default)}
+  .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .row{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:8px}
+  .compcard{background:#fff;border:1px solid var(--border-subtle);border-radius:16px;padding:20px 22px;box-shadow:var(--shadow-sm);max-width:300px}
+  .num{font-family:var(--font-display);font-weight:800;font-size:40px;line-height:.9;letter-spacing:-.03em;color:var(--violet-600)}
+  .cgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .cgrid .cell{border:1px solid var(--ink-100);border-radius:12px;padding:16px 18px}
+  .cgrid .cell h4{margin:0 0 10px;font-size:12px}
+  /* in use */
+  .darkpage{background:var(--ink-950);color:#fff;margin:-0.75in;padding:0.75in;min-height:9in}
+  .darkpage h2.sec{color:#fff}.darkpage h2.sec .no{color:var(--violet-300)}
+  .darkpage .eb{color:var(--violet-300)}
+  .darkpage .sub{color:var(--ink-300)}
+  .shot{border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.14);background:#000;margin-bottom:14px}
+  .shot img{width:100%;display:block}
+  .shot.lite{border-color:var(--ink-200);background:var(--ink-100)}
+  .cap{font-family:var(--font-mono);font-size:10px;color:var(--ink-400);margin:0 0 18px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .li{margin:0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+  .li li{position:relative;padding-left:17px;font-size:12px;line-height:1.45}
+  .li li::before{content:"";position:absolute;left:0;top:6px;width:6px;height:6px;border-radius:50%;background:var(--emerald-500)}
+</style>
+</head>
+<body>
+<doc-page size="letter" margin="0.75in">
+  <div slot="header" class="doc-header">
+    <img src="../assets/logo-horizontal-light.png" alt="Akore Labs" style="height:18px" />
+    <span class="conf">Brand &amp; Design System · v1</span>
+  </div>
+  <div slot="footer" class="doc-footer">
+    <span>Akore Labs · GEO &amp; AI Visibility Consulting</span>
+    <span>Brand Guide · 2026</span>
+  </div>
+
+  <!-- COVER -->
+  <div class="cover"><div class="in">
+    <img src="../assets/logo-stacked-dark.png" alt="Akore Labs" />
+    <h1>Brand &amp; Design System</h1>
+    <p class="tag">The visual language of Akore Labs — logo, colour, type, components and real examples in use.</p>
+    <div class="meta">
+      <div><div class="k">Prepared by</div>Akore Labs</div>
+      <div><div class="k">Version</div>1.0 · 2026</div>
+      <div><div class="k">Contents</div>Logo · Colour · Type · Components · In use</div>
+    </div>
+  </div></div>
+
+  <div class="eb">Introduction</div>
+  <h2 class="sec">The brand in one line</h2>
+  <p class="sub">Akore Labs is a Mexico-based agency for <b>GEO (Generative Engine Optimization)</b> and AI-visibility consulting — making brands the source that AI answer engines cite and recommend. The identity is modern, elegant and tech-first: a violet locator "A" with an emerald dot, on a near-black ground.</p>
+  <div class="cgrid">
+    <div class="cell"><h4>Personality</h4><ul class="li"><li>Confident, plain-spoken, consultative</li><li>Sells a system, not hype</li><li>Precise and credible — never "AI-slop"</li></ul></div>
+    <div class="cell"><h4>Voice</h4><ul class="li"><li>Speaks to the reader as "tú"</li><li>Spanish primary · English secondary</li><li>Analogies over jargon · no emoji</li></ul></div>
+  </div>
+
+  <!-- LOGO -->
+  <div class="page"></div>
+  <div class="eb">01 · Identity</div>
+  <h2 class="sec"><span class="no">01</span> Logo &amp; lockups</h2>
+  <p class="sub">The mark is a violet chevron "A" (no crossbar) with an emerald locator dot — a letter, an upward arrow and a map pin at once. Never redraw it; always use the supplied assets. Use dark-theme lockups on dark grounds, light-theme on light.</p>
+  <div class="two">
+    <div class="shot" style="background:var(--ink-950);padding:26px;display:flex;align-items:center;justify-content:center"><img style="width:auto;height:52px" src="../assets/logo-horizontal-dark.png" alt="horizontal dark" /></div>
+    <div class="shot lite" style="background:#fff;padding:26px;display:flex;align-items:center;justify-content:center"><img style="width:auto;height:52px" src="../assets/logo-horizontal-light.png" alt="horizontal light" /></div>
+  </div>
+  <div class="two" style="margin-top:2px">
+    <div class="shot" style="background:var(--ink-950);padding:24px;display:flex;align-items:center;justify-content:center"><img style="width:auto;height:120px" src="../assets/logo-stacked-dark.png" alt="stacked dark" /></div>
+    <div class="shot lite" style="background:#fff;padding:24px;display:flex;align-items:center;justify-content:center;gap:26px"><img style="width:auto;height:88px" src="../assets/logo-mark-black.png" alt="mark" /><img style="width:auto;height:88px" src="../assets/logo-stacked-light.png" alt="stacked light" /></div>
+  </div>
+  <p class="cap" style="color:var(--ink-400)">Horizontal · stacked · icon mark — dark and light themes.</p>
+
+  <!-- COLOUR -->
+  <div class="page"></div>
+  <div class="eb">02 · Foundations</div>
+  <h2 class="sec"><span class="no">02</span> Colour system</h2>
+  <p class="sub">Two brand colours — <b>violet</b> (primary) and <b>emerald</b> (accent, used sparingly, the "dot") — on a cool near-black <b>ink</b> ground with cool-slate neutrals. Maximum one to two background colours per artifact.</p>
+  <h3>Brand · Violet</h3>
+  <div class="ramp">
+    <div class="sw" style="background:var(--violet-900);color:#fff"><span class="n">900</span><span>#2a1f6b</span></div>
+    <div class="sw" style="background:var(--violet-700);color:#fff"><span class="n">700</span><span>#4834b0</span></div>
+    <div class="sw" style="background:var(--violet-600);color:#fff"><span class="n">600 ·brand</span><span>#6d4fe0</span></div>
+    <div class="sw" style="background:var(--violet-500);color:#fff"><span class="n">500</span><span>#8168ea</span></div>
+    <div class="sw" style="background:var(--violet-400);color:#fff"><span class="n">400</span><span>#9b86f2</span></div>
+    <div class="sw" style="background:var(--violet-300);color:#2a1f6b"><span class="n">300</span><span>#bcaef7</span></div>
+    <div class="sw" style="background:var(--violet-100);color:#4834b0"><span class="n">100</span><span>#ece7fd</span></div>
+    <div class="sw" style="background:var(--violet-50);color:#4834b0"><span class="n">50</span><span>#f6f3fe</span></div>
+  </div>
+  <h3>Accent · Emerald</h3>
+  <div class="ramp">
+    <div class="sw" style="background:var(--emerald-700);color:#fff"><span class="n">700</span><span>#0f7d5b</span></div>
+    <div class="sw" style="background:var(--emerald-600);color:#fff"><span class="n">600</span><span>#159066</span></div>
+    <div class="sw" style="background:var(--emerald-500);color:#fff"><span class="n">500 ·accent</span><span>#1ea97c</span></div>
+    <div class="sw" style="background:var(--emerald-400);color:#053a2a"><span class="n">400</span><span>#34c592</span></div>
+    <div class="sw" style="background:var(--emerald-300);color:#0f7d5b"><span class="n">300</span><span>#7bdcb6</span></div>
+    <div class="sw" style="background:var(--emerald-100);color:#0f7d5b"><span class="n">100</span><span>#d5f4e8</span></div>
+    <div class="sw" style="background:var(--emerald-50);color:#0f7d5b"><span class="n">50</span><span>#eefaf4</span></div>
+  </div>
+  <h3>Neutral · Ink / Slate</h3>
+  <div class="ramp">
+    <div class="sw" style="background:var(--ink-950);color:#fff"><span class="n">950</span><span>#08090c</span></div>
+    <div class="sw" style="background:var(--ink-800);color:#fff"><span class="n">800</span><span>#1a1f28</span></div>
+    <div class="sw" style="background:var(--ink-700);color:#fff"><span class="n">700</span><span>#2a313d</span></div>
+    <div class="sw" style="background:var(--ink-500);color:#fff"><span class="n">500</span><span>#566172</span></div>
+    <div class="sw" style="background:var(--ink-400);color:#fff"><span class="n">400</span><span>#757f8f</span></div>
+    <div class="sw" style="background:var(--ink-200);color:#1a1f28"><span class="n">200</span><span>#c3c8d0</span></div>
+    <div class="sw" style="background:var(--ink-100);color:#1a1f28"><span class="n">100</span><span>#e3e6ea</span></div>
+    <div class="sw" style="background:var(--ink-50);color:#1a1f28"><span class="n">50</span><span>#f4f6f8</span></div>
+  </div>
+  <h3>Semantic &amp; gradients</h3>
+  <div class="semantic">
+    <div class="s" style="background:var(--success)"><span class="n">Success</span><span class="h">#1ea97c</span></div>
+    <div class="s" style="background:var(--warning)"><span class="n">Warning</span><span class="h">#d99312</span></div>
+    <div class="s" style="background:var(--danger)"><span class="n">Danger</span><span class="h">#d94a4a</span></div>
+    <div class="s" style="background:var(--info)"><span class="n">Info</span><span class="h">#6d4fe0</span></div>
+  </div>
+  <div class="grads">
+    <div class="g" style="background:var(--grad-violet)">--grad-violet</div>
+    <div class="g" style="background:var(--grad-violet-emerald)">--grad-violet-emerald</div>
+  </div>
+
+  <!-- TYPE -->
+  <div class="page"></div>
+  <div class="eb">02 · Foundations</div>
+  <h2 class="sec"><span class="no">03</span> Typography</h2>
+  <p class="sub">Display = <b>Montserrat</b> (geometric caps, tracked — mirrors the wordmark). Body/UI = <b>Manrope</b>. Data/technical = <b>JetBrains Mono</b>. <i>Note: Google-Font substitutes for the wordmark's custom lettering — pending licensed brand fonts.</i></p>
+  <div class="specimen">
+    <div class="lab">Display · Montserrat</div>
+    <div class="scale"><div style="font-size:44px;font-weight:800">Get found inside the answer</div></div>
+  </div>
+  <div class="two">
+    <div class="specimen"><div class="lab">Body · Manrope</div><p style="margin:0;font-size:15px;line-height:1.55;color:var(--text-body)">We make your brand the source AI engines cite — not just a link three results down. Clear, credible, human copy.</p></div>
+    <div class="specimen"><div class="lab">Mono · JetBrains Mono</div><div style="font-family:var(--font-mono);font-size:15px;color:var(--ink-800)">visibility: 72.4%<br/>citations: 3.4×<br/>rank: 01</div></div>
+  </div>
+  <div class="specimen">
+    <div class="lab">Type scale</div>
+    <div class="scale" style="display:flex;flex-direction:column;gap:4px">
+      <div style="font-size:34px;font-weight:800">Display / H1 · 700–800</div>
+      <div style="font-size:24px;font-weight:700">Heading H2 · 700</div>
+      <div style="font-size:17px;font-weight:600;color:var(--text-body)">Subhead / lead · 600</div>
+      <div style="font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--violet-600)">— Eyebrow · tracked caps device</div>
+    </div>
+  </div>
+
+  <!-- COMPONENTS -->
+  <div class="page"></div>
+  <div class="eb">03 · Components</div>
+  <h2 class="sec"><span class="no">04</span> UI components</h2>
+  <p class="sub">Reusable primitives share one calm system: pill buttons and badges, 16px cards with hairline borders and low cool shadows, the tracked eyebrow label, and large display metrics.</p>
+  <h3>Buttons</h3>
+  <div class="row">
+    <span class="btn b-pri">Book an audit →</span>
+    <span class="btn b-acc">Get results</span>
+    <span class="btn b-sec">Case studies</span>
+    <span class="btn b-ghost">Learn more</span>
+  </div>
+  <h3>Badges</h3>
+  <div class="row">
+    <span class="badge2 g-vi">GEO</span>
+    <span class="badge2 g-em"><span class="dot"></span>Live audit</span>
+    <span class="badge2 g-ne">Case study</span>
+    <span class="badge2 g-ol">Draft</span>
+  </div>
+  <div class="cgrid" style="margin-top:18px">
+    <div>
+      <h3 style="margin-top:0">Card + Eyebrow</h3>
+      <div class="compcard">
+        <span style="display:inline-flex;align-items:center;gap:8px;font-family:var(--font-display);font-weight:600;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-muted)"><span style="width:20px;height:2px;background:var(--violet-600);border-radius:2px"></span>Generative Engine Optimization</span>
+        <h4 style="font-size:17px;margin:10px 0 5px">Get found inside the answer</h4>
+        <p style="margin:0;font-size:12px;color:var(--text-muted)">We make your brand the source AI engines cite.</p>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-top:0">Stat</h3>
+      <div class="compcard" style="max-width:200px">
+        <div class="num">3.4×</div>
+        <div style="font-family:var(--font-display);font-weight:600;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-top:6px">AI mentions</div>
+        <p style="margin:8px 0 0;font-size:11.5px;color:var(--text-body)">Average lift across GEO engagements in 90 days.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- IN USE -->
+  <div class="darkpage page">
+    <div class="eb">04 · In use</div>
+    <h2 class="sec"><span class="no">05</span> The system in the wild</h2>
+    <p class="sub">The GEO B2B pitch deck and the client audit report, built entirely from these foundations.</p>
+    <div class="shot"><img src="../assets/examples/deck-title.png" alt="Deck title" /></div>
+    <p class="cap">Pitch deck · Portada — dark ground with violet glow, mark, tracked eyebrow.</p>
+    <div class="two">
+      <div><div class="shot"><img src="../assets/examples/01-deck.png" alt="El Cambio" /></div><p class="cap">Stats — El Cambio</p></div>
+      <div><div class="shot"><img src="../assets/examples/04-deck.png" alt="Plataforma" /></div><p class="cap">Plataforma de monitoreo</p></div>
+    </div>
+    <div class="two">
+      <div><div class="shot"><img src="../assets/examples/02-deck.png" alt="Que es GEO" /></div><p class="cap">¿Qué es GEO? — light layout</p></div>
+      <div><div class="shot"><img src="../assets/examples/03-deck.png" alt="4 dimensiones" /></div><p class="cap">Las cuatro dimensiones</p></div>
+    </div>
+    <div class="shot lite"><img src="../assets/examples/report.png" alt="Report" /></div>
+    <p class="cap">Client audit report — FIACSA Fase 1, on the same type &amp; colour system.</p>
+  </div>
+</doc-page>
+<script src="doc-page.js"></script>
+</body>
+</html>
