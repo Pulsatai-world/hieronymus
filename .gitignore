@@ -3,3 +3,9 @@
 
 # Dependencies
 node_modules
+
+# Local dev only (never deploy)
+.env
+devserver.py
+deno.lock
+__pycache__/

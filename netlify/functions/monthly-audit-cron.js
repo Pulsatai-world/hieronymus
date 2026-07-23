@@ -6,6 +6,17 @@ function slugify(name) {
 
 const DEFAULT_INTERVAL_DAYS = 30;
 
+// Advance a date by one cadence step (mirrors intake-codes.js) — used to roll a customer's
+// schedule forward to their next occurrence after a run fires.
+function addCadence(dateMs, cadence) {
+  const d = new Date(dateMs);
+  if (cadence === 'weekly') d.setUTCDate(d.getUTCDate() + 7);
+  else if (cadence === 'semimonthly') d.setUTCDate(d.getUTCDate() + 15);
+  else if (cadence === 'quarterly') d.setUTCMonth(d.getUTCMonth() + 3);
+  else d.setUTCMonth(d.getUTCMonth() + 1); // monthly
+  return d.getTime();
+}
+
 // Runs daily so per-customer schedules (2 weeks / 1 month / 2 months, set from the Monitoring
 // dashboard) land on the right day rather than only ever lining up with a monthly boundary —
 // each customer's own nextRunAt decides whether *they're* actually due, not how often this
@@ -46,14 +57,23 @@ export default async (request, context) => {
     fetch(base + '/api/run-audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company: customer.company })
+      // Tag as a monitoring run so these rows feed the Monitoring dashboard but never the
+      // (isolated) Diagnostic dashboard.
+      body: JSON.stringify({ company: customer.company, run_type: 'monitoring' })
     }).catch(() => { /* one customer's failure to kick off shouldn't block the rest */ });
     triggered++;
 
-    // Roll the schedule forward by this customer's own interval, so the next check lands on
-    // their cadence rather than re-firing every day until manually reset.
-    const intervalDays = customer.monitoringIntervalDays || DEFAULT_INTERVAL_DAYS;
-    customer.nextRunAt = new Date(now + intervalDays * 24 * 60 * 60 * 1000).toISOString();
+    // Roll the schedule forward to the next occurrence, so the next check lands on their cadence
+    // rather than re-firing every day. Cadence customers advance calendar-style from the due
+    // date; legacy fixed-interval customers advance by their day count.
+    if (customer.monitoringCadence) {
+      let nextMs = new Date(customer.nextRunAt).getTime();
+      do { nextMs = addCadence(nextMs, customer.monitoringCadence); } while (nextMs <= now);
+      customer.nextRunAt = new Date(nextMs).toISOString();
+    } else {
+      const intervalDays = customer.monitoringIntervalDays || DEFAULT_INTERVAL_DAYS;
+      customer.nextRunAt = new Date(now + intervalDays * 24 * 60 * 60 * 1000).toISOString();
+    }
     await codesStore.setJSON(c.key, customer);
 
     // Stagger kickoffs so a large monitoring list doesn't fire them all in the same instant.

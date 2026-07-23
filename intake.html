@@ -3,25 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/styles/akore-tokens.css">
 <title>GEO Audit — Client Intake | Akore Labs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
 :root {
   --navy: #6d4fe0;
-  --violet-700: #4834b0;
-  --violet-100: #ece7fd;
   --grad-violet: linear-gradient(150deg, #8168ea 0%, #6d4fe0 55%, #4834b0 100%);
   --ink: #08090c;
-  --ink-60: #757f8f;
-  --ink-30: #c3c8d0;
   --ink-10: rgba(109,79,224,0.08);
   --surface: #f4f6f8;
   --card: #ffffff;
   --accent: #6d4fe0;
   --accent-light: #f4f2fb;
   --accent-mid: #8467e6;
-  --focus-ring: rgba(109,79,224,0.35);
   --warning: #8a6a12;
   --warning-bg: #fbf1de;
   --warning-border: #d9b65c;
@@ -30,23 +26,12 @@
   --danger: #b03a3a;
   --danger-bg: #fce9e9;
   --border: #e3e6ea;
-  --border-strong: #c3c8d0;
   --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius: 16px;
-  --radius-pill: 999px;
   --shadow: 0 1px 3px rgba(16,19,25,0.08), 0 1px 2px rgba(16,19,25,0.04);
-  --shadow-md: 0 6px 16px rgba(16,19,25,0.08), 0 2px 4px rgba(16,19,25,0.04);
-  --shadow-lg: 0 18px 40px rgba(16,19,25,0.12), 0 6px 12px rgba(16,19,25,0.06);
-  --shadow-brand: 0 12px 30px rgba(109,79,224,0.28);
   --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
   --fs-h2: 1.5rem;
   --fs-eyebrow: 0.6875rem;
   --font-display: "Montserrat", "Helvetica Neue", Arial, sans-serif;
-  --font-body: "Manrope", "Helvetica Neue", Arial, sans-serif;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -169,7 +154,7 @@ body {
 .lang-btn.active {
   background: var(--card);
   color: var(--ink);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 /* ── TAB BAR ── */
@@ -834,8 +819,8 @@ select {
 <div id="access-gate" class="access-gate">
   <div class="access-gate-inner">
     <div class="access-gate-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-    <h2 data-en="Client Access" data-es="Acceso de Cliente">Client Access</h2>
-    <p data-en="Enter the username and password from your invitation to begin your GEO intake questionnaire." data-es="Ingresa el usuario y la contraseña de tu invitación para comenzar tu cuestionario de admisión GEO.">Enter the username and password from your invitation to begin your GEO intake questionnaire.</p>
+    <h2 data-en="Client Access" data-es="Acceso de cliente">Client Access</h2>
+    <p data-en="Enter the username and password from your invitation to begin your GEO intake questionnaire." data-es="Ingresa el usuario y la contraseña de tu invitación para comenzar tu cuestionario inicial de GEO.">Enter the username and password from your invitation to begin your GEO intake questionnaire.</p>
     <input type="text" id="gate-username-input" class="gate-field-normal" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')document.getElementById('gate-password-input').focus()">
     <input type="password" id="gate-password-input" class="gate-field-normal" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')window.submitGateCode()">
     <button class="btn-accent" id="gate-submit-btn" onclick="window.submitGateCode()">
@@ -854,7 +839,7 @@ select {
   </a>
   <a class="tab" id="tab-websites" href="javascript:void(0)" onclick="window.goTab(1);return false;">
     <span class="tab-num">W</span>
-    <span class="tab-label" data-en="Websites" data-es="Sitios Web">Websites</span>
+    <span class="tab-label" data-en="Websites" data-es="Sitios web">Websites</span>
   </a>
   <a class="tab" id="tab-1" href="javascript:void(0)" onclick="window.goTab(2);return false;">
     <span class="tab-num">1</span>
@@ -916,7 +901,7 @@ select {
         </div>
         <div class="intro-stat">
           <span class="intro-stat-label" data-en="Output" data-es="Resultado">Output</span>
-          <span class="intro-stat-value" data-en="100+ AI queries" data-es="100+ consultas IA">100+ AI queries</span>
+          <span class="intro-stat-value" data-en="100+ AI queries" data-es="100+ consultas de IA">100+ AI queries</span>
         </div>
       </div>
     </div>
@@ -924,7 +909,7 @@ select {
     <div class="section-eyebrow">
       <div class="section-badge special">0</div>
       <div class="section-meta">
-        <div class="section-title" data-en="General Information" data-es="Datos Generales">General Information</div>
+        <div class="section-title" data-en="General Information" data-es="Datos generales">General Information</div>
         <div class="section-desc" data-en="Company details and contact information" data-es="Datos de la empresa e información de contacto">Company details and contact information</div>
       </div>
     </div>
@@ -932,21 +917,21 @@ select {
     <div class="card">
       <div class="two-col">
         <div class="field-group">
-          <label data-en="Company Name" data-es="Nombre de la Empresa">Company Name</label>
+          <label data-en="Company Name" data-es="Nombre de la empresa">Company Name</label>
           <input type="text" id="company" placeholder="">
         </div>
         <div class="field-group">
-          <label data-en="Primary Website" data-es="Sitio Web Principal">Primary Website</label>
+          <label data-en="Primary Website" data-es="Sitio web principal">Primary Website</label>
           <input type="url" id="website" placeholder="https://...">
         </div>
       </div>
       <div class="two-col">
         <div class="field-group">
-          <label data-en="Industry / Sector" data-es="Industria / Sector">Industry / Sector</label>
+          <label data-en="Industry / Sector" data-es="Industria / sector">Industry / Sector</label>
           <input type="text" id="industry" placeholder="">
         </div>
         <div class="field-group">
-          <label data-en="Contact Person" data-es="Persona de Contacto">Contact Person</label>
+          <label data-en="Contact Person" data-es="Persona de contacto">Contact Person</label>
           <input type="text" id="contact" placeholder="Full name">
         </div>
       </div>
@@ -956,12 +941,12 @@ select {
           <input type="text" id="role" placeholder="">
         </div>
         <div class="field-group">
-          <label data-en="Email" data-es="Correo Electrónico">Email</label>
+          <label data-en="Email" data-es="Correo electrónico">Email</label>
           <input type="email" id="email" placeholder="contact@company.com">
         </div>
       </div>
       <div class="field-group">
-        <label data-en="Primary Business Language" data-es="Idioma Principal del Negocio">Primary Business Language</label>
+        <label data-en="Primary Business Language" data-es="Idioma principal del negocio">Primary Business Language</label>
         <select id="language">
           <option value="Spanish" data-en="Spanish" data-es="Español">Spanish</option>
           <option value="English" data-en="English" data-es="Inglés">English</option>
@@ -975,7 +960,7 @@ select {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 13h6M9 17h4"/></svg>
       </div>
       <div class="section-meta">
-        <div class="section-title" data-en="Digital Presence" data-es="Presencia Digital">Digital Presence</div>
+        <div class="section-title" data-en="Digital Presence" data-es="Presencia digital">Digital Presence</div>
         <div class="section-desc" data-en="Current online footprint" data-es="Huella digital actual">Current online footprint</div>
       </div>
     </div>
@@ -983,7 +968,7 @@ select {
     <div class="card">
       <div class="two-col">
         <div class="field-group">
-          <label data-en="Website Platform" data-es="Plataforma del Sitio Web">Website Platform</label>
+          <label data-en="Website Platform" data-es="Plataforma del sitio web">Website Platform</label>
           <select id="platform">
             <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
             <option>WordPress</option>
@@ -996,25 +981,25 @@ select {
           </select>
         </div>
         <div class="field-group">
-          <label data-en="Google Business Profile?" data-es="¿Perfil de Negocio en Google?">Google Business Profile?</label>
+          <label data-en="Google Business Profile?" data-es="¿Perfil de Empresa en Google?">Google Business Profile?</label>
           <select id="gbp">
             <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
-            <option value="complete" data-en="Yes — fully completed" data-es="Sí — completamente lleno">Yes — fully completed</option>
-            <option value="partial" data-en="Yes — partially filled" data-es="Sí — parcialmente lleno">Yes — partially filled</option>
+            <option value="complete" data-en="Yes — fully completed" data-es="Sí — totalmente completo">Yes — fully completed</option>
+            <option value="partial" data-en="Yes — partially filled" data-es="Sí — parcialmente completo">Yes — partially filled</option>
             <option value="no" data-en="No" data-es="No">No</option>
             <option value="unknown" data-en="Not sure" data-es="No sé">Not sure</option>
           </select>
         </div>
       </div>
       <div class="field-group">
-        <label data-en="Active Social Media Platforms" data-es="Redes Sociales Activas">Active Social Media Platforms</label>
+        <label data-en="Active Social Media Platforms" data-es="Redes sociales activas">Active Social Media Platforms</label>
         <div class="tag-wrapper" id="social-wrap" onclick="document.getElementById('social-input').focus()">
           <input class="tag-input" id="social-input" placeholder="Type and press Enter">
         </div>
         <span class="field-hint" data-en="Press Enter after each platform" data-es="Presiona Enter después de cada plataforma">Press Enter after each platform</span>
       </div>
       <div class="field-group">
-        <label data-en="Appear in Google for main service?" data-es="¿Aparece en Google para su servicio principal?">Appear in Google for main service?</label>
+        <label data-en="Appear in Google for main service?" data-es="¿Apareces en Google para tu servicio principal?">Appear in Google for main service?</label>
         <select id="google-presence">
           <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
           <option value="page1" data-en="Yes — page 1" data-es="Sí — primera página">Yes — page 1</option>
@@ -1032,8 +1017,8 @@ select {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>
       </div>
       <div class="section-meta">
-        <div class="section-title" data-en="Website Inventory" data-es="Inventario de Sitios Web">Website Inventory</div>
-        <div class="section-desc" data-en="Document every web property — this is often where GEO problems hide" data-es="Documenta cada propiedad web — aquí se esconden muchos problemas de GEO">Document every web property</div>
+        <div class="section-title" data-en="Website Inventory" data-es="Inventario de sitios web">Website Inventory</div>
+        <div class="section-desc" data-en="Document every web property — this is often where GEO problems hide" data-es="Documenta cada propiedad web — aquí es donde suelen esconderse los problemas de GEO">Document every web property</div>
       </div>
     </div>
 
@@ -1083,12 +1068,12 @@ select {
         </select>
       </div>
       <div class="field-group">
-        <label data-en="Which site should be the authoritative brand hub?" data-es="¿Cuál debería ser el sitio principal y más autoritativo?">Which should be the brand hub?</label>
+        <label data-en="Which site should be the authoritative brand hub?" data-es="¿Cuál debería ser el sitio principal y de mayor autoridad de la marca?">Which should be the brand hub?</label>
         <input type="text" id="authority-site" placeholder="">
       </div>
       <div class="field-group">
         <label data-en="Known issues with the current web presence" data-es="Problemas conocidos con la presencia web actual">Known issues with current web presence</label>
-        <span class="field-hint" data-en="Outdated content, broken pages, wrong phone numbers, old branding, duplicate pages..." data-es="Contenido desactualizado, páginas rotas, teléfonos incorrectos, marca antigua...">Outdated content, broken pages, wrong phone numbers, old branding...</span>
+        <span class="field-hint" data-en="Outdated content, broken pages, wrong phone numbers, old branding, duplicate pages..." data-es="Contenido desactualizado, páginas rotas, teléfonos incorrectos, marca antigua, páginas duplicadas...">Outdated content, broken pages, wrong phone numbers, old branding...</span>
         <textarea id="known-issues" placeholder=""></textarea>
       </div>
     </div>
@@ -1099,8 +1084,8 @@ select {
     <div class="section-eyebrow">
       <div class="section-badge">1</div>
       <div class="section-meta">
-        <div class="section-title" data-en="Who Is the Customer?" data-es="¿Quién Es el Cliente?">Who Is the Customer?</div>
-        <div class="section-desc" data-en="Buyer personas become the search profiles we test in AI engines" data-es="Los perfiles de comprador se convierten en las búsquedas que simulamos en los motores de IA">Buyer personas become the AI search profiles</div>
+        <div class="section-title" data-en="Who Is the Customer?" data-es="¿Quién es el cliente?">Who Is the Customer?</div>
+        <div class="section-desc" data-en="Buyer personas become the search profiles we test in AI engines" data-es="Los perfiles de comprador se convierten en los perfiles de búsqueda que simulamos en los motores de IA">Buyer personas become the AI search profiles</div>
       </div>
     </div>
     <div class="card">
@@ -1111,7 +1096,7 @@ select {
       </div>
       <div class="divider"></div>
       <div class="field-group">
-        <label data-en="Buyer Personas — add 3 to 5" data-es="Perfiles de Comprador — agrega 3 a 5">Buyer Personas</label>
+        <label data-en="Buyer Personas — add 3 to 5" data-es="Perfiles de comprador — agrega de 3 a 5">Buyer Personas</label>
         <span class="field-hint" data-en="For each: job title, what they care about, the metric they're evaluated on" data-es="Para cada uno: puesto, qué le importa, métrica en la que se le evalúa">Job title, priorities, and success metric for each</span>
       </div>
       <div id="personas-container">
@@ -1125,12 +1110,12 @@ select {
               <input type="text" class="p-title" placeholder="">
             </div>
             <div class="field-group">
-              <label data-en="What They Care About" data-es="Qué Le Importa">What They Care About</label>
+              <label data-en="What They Care About" data-es="Qué le importa">What They Care About</label>
               <input type="text" class="p-cares" placeholder="">
             </div>
           </div>
           <div class="field-group" style="margin-bottom:0">
-            <label data-en="Metric They're Evaluated On" data-es="Métrica en la que se le Evalúa">Metric They're Evaluated On</label>
+            <label data-en="Metric They're Evaluated On" data-es="Métrica en la que se le evalúa">Metric They're Evaluated On</label>
             <input type="text" class="p-metric" placeholder="">
           </div>
         </div>
@@ -1165,7 +1150,7 @@ select {
     <div class="section-eyebrow">
       <div class="section-badge">2</div>
       <div class="section-meta">
-        <div class="section-title" data-en="The Problem You Solve" data-es="El Problema que Resuelves">The Problem You Solve</div>
+        <div class="section-title" data-en="The Problem You Solve" data-es="El problema que resuelves">The Problem You Solve</div>
         <div class="section-desc" data-en="Use your customers' words — not yours" data-es="Usa las palabras de tus clientes — no las tuyas">Use your customers' words</div>
       </div>
     </div>
@@ -1180,7 +1165,7 @@ select {
           <option value="" data-en="Select..." data-es="Seleccionar...">Select...</option>
           <option value="financial" data-en="Financial — lost revenue, high costs" data-es="Financiero — pérdida de ingresos, costos elevados">Financial</option>
           <option value="operational" data-en="Operational — downtime, inefficiency" data-es="Operativo — paros, ineficiencia">Operational</option>
-          <option value="emotional" data-en="Emotional — stress, career risk" data-es="Emocional — estrés, riesgo de carrera">Emotional</option>
+          <option value="emotional" data-en="Emotional — stress, career risk" data-es="Emocional — estrés, riesgo para la carrera">Emotional</option>
           <option value="multiple" data-en="Multiple" data-es="Múltiple">Multiple</option>
         </select>
       </div>
@@ -1204,7 +1189,7 @@ select {
     <div class="section-eyebrow">
       <div class="section-badge">3</div>
       <div class="section-meta">
-        <div class="section-title" data-en="The Job to Be Done" data-es="El Trabajo a Realizar">The Job to Be Done</div>
+        <div class="section-title" data-en="The Job to Be Done" data-es="El trabajo a realizar">The Job to Be Done</div>
         <div class="section-desc" data-en="Outcomes, success metrics, and timelines" data-es="Resultados, métricas de éxito y plazos">Outcomes, success metrics, and timelines</div>
       </div>
     </div>
@@ -1238,8 +1223,8 @@ select {
     <div class="section-eyebrow">
       <div class="section-badge">4</div>
       <div class="section-meta">
-        <div class="section-title" data-en="Category & Language" data-es="Categoría y Lenguaje">Category & Language</div>
-        <div class="section-desc" data-en="How customers describe you — critical for generating accurate AI queries" data-es="Cómo te describen tus clientes — crítico para generar consultas precisas de IA">How customers describe you</div>
+        <div class="section-title" data-en="Category & Language" data-es="Categoría y lenguaje">Category & Language</div>
+        <div class="section-desc" data-en="How customers describe you — critical for generating accurate AI queries" data-es="Cómo te describen tus clientes — clave para generar consultas precisas de IA">How customers describe you</div>
       </div>
     </div>
     <div class="card">
@@ -1250,11 +1235,11 @@ select {
       </div>
       <div class="field-group">
         <label data-en="Other terms customers use" data-es="Otros términos que usan los clientes">Other terms customers use</label>
-        <span class="field-hint" data-en="Technical jargon, abbreviations, Spanish and English versions, older names" data-es="Jerga técnica, abreviaciones, versiones en español e inglés, nombres anteriores">Jargon, abbreviations, Spanish and English versions</span>
+        <span class="field-hint" data-en="Technical jargon, abbreviations, Spanish and English versions, older names" data-es="Jerga técnica, abreviaturas, versiones en español e inglés, nombres anteriores">Jargon, abbreviations, Spanish and English versions</span>
         <textarea id="other-terms" placeholder=""></textarea>
       </div>
       <div class="field-group" style="margin-bottom:0">
-        <label data-en="Your elevator pitch — 'We're like X but for Y'" data-es="Tu pitch de elevador — 'Somos como X pero para Y'">Elevator pitch</label>
+        <label data-en="Your elevator pitch — 'We're like X but for Y'" data-es="Tu elevator pitch — 'Somos como X pero para Y'">Elevator pitch</label>
         <input type="text" id="elevator-pitch" placeholder="">
       </div>
     </div>
@@ -1265,18 +1250,18 @@ select {
     <div class="section-eyebrow">
       <div class="section-badge">5</div>
       <div class="section-meta">
-        <div class="section-title" data-en="Alternatives & Competitors" data-es="Alternativas y Competidores">Alternatives & Competitors</div>
+        <div class="section-title" data-en="Alternatives & Competitors" data-es="Alternativas y competidores">Alternatives & Competitors</div>
         <div class="section-desc" data-en="Who AI engines recommend instead of you right now" data-es="A quién recomiendan los motores de IA en lugar de ti ahora mismo">Who AI recommends instead of you right now</div>
       </div>
     </div>
     <div class="card">
       <div class="field-group">
-        <label data-en="Who do you lose to most often or get compared with?" data-es="¿A quién pierdes más seguido o con quién te comparan?">Main competitors</label>
+        <label data-en="Who do you lose to most often or get compared with?" data-es="¿Ante quién pierdes más seguido o con quién te comparan?">Main competitors</label>
         <textarea id="competitors" placeholder=""></textarea>
       </div>
       <div class="field-group">
-        <label data-en="What do prospects do if they don't hire anyone?" data-es="¿Qué hacen los prospectos que no contratan a nadie?">The status quo alternative</label>
-        <span class="field-hint" data-en="In-house repair, ordering online, doing nothing, spreadsheets..." data-es="Reparación interna, pedidos en línea, no hacer nada...">In-house repair, ordering online, doing nothing...</span>
+        <label data-en="What do prospects do if they don't hire anyone?" data-es="¿Qué hacen los prospectos cuando no contratan a nadie?">The status quo alternative</label>
+        <span class="field-hint" data-en="In-house repair, ordering online, doing nothing, spreadsheets..." data-es="Reparación interna, pedidos en línea, no hacer nada, hojas de cálculo...">In-house repair, ordering online, doing nothing...</span>
         <textarea id="status-quo" placeholder=""></textarea>
       </div>
       <div class="field-group" style="margin-bottom:0">
@@ -1291,8 +1276,8 @@ select {
     <div class="section-eyebrow">
       <div class="section-badge">6</div>
       <div class="section-meta">
-        <div class="section-title" data-en="Search Patterns & FAQs" data-es="Patrones de Búsqueda y Preguntas Frecuentes">Search Patterns & FAQs</div>
-        <div class="section-desc" data-en="These become your FAQ page and directly feed the Phase 2 query generation" data-es="Estas se convierten en tu página de preguntas frecuentes y alimentan directamente la Fase 2">These become your FAQ page and Phase 2 queries</div>
+        <div class="section-title" data-en="Search Patterns & FAQs" data-es="Patrones de búsqueda y preguntas frecuentes">Search Patterns & FAQs</div>
+        <div class="section-desc" data-en="These become your FAQ page and directly feed the Phase 2 query generation" data-es="Estas se convierten en tu página de preguntas frecuentes y alimentan directamente la generación de consultas de la Fase 2">These become your FAQ page and Phase 2 queries</div>
       </div>
     </div>
     <div class="card">
@@ -1321,7 +1306,7 @@ select {
     <div class="section-eyebrow">
       <div class="section-badge">7</div>
       <div class="section-meta">
-        <div class="section-title" data-en="Differentiators & Ideal Profile" data-es="Diferenciadores y Perfil Ideal">Differentiators & Ideal Profile</div>
+        <div class="section-title" data-en="Differentiators & Ideal Profile" data-es="Diferenciadores y perfil ideal">Differentiators & Ideal Profile</div>
         <div class="section-desc" data-en="Why you win and who you serve best" data-es="Por qué ganas y a quién sirves mejor">Why you win and who you serve best</div>
       </div>
     </div>
@@ -1331,7 +1316,7 @@ select {
         <textarea id="why-choose" placeholder=""></textarea>
       </div>
       <div class="field-group">
-        <label data-en="Who is NOT a good fit and why?" data-es="¿Quién NO es un buen perfil para ti y por qué?">Who is not a good fit</label>
+        <label data-en="Who is NOT a good fit and why?" data-es="¿Quién NO encaja bien contigo y por qué?">Who is not a good fit</label>
         <textarea id="not-fit" placeholder=""></textarea>
       </div>
       <div class="field-group" style="margin-bottom:0">
@@ -1346,7 +1331,7 @@ select {
     <div class="section-eyebrow">
       <div class="section-badge">8</div>
       <div class="section-meta">
-        <div class="section-title" data-en="Proof & Credibility" data-es="Prueba y Credibilidad">Proof & Credibility</div>
+        <div class="section-title" data-en="Proof & Credibility" data-es="Prueba y credibilidad">Proof & Credibility</div>
         <div class="section-desc" data-en="Authority signals AI engines use to decide who to cite" data-es="Señales de autoridad que los motores de IA usan para decidir a quién citar">Authority signals AI engines use to decide who to cite</div>
       </div>
     </div>
@@ -1370,7 +1355,7 @@ select {
         <textarea id="awards" placeholder=""></textarea>
       </div>
       <div class="field-group" style="margin-bottom:0">
-        <label data-en="Brands and product lines carried" data-es="Marcas y líneas de producto que manejan">Brands carried</label>
+        <label data-en="Brands and product lines carried" data-es="Marcas y líneas de producto que manejas">Brands carried</label>
         <span class="field-hint" data-en="These become brand-specific search queries in Phase 2 — press Enter after each" data-es="Estas se convierten en búsquedas específicas por marca en la Fase 2 — presiona Enter después de cada una">These become brand-specific queries in Phase 2</span>
         <div class="tag-wrapper" id="brands-wrap" onclick="document.getElementById('brands-input').focus()">
           <input class="tag-input" id="brands-input" placeholder="Type brand name and press Enter">
@@ -1383,7 +1368,7 @@ select {
   <div class="panel" id="panel-complete">
     <div class="completion-screen" id="pre-submit-screen">
       <div class="completion-icon">✓</div>
-      <h2 class="completion-title" data-en="Ready to Submit" data-es="Listo para Enviar">Ready to Submit</h2>
+      <h2 class="completion-title" data-en="Ready to Submit" data-es="Listo para enviar">Ready to Submit</h2>
       <p class="completion-sub" id="completion-sub">All sections completed. Review the summary below, then submit your answers.</p>
       <div class="summary-grid" id="summary-grid"></div>
       <div class="action-buttons">
@@ -1398,7 +1383,7 @@ select {
     <div class="completion-screen" id="thank-you-screen" style="display:none">
       <div class="completion-icon">✓</div>
       <h2 class="completion-title" data-en="Thank You!" data-es="¡Gracias!">Thank You!</h2>
-      <p class="completion-sub" data-en="Your answers have been submitted. We'll be in touch with the next steps of your GEO audit." data-es="Tus respuestas han sido enviadas. Nos pondremos en contacto con los siguientes pasos de tu auditoría GEO.">Your answers have been submitted. We'll be in touch with the next steps of your GEO audit.</p>
+      <p class="completion-sub" data-en="Your answers have been submitted. We'll be in touch with the next steps of your GEO audit." data-es="Recibimos tus respuestas. Te contactaremos con los siguientes pasos de tu auditoría GEO.">Your answers have been submitted. We'll be in touch with the next steps of your GEO audit.</p>
     </div>
   </div>
 
@@ -1410,7 +1395,7 @@ select {
 const PANELS = ['panel-0','panel-websites','panel-1','panel-2','panel-3','panel-4','panel-5','panel-6','panel-7','panel-8','panel-complete'];
 const TAB_IDS = ['tab-0','tab-websites','tab-1','tab-2','tab-3','tab-4','tab-5','tab-6','tab-7','tab-8','tab-complete'];
 const LABELS_EN = ['General Info','Website Inventory','The Customer','The Problem','Job to Be Done','Category & Language','Competitors','Search Patterns','Differentiators','Proof & Credibility','Complete'];
-const LABELS_ES = ['Datos Generales','Inventario Web','El Cliente','El Problema','Trabajo a Realizar','Categoría y Lenguaje','Competidores','Patrones de Búsqueda','Diferenciadores','Prueba y Credibilidad','Completado'];
+const LABELS_ES = ['Datos generales','Inventario web','El cliente','El problema','Trabajo a realizar','Categoría y lenguaje','Competidores','Patrones de búsqueda','Diferenciadores','Prueba y credibilidad','Completado'];
 
 let current = 0;
 let lang = 'es';
@@ -1451,12 +1436,12 @@ window.setLang = function(l) {
     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') return;
     el.textContent = el.getAttribute('data-' + l) || el.getAttribute('data-en');
   });
-  document.getElementById('intro-title').textContent = l === 'es' ? 'Diagnóstico GEO — Cuestionario Inicial' : 'GEO Audit — Client Intake';
+  document.getElementById('intro-title').textContent = l === 'es' ? 'Diagnóstico GEO — Cuestionario inicial' : 'GEO Audit — Client Intake';
   document.getElementById('intro-desc').textContent = l === 'es'
     ? 'Este cuestionario es la primera etapa del diagnóstico GEO. Tus respuestas construyen los perfiles de búsqueda que simularemos en ChatGPT, Claude, Perplexity y Google AI. Usa el lenguaje real de tus clientes. Tiempo estimado: 30–45 minutos.'
     : 'This questionnaire is the first stage of your GEO diagnosis. Your answers build the buyer profiles we simulate across ChatGPT, Claude, Perplexity, and Google AI. Use your customers\' actual language. Est. time: 30–45 minutes.';
   document.getElementById('alert-websites-text').textContent = l === 'es'
-    ? 'Tener múltiples sitios web divide tu señal de autoridad. Los motores de IA se confunden sobre cuál es la marca real y pueden citar a un competidor en su lugar. Auditamos cada sitio.'
+    ? 'Tener múltiples sitios web divide tu señal de autoridad. Los motores de IA no logran distinguir cuál es la marca real y pueden citar a un competidor en su lugar. Auditamos cada sitio.'
     : 'Multiple websites split your authority signal. AI engines get confused about which is the real brand and may cite a competitor instead. We audit every site.';
   document.getElementById('completion-sub').textContent = l === 'es'
     ? 'Todas las secciones completadas. Revisa el resumen abajo y envía tus respuestas.'
@@ -1547,7 +1532,7 @@ window.addSite = function() {
   div.className = 'sub-card';
   div.id = 'site-' + n;
   const isEs = lang === 'es';
-  div.innerHTML = '<div class="sub-card-header"><span class="sub-card-title">' + (isEs ? 'Sitio Web ' : 'Website ') + (n + 1) + '</span><button class="remove-btn" onclick="document.getElementById(\'site-' + n + '\').remove()">' + (isEs ? 'Eliminar' : 'Remove') + '</button></div><div class="two-col"><div class="field-group"><label>URL</label><input type="url" class="s-url" placeholder="https://..."></div><div class="field-group"><label>' + (isEs ? 'Propósito de este sitio' : 'Purpose of this site') + '</label><input type="text" class="s-purpose" placeholder=""></div></div><div class="two-col"><div class="field-group"><label>' + (isEs ? 'Plataforma' : 'Platform') + '</label><select class="s-platform"><option value="">' + (isEs ? 'Seleccionar...' : 'Select...') + '</option><option>WordPress</option><option>Wix</option><option>Squarespace</option><option>' + (isEs ? 'Personalizado / Otro' : 'Custom / Other') + '</option><option>' + (isEs ? 'Desconocido' : 'Unknown') + '</option></select></div><div class="field-group"><label>' + (isEs ? 'Estado actual' : 'Current status') + '</label><select class="s-status"><option value="">' + (isEs ? 'Seleccionar...' : 'Select...') + '</option><option value="good">' + (isEs ? 'Activo y actualizado' : 'Active and maintained') + '</option><option value="outdated">' + (isEs ? 'Activo pero desactualizado' : 'Active but outdated') + '</option><option value="broken">' + (isEs ? 'Tiene errores o páginas rotas' : 'Has broken pages or errors') + '</option><option value="duplicate">' + (isEs ? 'Duplicado / redundante' : 'Duplicate / redundant') + '</option><option value="abandoned">' + (isEs ? 'Abandonado' : 'Abandoned') + '</option></select></div></div><div class="field-group" style="margin-bottom:0"><label>' + (isEs ? 'Problemas conocidos con este sitio' : 'Known issues with this site') + '</label><textarea class="s-issues" style="min-height:70px" placeholder=""></textarea></div>';
+  div.innerHTML = '<div class="sub-card-header"><span class="sub-card-title">' + (isEs ? 'Sitio web ' : 'Website ') + (n + 1) + '</span><button class="remove-btn" onclick="document.getElementById(\'site-' + n + '\').remove()">' + (isEs ? 'Eliminar' : 'Remove') + '</button></div><div class="two-col"><div class="field-group"><label>URL</label><input type="url" class="s-url" placeholder="https://..."></div><div class="field-group"><label>' + (isEs ? 'Propósito de este sitio' : 'Purpose of this site') + '</label><input type="text" class="s-purpose" placeholder=""></div></div><div class="two-col"><div class="field-group"><label>' + (isEs ? 'Plataforma' : 'Platform') + '</label><select class="s-platform"><option value="">' + (isEs ? 'Seleccionar...' : 'Select...') + '</option><option>WordPress</option><option>Wix</option><option>Squarespace</option><option>' + (isEs ? 'Personalizado / Otro' : 'Custom / Other') + '</option><option>' + (isEs ? 'Desconocido' : 'Unknown') + '</option></select></div><div class="field-group"><label>' + (isEs ? 'Estado actual' : 'Current status') + '</label><select class="s-status"><option value="">' + (isEs ? 'Seleccionar...' : 'Select...') + '</option><option value="good">' + (isEs ? 'Activo y actualizado' : 'Active and maintained') + '</option><option value="outdated">' + (isEs ? 'Activo pero desactualizado' : 'Active but outdated') + '</option><option value="broken">' + (isEs ? 'Tiene errores o páginas rotas' : 'Has broken pages or errors') + '</option><option value="duplicate">' + (isEs ? 'Duplicado / redundante' : 'Duplicate / redundant') + '</option><option value="abandoned">' + (isEs ? 'Abandonado' : 'Abandoned') + '</option></select></div></div><div class="field-group" style="margin-bottom:0"><label>' + (isEs ? 'Problemas conocidos con este sitio' : 'Known issues with this site') + '</label><textarea class="s-issues" style="min-height:70px" placeholder=""></textarea></div>';
   document.getElementById('additional-sites-container').appendChild(div);
 }
 

@@ -239,7 +239,7 @@ function buildSuccessResult(p) {
     hasIncorrectClaim: (j.incorrect_claims || 0) > 0 ? 1 : 0,
     servicesCorrect: j.services_correct ?? null, locationCorrect: j.location_correct ?? null, contactCorrect: j.contact_correct ?? null,
     response: (p.rawText || '').slice(0, 500), snapshotDate: p.snapshotDate,
-    aiSessions: 0, aiConversions: 0, aiPipelineUsd: 0, company: p.company
+    aiSessions: 0, aiConversions: 0, aiPipelineUsd: 0, company: p.company, runType: p.runType
   };
 }
 function buildErrorResult(p) {
@@ -250,7 +250,7 @@ function buildErrorResult(p) {
     claimsAboutBrand: 0, incorrectClaims: 0, hasIncorrectClaim: 0,
     servicesCorrect: null, locationCorrect: null, contactCorrect: null,
     response: p.message, snapshotDate: p.snapshotDate,
-    aiSessions: 0, aiConversions: 0, aiPipelineUsd: 0, company: p.company, error: true
+    aiSessions: 0, aiConversions: 0, aiPipelineUsd: 0, company: p.company, runType: p.runType, error: true
   };
 }
 
@@ -262,7 +262,7 @@ function hashId(str) {
 function nullableFlag(v) { return v === null || v === undefined ? '' : (v ? 1 : 0); }
 function buildDbRow(r) {
   return {
-    run_id: hashId(`${r.snapshotDate}|${r.promptId}|${r.engine}`), snapshot_date: r.snapshotDate, engine: r.engine,
+    run_id: hashId(`${r.snapshotDate}|${r.promptId}|${r.engine}`), run_type: r.runType || 'diagnostic', snapshot_date: r.snapshotDate, engine: r.engine,
     prompt_id: r.promptId, prompt_text: r.prompt, query_intent: r.queryIntent || '', topic_cluster: r.category, brand: r.company,
     brand_mentioned: r.brandMentioned ? 1 : 0, brand_cited: r.brandCited ? 1 : 0, brand_citation_rank: r.brandCitationRank || '',
     total_brands_cited: r.totalBrandsCited || 0, brands_cited_list: (r.brandsCitedList || []).join(';'), top_cited_brand: r.topCitedBrand || '',
@@ -332,6 +332,10 @@ export default async (request, context) => {
   }
   const company = (body.company || '').trim();
   if (!company) return new Response('Missing company', { status: 400 });
+  // Tags every row from this run. Monitoring (cron) runs pass run_type:'monitoring'; the manual
+  // "Run Audit" button (and anything else) defaults to 'diagnostic', which is the only data the
+  // diagnostic dashboard ever reads — so monitoring runs never alter the diagnosis snapshot.
+  const runType = body.run_type === 'monitoring' ? 'monitoring' : 'diagnostic';
   // Recovery path for a run killed mid-flight by the platform's background-function execution
   // limit (single long invocation, no resume logic otherwise): skip prompts before this index
   // instead of reprocessing everything, so a partial stall doesn't cost double the API usage
@@ -450,7 +454,7 @@ export default async (request, context) => {
       for (const engine of activeEngines) {
         const name = engine.def.name;
         const raw = rawAnswers[name];
-        const base = { promptId, cleanedPrompt, category, engine: name, snapshotDate, company };
+        const base = { promptId, cleanedPrompt, category, engine: name, snapshotDate, company, runType };
         let result;
         if (raw.error) {
           result = buildErrorResult({ ...base, message: 'ERROR (answer): ' + raw.error });

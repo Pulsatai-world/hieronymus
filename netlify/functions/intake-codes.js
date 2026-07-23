@@ -5,6 +5,24 @@ function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
 }
 
+// Monitoring cadence → next-run date. Anchored on the start date and advanced one cadence step
+// at a time (like a recurring calendar event) until the next occurrence is in the future.
+function addCadence(d, cadence) {
+  const x = new Date(d);
+  if (cadence === 'weekly') x.setUTCDate(x.getUTCDate() + 7);
+  else if (cadence === 'semimonthly') x.setUTCDate(x.getUTCDate() + 15);
+  else if (cadence === 'quarterly') x.setUTCMonth(x.getUTCMonth() + 3);
+  else x.setUTCMonth(x.getUTCMonth() + 1); // monthly (default)
+  return x;
+}
+function computeNextRun(startDate, cadence, nowMs) {
+  let d = new Date(String(startDate || '').length === 10 ? startDate + 'T00:00:00Z' : startDate);
+  if (isNaN(d.getTime())) d = new Date(nowMs);
+  let guard = 0;
+  while (d.getTime() <= nowMs && guard++ < 5000) d = addCadence(d, cadence);
+  return d.toISOString();
+}
+
 function genPassword() {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase();
 }
@@ -159,18 +177,29 @@ export default async (request, context) => {
 
     // Scheduling monitoring is a company-wide setting, not tied to any one member's login —
     // staff-only, verified the same way an admin password reset is.
-    if (body.company && Number.isInteger(body.monitoringIntervalDays)) {
+    if (body.company && (typeof body.monitoringCadence === 'string' || Number.isInteger(body.monitoringIntervalDays))) {
       const ok = await requireStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword);
-      if (!ok) return json({ error: 'Only a staff admin can schedule monitoring' }, 403);
+      if (!ok) return json({ error: 'Only a staff admin can configure monitoring' }, 403);
       const groupKey = slugify(body.company);
       const record = await loadGroup(store, groupKey);
       if (!record) return json({ error: 'Unknown company' }, 404);
-      const days = body.monitoringIntervalDays;
-      record.monitoringEnabled = true;
-      record.monitoringIntervalDays = days;
-      record.nextRunAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+      // Configuring implies monitoring is on unless the caller explicitly turns it off.
+      const enabled = body.monitoringEnabled !== false;
+      record.monitoringEnabled = enabled;
+      if (typeof body.monitoringCadence === 'string') {
+        const cadence = ['weekly', 'semimonthly', 'monthly', 'quarterly'].includes(body.monitoringCadence) ? body.monitoringCadence : 'monthly';
+        const startDate = body.monitoringStartDate || new Date().toISOString().slice(0, 10);
+        record.monitoringCadence = cadence;
+        record.monitoringStartDate = startDate;
+        delete record.monitoringIntervalDays; // cadence supersedes the legacy fixed-day interval
+        record.nextRunAt = enabled ? computeNextRun(startDate, cadence, Date.now()) : null;
+      } else {
+        const days = body.monitoringIntervalDays;
+        record.monitoringIntervalDays = days;
+        record.nextRunAt = enabled ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString() : null;
+      }
       await store.setJSON(groupKey, record);
-      return json({ status: 'ok', nextRunAt: record.nextRunAt }, 200);
+      return json({ status: 'ok', nextRunAt: record.nextRunAt, monitoringEnabled: enabled }, 200);
     }
 
     const username = (body.username || '').trim().toLowerCase();

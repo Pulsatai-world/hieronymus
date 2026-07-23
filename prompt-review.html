@@ -3,17 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/styles/akore-tokens.css">
 <title>GEO Audit — Review Prompts | Akore Labs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
 :root {
   --navy: #6d4fe0;
-  --violet-700: #4834b0;
-  --violet-100: #ece7fd;
   --ink: #08090c;
-  --ink-60: #757f8f;
-  --ink-30: #c3c8d0;
   --surface: #f4f6f8;
   --card: #ffffff;
   --accent: #6d4fe0;
@@ -21,24 +18,12 @@
   --success: #0f7d5b;
   --success-bg: #eefaf4;
   --border: #e3e6ea;
-  --border-strong: #c3c8d0;
-  --focus-ring: rgba(109,79,224,0.35);
   --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius: 16px;
-  --radius-pill: 999px;
-  --shadow-sm: 0 1px 3px rgba(16,19,25,0.08), 0 1px 2px rgba(16,19,25,0.04);
-  --shadow-lg: 0 18px 40px rgba(16,19,25,0.12), 0 6px 12px rgba(16,19,25,0.06);
-  --shadow-brand: 0 12px 30px rgba(109,79,224,0.28);
   --shadow: var(--shadow-sm);
   --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
   --fs-h2: 1.5rem;
   --fs-eyebrow: 0.6875rem;
   --font-display: "Montserrat", "Helvetica Neue", Arial, sans-serif;
-  --font-body: "Manrope", "Helvetica Neue", Arial, sans-serif;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font-body); background: var(--surface); color: var(--ink); min-height: 100vh; font-size: 15px; line-height: 1.6; }
@@ -137,22 +122,22 @@ function findMember(group, username) {
 
 const T = {
   logoSub: { en: 'GEO Audit — Prompt Review', es: 'Auditoría GEO — Revisión de Prompts' },
-  gateTitle: { en: 'Client Access', es: 'Acceso de Cliente' },
+  gateTitle: { en: 'Client Access', es: 'Acceso de cliente' },
   gateDesc: { en: 'Enter the username and password from your invitation to review your GEO audit prompts.', es: 'Ingresa el usuario y la contraseña de tu invitación para revisar los prompts de tu auditoría GEO.' },
   usernamePlaceholder: { en: 'Username', es: 'Usuario' },
   passwordPlaceholder: { en: 'Password', es: 'Contraseña' },
   continueBtn: { en: 'Continue', es: 'Continuar' },
   enterCreds: { en: 'Enter your username and password.', es: 'Ingresa tu usuario y contraseña.' },
-  invalidCreds: { en: 'Invalid username or password. Please check and try again.', es: 'Usuario o contraseña inválidos. Verifica e intenta de nuevo.' },
+  invalidCreds: { en: 'Invalid username or password. Please check and try again.', es: 'Usuario o contraseña incorrectos. Revisa e inténtalo de nuevo.' },
   loading: { en: 'Loading…', es: 'Cargando…' },
   notReady: { en: "Your prompts aren't ready yet — check back soon.", es: 'Tus prompts aún no están listos — vuelve a revisar pronto.' },
   failedToLoad: { en: 'Failed to load: ', es: 'Error al cargar: ' },
   approvedOn: { en: '✓ Approved ', es: '✓ Aprobado el ' },
   yourComments: { en: ' — your comments: “', es: ' — tus comentarios: “' },
-  pendingBanner: { en: "These prompts haven't been approved yet. Edit any that don't look right, add comments if you'd like, and click Approve when they're good.", es: 'Estos prompts aún no han sido aprobados. Edita los que no se vean bien, agrega comentarios si quieres, y haz clic en Aprobar cuando estén listos.' },
-  viewOnlyBanner: { en: "You have view-only access — you can see these prompts but can't edit or approve them.", es: 'Tienes acceso de solo lectura — puedes ver estos prompts pero no puedes editarlos ni aprobarlos.' },
+  pendingBanner: { en: "These prompts haven't been approved yet. Edit any that don't look right, add comments if you'd like, and click Approve when they're good.", es: 'Estos prompts todavía no están aprobados. Edita los que no se vean bien, agrega los comentarios que quieras y haz clic en Aprobar cuando ya estén listos.' },
+  viewOnlyBanner: { en: "You have view-only access — you can see these prompts but can't edit or approve them.", es: 'Tienes acceso de solo lectura: puedes ver estos prompts, pero no editarlos ni aprobarlos.' },
   pageTitle: { en: 'Review your GEO audit prompts', es: 'Revisa los prompts de tu auditoría GEO' },
-  pageSub: { en: (c) => `These are the questions we'll ask Claude, ChatGPT, and Gemini to see how ${c} shows up. Edit any prompt directly, or leave a comment below, before we run the audit.`, es: (c) => `Estas son las preguntas que le haremos a Claude, ChatGPT y Gemini para ver cómo aparece ${c}. Edita cualquier prompt directamente, o deja un comentario abajo, antes de correr la auditoría.` },
+  pageSub: { en: (c) => `These are the questions we'll ask Claude, ChatGPT, and Gemini to see how ${c} shows up. Edit any prompt directly, or leave a comment below, before we run the audit.`, es: (c) => `Estas son las preguntas que les haremos a Claude, ChatGPT y Gemini para ver cómo aparece ${c}. Edita cualquier prompt directamente o déjanos un comentario abajo antes de que corramos la auditoría.` },
   commentsTitle: { en: 'Comments (optional)', es: 'Comentarios (opcional)' },
   commentsPlaceholder: { en: "Anything you'd like us to change or double check?", es: '¿Algo que quieras que cambiemos o verifiquemos?' },
   saveApproveBtn: { en: '✓ Save & Approve', es: '✓ Guardar y Aprobar' },
@@ -160,7 +145,7 @@ const T = {
   failedToSave: { en: 'Failed to save: ', es: 'Error al guardar: ' },
   catBrand: { en: 'About your brand', es: 'Sobre tu marca' },
   catCategory: { en: 'General category searches', es: 'Búsquedas generales de categoría' },
-  catProblem: { en: 'Problem-based searches', es: 'Búsquedas basadas en problemas' },
+  catProblem: { en: 'Problem-based searches', es: 'Búsquedas por problema' },
   catCompetitor: { en: 'Competitor comparisons', es: 'Comparaciones con competidores' },
   catPersona: { en: 'Buyer persona searches', es: 'Búsquedas por perfil de comprador' },
   catOther: { en: 'Other', es: 'Otros' }

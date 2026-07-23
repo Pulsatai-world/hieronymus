@@ -1,16 +1,29 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link rel="stylesheet" href="/styles/akore-tokens.css">
 <title>Akore Labs — Diagnostic</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
-  :root{--navy:#6d4fe0;--violet-400:#9b86f2;--violet-100:#ece7fd;--teal:#6d4fe0;--deepblue:#4834b0;--dark:#08090c;--ice:#f4f6f8;--ice2:#f4f2fb;--white:#FFFFFF;--muted:#757f8f;--line:#e3e6ea;--emerald:#1ea97c;--radius-md:12px;--radius-lg:16px;--shadow-sm:0 1px 3px rgba(16,19,25,.08),0 1px 2px rgba(16,19,25,.04);--shadow-md:0 6px 16px rgba(16,19,25,.08),0 2px 4px rgba(16,19,25,.04);--ease-standard:cubic-bezier(.2,.6,.2,1);--dur-base:200ms;--font-display:"Montserrat","Helvetica Neue",Arial,sans-serif;--font-body:"Manrope","Helvetica Neue",Arial,sans-serif;}
+  :root{--navy: #6d4fe0;
+  --deepblue: #4834b0;
+  --dark: #08090c;
+  --ice: #f4f6f8;
+  --ice2: #f4f2fb;
+  --white: #FFFFFF;
+  --line: #e3e6ea;
+  --shadow-sm: 0 1px 3px rgba(16,19,25,.08),0 1px 2px rgba(16,19,25,.04);
+  --shadow-md: 0 6px 16px rgba(16,19,25,.08),0 2px 4px rgba(16,19,25,.04);
+  --ease-standard: cubic-bezier(.2,.6,.2,1);
+  --font-display: "Montserrat","Helvetica Neue",Arial,sans-serif;
+  --font-body: "Manrope","Helvetica Neue",Arial,sans-serif;}
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:var(--font-body);background:var(--ice);color:var(--dark);-webkit-font-smoothing:antialiased;padding:0 0 56px}
   .head{background:#08090c;color:#fff;padding:38px 48px 26px;position:relative;overflow:hidden}
   .head::after{content:"";position:absolute;right:-80px;top:-120px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(109,79,224,.45),transparent 70%)}
   .head::before{content:"";position:absolute;left:-100px;bottom:-140px;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle,rgba(30,169,124,.28),transparent 70%)}
-  .headnav{position:relative;z-index:2;display:flex;gap:10px;justify-content:flex-end;align-items:center;margin-bottom:8px}
+  .headnav{position:relative;z-index:2;display:flex;gap:10px;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .headnav-right{display:flex;gap:10px;align-items:center}
   .headnav a{color:#c9c2e8;font-size:12px;text-decoration:none;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:6px 14px;white-space:nowrap}
   .headnav a:hover{background:rgba(255,255,255,.08)}
   .lang-toggle{display:flex;border:1px solid rgba(255,255,255,.25);border-radius:999px;overflow:hidden}
@@ -108,11 +121,74 @@
   .foot{padding:24px 48px 0;font-size:11px;color:var(--muted);line-height:1.5}
   @media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr)}.stats{grid-template-columns:repeat(2,1fr)}.wrap,.head,.controls,.foot{padding-left:22px;padding-right:22px}}
   @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  /* GEO Visibility Score hero */
+  .geo-hero{margin-top:32px;background:var(--dark);color:#fff;border-radius:var(--radius-lg);padding:30px 34px;display:flex;gap:40px;flex-wrap:wrap;align-items:center;box-shadow:var(--shadow-md);position:relative;overflow:hidden}
+  .geo-hero::after{content:"";position:absolute;right:-70px;top:-90px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(30,169,124,.35),transparent 70%);pointer-events:none}
+  .score-main{position:relative;z-index:1;display:flex;flex-direction:column;gap:8px}
+  .score-eyebrow{font-family:var(--font-body);font-weight:700;letter-spacing:.14em;font-size:12px;text-transform:uppercase;color:#c9c2e8}
+  .score-figure{display:flex;align-items:baseline;gap:10px}
+  .score-num{font-family:var(--font-display);font-size:5rem;font-weight:800;line-height:.85;letter-spacing:-.03em;color:var(--emerald);font-variant-numeric:tabular-nums}
+  .score-den{font-family:var(--font-display);font-size:1.4rem;font-weight:700;color:#c9c2e8}
+  .score-label{font-family:var(--font-display);font-size:14px;font-weight:600;color:#fff}
+  .geo-subs{position:relative;z-index:1;display:flex;gap:32px;flex-wrap:wrap;margin-left:auto}
+  .geo-sub{display:flex;flex-direction:column;gap:5px}
+  .geo-sub .gl{font-family:var(--font-display);font-size:11px;font-weight:600;color:#c9c2e8;text-transform:uppercase;letter-spacing:.06em}
+  .geo-sub .gv{font-family:var(--font-display);font-size:2rem;font-weight:800;color:var(--violet-400);line-height:1;font-variant-numeric:tabular-nums}
+  /* per-engine breakdown */
+  .etbl{display:flex;flex-direction:column}
+  .erow{display:grid;grid-template-columns:1fr 150px 150px;gap:10px;align-items:center;padding:12px 8px;border-bottom:1px solid var(--ice2)}
+  .erow.hd{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;border-bottom:2px solid var(--line)}
+  .erow .m{text-align:right}
+  .erow .ename{font-weight:700;font-size:15px;color:var(--dark)}
+  .erow .mv{font-family:var(--font-display);font-weight:700;font-size:17px;color:var(--navy)}
+  .erow .ml{font-size:10px;color:var(--muted)}
+  /* citation rate by cluster bars */
+  .bars{display:flex;flex-direction:column;gap:12px}
+  .barrow{display:grid;grid-template-columns:130px 1fr 60px;gap:12px;align-items:center;cursor:default}
+  #bar-tip{position:fixed;z-index:2000;background:var(--dark);color:#fff;padding:7px 11px;border-radius:8px;font-size:12px;line-height:1.4;pointer-events:none;opacity:0;transition:opacity .12s;max-width:260px;box-shadow:0 8px 24px rgba(8,9,12,.28)}
+  #bar-tip.show{opacity:1}
+  .crow{cursor:default}
+  .blabel{font-size:13px;font-weight:700;color:var(--dark)}
+  .bbar{position:relative;height:20px;background:var(--ice2);border-radius:6px;overflow:hidden}
+  .bbar>span{position:absolute;left:0;top:0;height:100%;border-radius:6px;background:var(--navy)}
+  .bval{text-align:right;font-family:var(--font-display);font-weight:700;font-size:14px;color:var(--navy);font-variant-numeric:tabular-nums}
+  /* sentiment split */
+  .sbar{display:flex;height:26px;border-radius:8px;overflow:hidden;background:var(--ice2)}
+  .sseg{height:100%}
+  .sseg.g{background:#1ea97c}.sseg.m{background:#e0b23b}.sseg.b{background:#c74b4b}
+  .slegend{display:flex;gap:26px;flex-wrap:wrap;margin-top:14px}
+  .sitem{display:flex;align-items:center;gap:8px;font-size:13px}
+  .sdot{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+  .sdot.g{background:#1ea97c}.sdot.m{background:#e0b23b}.sdot.b{background:#c74b4b}
+  .slab{font-weight:700;color:var(--dark)}
+  .snum{color:var(--muted);font-variant-numeric:tabular-nums}
+  /* sentiment donut */
+  .donut-wrap{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+  .donut{position:relative;flex-shrink:0;width:128px;height:128px}
+  .donut svg{display:block;width:100%;height:100%;transform:rotate(-90deg)}
+  .donut circle{cursor:default}
+  .donut .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+  .donut .center .dt{font-family:var(--font-display);font-size:1.6rem;font-weight:800;color:var(--dark);line-height:1;font-variant-numeric:tabular-nums}
+  .donut .center .dl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
+  .dlegend{display:flex;flex-direction:column;gap:12px;min-width:180px}
+  /* side-by-side row (cluster bars + sentiment donut) */
+  .dual{display:flex;gap:24px;margin-top:32px;align-items:stretch}
+  .dual>.cat{flex:1 1 0;margin-top:0;min-width:0}
+  .dual>.cat.sent-col{flex:0 1 300px}
+  /* where you're invisible */
+  .invlist{display:flex;flex-direction:column}
+  .invrow{display:grid;grid-template-columns:56px 1fr;gap:10px;align-items:baseline;padding:10px 8px;border-bottom:1px solid var(--ice2)}
+  .invrow .code{font-weight:700;color:var(--teal);font-size:13px}
+  .invtxt{font-size:13px;color:var(--dark);line-height:1.4}
+  @media(max-width:900px){.geo-subs{margin-left:0}.erow{grid-template-columns:1fr 90px 90px}.barrow{grid-template-columns:100px 1fr 54px}.dual{flex-direction:column}}
 </style></head><body>
 <div class="head">
   <div class="headnav">
-    <div class="lang-toggle"><button class="lang-btn" id="lang-btn-en" onclick="setLang('en')">EN</button><button class="lang-btn" id="lang-btn-es" onclick="setLang('es')">ES</button></div>
-    <a href="/dashboard-monitoring.html" id="link-monitoring" data-t="monitoringNav">Monitoring &rarr;</a>
+    <a href="/portal.html" id="link-back" data-t="backNav">&larr; Back</a>
+    <div class="headnav-right">
+      <div class="lang-toggle"><button class="lang-btn" id="lang-btn-en" onclick="setLang('en')">EN</button><button class="lang-btn" id="lang-btn-es" onclick="setLang('es')">ES</button></div>
+      <a href="/dashboard-monitoring.html" id="link-monitoring" data-t="monitoringNav">Monitoring &rarr;</a>
+    </div>
   </div>
   <div class="eyebrow" data-t="eyebrow">Akore Labs &middot; GEO</div>
   <h1 data-t="h1">Diagnostic &middot; Starting point</h1>
@@ -140,9 +216,10 @@
 // ── i18n ──
 const T = {
   monitoringNav: { en: 'Monitoring →', es: 'Monitoreo →' },
+  backNav: { en: '← Back', es: '← Volver' },
   eyebrow: { en: 'Akore Labs · GEO', es: 'Akore Labs · GEO' },
   h1: { en: 'Diagnostic · Starting point', es: 'Diagnóstico · Punto de partida' },
-  sub: { en: "Where your AI visibility stood on day one, before any work began. This is the fixed reference point every future run gets measured against — it won't change as new audits come in.", es: 'Dónde estaba tu visibilidad en IA el primer día, antes de comenzar cualquier trabajo. Este es el punto de referencia fijo con el que se mide cada ejecución futura — no cambiará conforme lleguen nuevas auditorías.' },
+  sub: { en: "Where your AI visibility stood on day one, before any work began. This is the fixed reference point every future run gets measured against — it won't change as new audits come in.", es: 'Tu nivel inicial de visibilidad en IA, antes de ejecutar la estrategia de GEO. Esta será la línea base con la que se medirán todas las ejecuciones futuras y permanecerá fija, sin importar cuántas auditorías se realicen después.' },
   companyLabel: { en: 'Company', es: 'Empresa' },
   engineLabel: { en: 'Engine', es: 'Motor' },
   questionTypeLabel: { en: 'Question type', es: 'Tipo de pregunta' },
@@ -159,7 +236,7 @@ const T = {
   statPrompts: { en: 'Distinct prompts', es: 'Prompts distintos' },
   statEngines: { en: 'Engines', es: 'Motores' },
   statClusters: { en: 'Question types', es: 'Tipos de pregunta' },
-  statCited: { en: 'Answers mentioning you', es: 'Respuestas que te mencionan' },
+  statCited: { en: 'Answers recommending you', es: 'Respuestas que te recomiendan' },
   baselineMeasurement: { en: (d) => `Baseline measurement: <b>${d}</b>`, es: (d) => `Medición inicial: <b>${d}</b>` },
   msAll: { en: 'All', es: 'Todos' },
   msNone: { en: 'None', es: 'Ninguno' },
@@ -169,30 +246,30 @@ const T = {
   msLangPlaceholder: { en: 'Language', es: 'Idioma' },
   msAllSuffix: { en: (p) => `${p} (all)`, es: (p) => `${p} (todos)` },
   msSelected: { en: (n) => `${n} selected`, es: (n) => `${n} seleccionados` },
-  noDataYet: { en: (c) => `No audit data yet${c ? ' for ' + c : ''}. Run an audit in the main tool first.`, es: (c) => `Aún no hay datos de auditoría${c ? ' para ' + c : ''}. Ejecuta una auditoría en la herramienta principal primero.` },
+  noDataYet: { en: (c) => `No audit data yet${c ? ' for ' + c : ''}. Run an audit in the main tool first.`, es: (c) => `Aún no hay datos de auditoría${c ? ' para ' + c : ''}. Primero ejecuta una auditoría en la herramienta principal.` },
   noMatchFilter: { en: 'No answers match this filter combination. Adjust your selection.', es: 'Ninguna respuesta coincide con esta combinación de filtros. Ajusta tu selección.' },
   noMatchFilterCompetitors: { en: 'No data matches this filter combination.', es: 'Ningún dato coincide con esta combinación de filtros.' },
   noMatchFilterPrompts: { en: 'No prompts match this filter combination.', es: 'Ningún prompt coincide con esta combinación de filtros.' },
   baseLabel: { en: 'base: ', es: 'base: ' },
-  footText: { en: (c, d) => `Source: Akore Labs' own audit database. Baseline measurement for ${c}, run ${d}. Every metric is computed from the selected answers.`, es: (c, d) => `Fuente: base de datos de auditoría propia de Akore Labs. Medición inicial para ${c}, ejecución ${d}. Cada métrica se calcula a partir de las respuestas seleccionadas.` },
+  footText: { en: (c, d) => `Source: Akore Labs' own audit database. Baseline measurement for ${c}, run ${d}. Every metric is computed from the selected answers.`, es: (c, d) => `Fuente: base de datos propia de auditorías de Akore Labs. Medición inicial para ${c}, realizada el ${d}. Cada métrica se calcula a partir de las respuestas seleccionadas.` },
   catVisibility: { en: 'Visibility', es: 'Visibilidad' },
   askVisibility: { en: 'Do AI engines see you?', es: '¿Te ven los motores de IA?' },
   catCompetitiveness: { en: 'Competitiveness', es: 'Competitividad' },
   askCompetitiveness: { en: 'How do you stack up?', es: '¿Cómo te comparas?' },
   catQuality: { en: 'Quality & Trust', es: 'Calidad y Confianza' },
   askQuality: { en: 'Do they describe you well?', es: '¿Te describen bien?' },
-  kpiCitationRate: { en: 'Citation rate', es: 'Tasa de mención' },
-  kpiCitationRateFormula: { en: 'Prompts mentioning you / Total prompts', es: 'Prompts que te mencionan / Total de prompts' },
+  kpiCitationRate: { en: 'Recommendation rate', es: 'Tasa de recomendación' },
+  kpiCitationRateFormula: { en: 'Answers recommending you / Total answers', es: 'Respuestas que te recomiendan / Total de respuestas' },
   kpiTargetCoverage: { en: 'Target-question coverage', es: 'Cobertura de preguntas objetivo' },
-  kpiTargetCoverageFormula: { en: 'Distinct prompts mentioning you / Distinct prompts asked', es: 'Prompts distintos que te mencionan / Prompts distintos preguntados' },
-  kpiAvgCitationPosition: { en: 'Average citation position', es: 'Posición promedio de mención' },
-  kpiAvgCitationPositionFormula: { en: 'Average rank among brands named, when you appear', es: 'Posición promedio entre las marcas nombradas, cuando apareces' },
+  kpiTargetCoverageFormula: { en: 'Distinct prompts recommending you / Distinct prompts asked', es: 'Prompts distintos que te recomiendan / Prompts distintos preguntados' },
+  kpiAvgCitationPosition: { en: 'Average recommendation position', es: 'Posición promedio de recomendación' },
+  kpiAvgCitationPositionFormula: { en: 'Average rank among recommended brands, when you appear', es: 'Posición promedio entre las marcas recomendadas, cuando apareces' },
   kpiShareOfVoice: { en: 'Share of Voice', es: 'Cuota de voz' },
-  kpiShareOfVoiceFormula: { en: 'Your mentions / All brands\' mentions combined', es: 'Tus menciones / Menciones de todas las marcas combinadas' },
-  kpiFirstMentionRate: { en: 'First-mention rate', es: 'Tasa de primera mención' },
-  kpiFirstMentionRateFormula: { en: 'Prompts where you\'re named first / Total prompts', es: 'Prompts en los que te nombran primero / Total de prompts' },
+  kpiShareOfVoiceFormula: { en: 'Your recommendations / All brands\' recommendations combined', es: 'Tus recomendaciones / Recomendaciones combinadas de todas las marcas' },
+  kpiFirstMentionRate: { en: 'First-recommendation rate', es: 'Tasa de primera recomendación' },
+  kpiFirstMentionRateFormula: { en: 'Answers that recommend you first / Total answers', es: 'Respuestas que te recomiendan primero / Total de respuestas' },
   kpiCompetitorAbove: { en: 'Answers ranking a competitor above you', es: 'Respuestas que ubican a un competidor por encima de ti' },
-  kpiCompetitorAboveFormula: { en: 'Mentions where a competitor ranked higher / Total mentions', es: 'Menciones donde un competidor quedó mejor posicionado / Total de menciones' },
+  kpiCompetitorAboveFormula: { en: 'Recommendations where a competitor ranked higher / Total recommendations', es: 'Recomendaciones en las que un competidor quedó mejor posicionado / Total de recomendaciones' },
   kpiClustersCitedIn: { en: "Topic clusters you're mentioned in", es: 'Grupos temáticos en los que te mencionan' },
   kpiClustersCitedInFormula: { en: 'Distinct topics where you\'re mentioned / Total distinct topics', es: 'Temas distintos en los que te mencionan / Total de temas distintos' },
   kpiPositiveSentiment: { en: 'Positive sentiment', es: 'Sentimiento positivo' },
@@ -216,32 +293,70 @@ const T = {
   intentFeature: { en: 'Capability (who offers X?)', es: 'Capacidad (¿quién ofrece X?)' },
   intentIntegration: { en: 'Integration (does it work with X?)', es: 'Integración (¿funciona con X?)' },
   yourRank: { en: 'Your rank', es: 'Tu posición' },
-  byNumCitations: { en: 'by number of mentions', es: 'por número de menciones' },
-  mostCitedBrand: { en: 'Most mentioned brand', es: 'Marca más mencionada' },
-  ofAllCitations: { en: (p) => `${p}% of all mentions`, es: (p) => `${p}% de todas las menciones` },
+  byNumCitations: { en: 'by number of recommendations', es: 'por número de recomendaciones' },
+  mostCitedBrand: { en: 'Most recommended brand', es: 'Marca más recomendada' },
+  ofAllCitations: { en: (p) => `${p}% of all recommendations`, es: (p) => `${p}% de todas las recomendaciones` },
   yourTopRival: { en: 'Your top rival', es: 'Tu principal rival' },
-  citationsVsYours: { en: (c, y) => `${c} mentions vs. your ${y}`, es: (c, y) => `${c} menciones vs. tus ${y}` },
-  competitorsIntro: { en: (you) => `These are the brands the AI names when answering the questions in your space. Your brand (<b style="color:var(--teal)">${you}</b>) is highlighted. The bar shows how often each brand was mentioned; "Leads" counts how often it was the first brand named.`, es: (you) => `Estas son las marcas que la IA menciona al responder preguntas en tu sector. Tu marca (<b style="color:var(--teal)">${you}</b>) está resaltada. La barra muestra con qué frecuencia se mencionó cada marca; "1ro" cuenta cuántas veces fue la primera marca mencionada.` },
+  citationsVsYours: { en: (c, y) => `${c} recommendations vs. your ${y}`, es: (c, y) => `${c} recomendaciones vs. tus ${y}` },
+  competitorsIntro: { en: (you) => `These are the brands the AI recommends when answering the questions in your space. Your brand (<b style="color:var(--teal)">${you}</b>) is highlighted. The bar shows how often each brand was recommended; "Leads" counts how often it was recommended first.`, es: (you) => `Estas son las marcas que la IA recomienda al responder preguntas en tu sector. Tu marca (<b style="color:var(--teal)">${you}</b>) está resaltada. La barra muestra con qué frecuencia se recomendó cada marca; "1ro" cuenta cuántas veces fue la primera marca recomendada.` },
   crowRank: { en: '#', es: '#' },
   crowBrand: { en: 'Brand', es: 'Marca' },
-  crowTimesCited: { en: 'Times mentioned (Share of Voice)', es: 'Veces mencionada (Cuota de voz)' },
+  crowTimesCited: { en: 'Times recommended (Share of Voice)', es: 'Veces recomendada (Cuota de voz)' },
   crowLeads: { en: 'Leads', es: '1ro' },
   timesFirst: { en: 'times 1st', es: 'veces 1ro' },
   prowId: { en: 'ID', es: 'ID' },
   prowPrompt: { en: 'Prompt', es: 'Prompt' },
-  prowCitationRate: { en: 'Mentioned', es: 'Mención' },
+  prowCitationRate: { en: 'Recommended', es: 'Recomendado' },
   prowAvgPos: { en: 'Avg. pos.', es: 'Pos. prom.' },
   prowSentiment: { en: 'Sentiment', es: 'Sentimiento' },
   prowResponses: { en: 'Responses', es: 'Respuestas' },
   promptsCountLine: { en: (n, m) => `${n} prompts · ${m} answers`, es: (n, m) => `${n} prompts · ${m} respuestas` },
-  citesLabel: { en: (n) => `${n} mentions`, es: (n) => `${n} menciones` },
+  citesLabel: { en: (n) => `${n} recommendations`, es: (n) => `${n} recomendaciones` },
   viewResponsesBtn: { en: (n) => `▸ View ${n} response${n === 1 ? '' : 's'}`, es: (n) => `▸ Ver ${n} respuesta${n === 1 ? '' : 's'}` },
   hideResponsesBtn: { en: '▾ Hide responses', es: '▾ Ocultar respuestas' },
   noResponseCaptured: { en: '(no response text captured)', es: '(no se capturó el texto de la respuesta)' },
   ofClustersBasis: { en: (n) => `of ${n} clusters`, es: (n) => `de ${n} grupos` },
   sentGood: { en: 'Good', es: 'Bueno' },
   sentMixed: { en: 'Mixed', es: 'Mixto' },
-  sentPoor: { en: 'Poor', es: 'Deficiente' }
+  sentPoor: { en: 'Poor', es: 'Deficiente' },
+  // GEO Visibility Score
+  geoScoreTitle: { en: 'GEO Visibility Score', es: 'Puntaje de visibilidad GEO' },
+  geoScoreSub: { en: 'Weighted 0–100 composite across every metric', es: 'Puntaje compuesto ponderado de 0 a 100 entre todas las métricas' },
+  scoreStrong: { en: 'Strong GEO presence', es: 'Presencia GEO fuerte' },
+  scoreEmerging: { en: 'Emerging GEO presence', es: 'Presencia GEO emergente' },
+  scoreLow: { en: 'Low GEO presence', es: 'Presencia GEO baja' },
+  scoreNoData: { en: 'n/a', es: 'n/d' },
+  // Per-engine breakdown
+  perEngineTitle: { en: 'Per-engine breakdown', es: 'Desglose por motor' },
+  perEngineSub: { en: 'How each AI engine sees you', es: 'Cómo te ve cada motor de IA' },
+  perEngineEngine: { en: 'Engine', es: 'Motor' },
+  // Citation rate by cluster
+  clusterTitle: { en: 'Recommendation rate by topic cluster', es: 'Tasa de recomendación por grupo temático' },
+  clusterSub: { en: 'Where in your space the AI recommends you', es: 'En qué parte de tu sector la IA te recomienda' },
+  clusterBrand: { en: 'Brand', es: 'Marca' },
+  clusterCategory: { en: 'Category', es: 'Categoría' },
+  clusterProblem: { en: 'Problem', es: 'Problema' },
+  clusterCompetitor: { en: 'Competitor', es: 'Competidor' },
+  clusterPersona: { en: 'Persona', es: 'Persona' },
+  // Where you're invisible
+  invisibleTitle: { en: "Where you're invisible", es: 'Dónde eres invisible' },
+  invisibleSub: { en: 'Prompts where no engine recommended you — your action list', es: 'Prompts donde ningún motor te recomendó — tu lista de acción' },
+  invisibleCount: { en: (n) => `${n} prompts`, es: (n) => `${n} prompts` },
+  invisibleNone: { en: 'The AI recommended you in every prompt. Nothing to fix here.', es: 'La IA te recomendó en todos los prompts. Nada que corregir aquí.' },
+  // Sentiment split
+  sentimentTitle: { en: 'Sentiment split', es: 'Distribución del sentimiento' },
+  sentimentSub: { en: 'Tone across answers that mention you', es: 'Tono en las respuestas que te mencionan' },
+  sentPositive: { en: 'Positive', es: 'Positivo' },
+  sentNeutral: { en: 'Neutral', es: 'Neutral' },
+  sentNegative: { en: 'Negative', es: 'Negativo' },
+  sentimentNone: { en: 'No assessed sentiment in these answers.', es: 'No hay sentimiento evaluado en estas respuestas.' },
+  sentAssessed: { en: 'assessed', es: 'evaluadas' },
+  // Mention rate KPI
+  kpiMentionRate: { en: 'Mention rate', es: 'Tasa de mención' },
+  kpiMentionRateFormula: { en: 'Answers mentioning you / Total answers', es: 'Respuestas que te mencionan / Total de respuestas' },
+  // Hover tooltips
+  clusterBarTooltip: { en: (name, rate, n, d) => `${name}: ${rate}% recommended — ${n} / ${d} answers`, es: (name, rate, n, d) => `${name}: ${rate}% recomendado — ${n} / ${d} respuestas` },
+  leaderBarTooltip: { en: (name, cited, sov, leads) => `${name}: ${cited} recommendations · ${sov}% Share of Voice · leads ${leads}× (times first)`, es: (name, cited, sov, leads) => `${name}: ${cited} recomendaciones · ${sov}% de cuota de voz · lidera ${leads}× (veces 1ro)` }
 };
 // Most customers are based in Mexico at first contact, so the dashboard opens in Spanish
 // until someone explicitly switches — a one-line internal setting, easy to flip later.
@@ -378,6 +493,23 @@ function detectLanguage(txt) {
   const enHits = (s.match(EN_WORDS) || []).length;
   return esHits > enHits ? 'es' : 'en';
 }
+// Floating hover tooltip shared by the cluster bars, competitor rows, and donut segments
+// (any element carrying a data-tip attribute).
+(function initBarTip() {
+  if (window.__barTipInit) return; window.__barTipInit = true;
+  const tip = document.createElement('div'); tip.id = 'bar-tip'; document.body.appendChild(tip);
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('[data-tip]');
+    if (el) { tip.textContent = el.getAttribute('data-tip'); tip.classList.add('show'); }
+    else if (!e.target.closest('#bar-tip')) tip.classList.remove('show');
+  });
+  document.addEventListener('mousemove', e => {
+    if (!tip.classList.contains('show')) return;
+    tip.style.left = Math.min(e.clientX + 14, window.innerWidth - 270) + 'px';
+    tip.style.top = (e.clientY + 16) + 'px';
+  });
+})();
+
 function sum(rs, k) { let s = 0; for (const r of rs) s += (+r[k] || 0); return s; }
 function avg(a) { return a.reduce((x, y) => x + y, 0) / a.length; }
 function pct(n, d) { return { value: d ? 100 * n / d : 0, basis: n + ' / ' + d }; }
@@ -391,13 +523,16 @@ const fmt = (v, u) => u === '%' ? v.toFixed(1) + '%' : u === 'rank' ? (v ? '#' +
 // without reflecting genuine, unprompted AI visibility. Quality & Trust KPIs keep all prompts,
 // since how you're described when someone does ask about you by name is still a fair signal.
 const KPIS = [
+  // Mention rate is shown as a card but excluded from the composite GEO score (inScore:false)
+  // so adding it doesn't shift or double-count the score alongside the Recommendation rate.
+  { cat: 'Visibility', name: 'Mention rate', tkey: 'kpiMentionRate', formulaKey: 'kpiMentionRateFormula', unit: '%', excludeBrand: true, inScore: false, fn: rs => pct(sum(rs, 'brand_mentioned'), rs.length) },
   { cat: 'Visibility', name: 'Citation rate', tkey: 'kpiCitationRate', formulaKey: 'kpiCitationRateFormula', unit: '%', excludeBrand: true, fn: rs => pct(sum(rs, 'brand_cited'), rs.length) },
   { cat: 'Visibility', name: 'Target-question coverage', tkey: 'kpiTargetCoverage', formulaKey: 'kpiTargetCoverageFormula', unit: '%', excludeBrand: true, fn: rs => { const q = new Set(rs.map(r => r.prompt_id)), c = new Set(rs.filter(r => r.brand_cited).map(r => r.prompt_id)); return pct(c.size, q.size); } },
   { cat: 'Visibility', name: 'Average citation position', tkey: 'kpiAvgCitationPosition', formulaKey: 'kpiAvgCitationPositionFormula', unit: 'rank', excludeBrand: true, fn: rs => { const v = rs.filter(r => r.brand_citation_rank).map(r => r.brand_citation_rank); return { value: v.length ? avg(v) : 0, basis: t('citesLabel', v.length) }; } },
   { cat: 'Competitiveness', name: 'Share of Voice', tkey: 'kpiShareOfVoice', formulaKey: 'kpiShareOfVoiceFormula', unit: '%', excludeBrand: true, fn: rs => pct(sum(rs, 'brand_cited'), sum(rs, 'total_brands_cited')) },
   { cat: 'Competitiveness', name: 'First-mention rate', tkey: 'kpiFirstMentionRate', formulaKey: 'kpiFirstMentionRateFormula', unit: '%', excludeBrand: true, fn: rs => pct(sum(rs, 'brand_is_leader'), rs.length) },
   { cat: 'Competitiveness', name: 'Answers ranking a competitor above you', tkey: 'kpiCompetitorAbove', formulaKey: 'kpiCompetitorAboveFormula', unit: '%', excludeBrand: true, fn: rs => { const c = rs.filter(r => r.brand_cited); return pct(c.filter(r => !r.brand_is_leader).length, c.length); } },
-  { cat: 'Competitiveness', name: "Topic clusters you're mentioned in", tkey: 'kpiClustersCitedIn', formulaKey: 'kpiClustersCitedInFormula', unit: 'count', excludeBrand: true, fn: rs => { const cl = new Set(rs.filter(r => r.brand_cited).map(r => r.topic_cluster)); return { value: cl.size, basis: t('ofClustersBasis', new Set(rs.map(r => r.topic_cluster)).size) }; } },
+  { cat: 'Competitiveness', name: "Topic clusters you're mentioned in", tkey: 'kpiClustersCitedIn', formulaKey: 'kpiClustersCitedInFormula', unit: 'count', excludeBrand: true, fn: rs => { const cl = new Set(rs.filter(r => r.brand_mentioned).map(r => r.topic_cluster)); return { value: cl.size, basis: t('ofClustersBasis', new Set(rs.map(r => r.topic_cluster)).size) }; } },
   { cat: 'Quality & Trust', name: 'Positive sentiment', tkey: 'kpiPositiveSentiment', formulaKey: 'kpiPositiveSentimentFormula', unit: '%', fn: rs => { const m = rs.filter(r => r.brand_mentioned && r.sentiment); return pct(m.filter(r => r.sentiment === 'positive').length, m.length); } },
   { cat: 'Quality & Trust', name: 'Verified-fact accuracy', tkey: 'kpiVerifiedAccuracy', formulaKey: 'kpiVerifiedAccuracyFormula', unit: '%', fn: rs => {
       const m = rs.filter(r => r.brand_mentioned);
@@ -407,8 +542,52 @@ const KPIS = [
     } },
   { cat: 'Quality & Trust', name: 'Answers flagged for review', tkey: 'kpiFlaggedForReview', formulaKey: 'kpiFlaggedForReviewFormula', unit: '%', fn: rs => { const m = rs.filter(r => r.brand_mentioned); return pct(sum(m, 'has_incorrect_claim'), m.length); } },
   { cat: 'Quality & Trust', name: 'Negative sentiment', tkey: 'kpiNegativeSentiment', formulaKey: 'kpiNegativeSentimentFormula', unit: '%', fn: rs => { const m = rs.filter(r => r.brand_mentioned && r.sentiment); return pct(m.filter(r => r.sentiment === 'negative').length, m.length); } },
-  { cat: 'Quality & Trust', name: 'Answers linking to your site', tkey: 'kpiLinkingToSite', formulaKey: 'kpiLinkingToSiteFormula', unit: '%', fn: rs => { const c = rs.filter(r => r.brand_cited); return pct(sum(c, 'linked_to_site'), c.length); } }
+  { cat: 'Quality & Trust', name: 'Answers linking to your site', tkey: 'kpiLinkingToSite', formulaKey: 'kpiLinkingToSiteFormula', unit: '%', fn: rs => { const m = rs.filter(r => r.brand_mentioned); return pct(sum(m, 'linked_to_site'), m.length); } }
 ];
+
+// ── COMPOSITE "GEO VISIBILITY SCORE" (0–100) ──
+// Category weights — tweak freely. Renormalized over categories that actually have data.
+const GEO_WEIGHTS = { 'Visibility': 0.40, 'Competitiveness': 0.35, 'Quality & Trust': 0.25 };
+// KPIs where a LOWER raw value is better, so goodness = 100 − value.
+const LOWER_BETTER = ['kpiCompetitorAbove', 'kpiFlaggedForReview', 'kpiNegativeSentiment'];
+const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+
+// Per-KPI "goodness" on a 0–100 scale, plus whether the KPI had any data (denominator > 0).
+//  · %-higher-better KPIs        → value
+//  · %-lower-better KPIs         → 100 − value
+//  · Average citation position   → clamp(100*(5 − rank)/4, 0, 100), and 0 if no citations
+//  · Topic clusters mentioned in → 100 * clustersMentionedIn / totalClusters
+function kpiGoodness(k, rows) {
+  const inputRows = k.excludeBrand ? rows.filter(r => r.topic_cluster !== 'Brand') : rows;
+  const o = k.fn(inputRows);
+  const v = val(o);
+  if (k.tkey === 'kpiAvgCitationPosition') {
+    const nCites = inputRows.filter(r => r.brand_citation_rank).length;
+    return { goodness: nCites ? clamp(100 * (5 - v) / 4, 0, 100) : 0, hasData: nCites > 0 };
+  }
+  if (k.tkey === 'kpiClustersCitedIn') {
+    const total = new Set(inputRows.map(r => r.topic_cluster)).size;
+    return { goodness: total ? 100 * v / total : 0, hasData: total > 0 };
+  }
+  // Percentage KPIs: the denominator is the number after '/' in pct()'s basis string.
+  const d = parseInt((basisOf(o).split('/')[1] || '').trim(), 10);
+  const goodness = LOWER_BETTER.includes(k.tkey) ? (100 - v) : v;
+  return { goodness, hasData: d > 0 };
+}
+
+// Category subscore = mean of that category's KPI goodness values, ignoring KPIs with no data.
+// Composite = 0.40*Visibility + 0.35*Competitiveness + 0.25*Quality, weights renormalized
+// over the categories that have data. Result rounded to an integer.
+function computeGeoScore(rows) {
+  const subs = {};
+  CATS.forEach(C => {
+    const good = KPIS.filter(k => k.cat === C.name && k.inScore !== false).map(k => kpiGoodness(k, rows)).filter(g => g.hasData);
+    subs[C.name] = good.length ? avg(good.map(g => g.goodness)) : null;
+  });
+  let wsum = 0, acc = 0;
+  CATS.forEach(C => { if (subs[C.name] != null) { const w = GEO_WEIGHTS[C.name]; wsum += w; acc += w * subs[C.name]; } });
+  return { composite: wsum ? Math.round(acc / wsum) : null, subs };
+}
 
 // ── PER-COMPANY STATE ──
 let TAPE = [], DATES = [], BASELINE_DATE = '', engines = [], intents = [], prompts = [], promptMap = {}, promptLangMap = {};
@@ -459,8 +638,13 @@ function makeMulti(mountId, options, placeholder, onChange) {
 
 function buildForCompany() {
   document.getElementById('link-monitoring').href = '/dashboard-monitoring.html?company=' + encodeURIComponent(company);
+  // Back button: internal staff return to that customer's detail page; clients to their own portal.
+  document.getElementById('link-back').href = (localStorage.getItem('hieronymus_internal_auth') === 'true'
+    ? '/index.html?company=' : '/client-portal.html?company=') + encodeURIComponent(company);
   const companyKey = company.toLowerCase();
-  TAPE = allRows.filter(r => r.brand && r.brand.toLowerCase() === companyKey);
+  // Diagnostic dashboard shows ONLY diagnosis data — monitoring runs (run_type='monitoring')
+  // never appear here. Rows with no run_type (legacy/seed) are treated as diagnostic.
+  TAPE = allRows.filter(r => r.brand && r.brand.toLowerCase() === companyKey && r.run_type !== 'monitoring');
   DATES = [...new Set(TAPE.map(r => r.snapshot_date))].sort();
   BASELINE_DATE = DATES[0] || '';
   engines = [...new Set(TAPE.map(r => r.engine))];
@@ -508,6 +692,93 @@ function render() {
     cwrap.innerHTML = ''; pwrap.innerHTML = '';
     return;
   }
+  // ── GEO Visibility Score (composite hero) ──
+  const { composite, subs } = computeGeoScore(rows);
+  const scoreLabel = composite == null ? t('scoreNoData')
+    : composite >= 67 ? t('scoreStrong') : composite >= 34 ? t('scoreEmerging') : t('scoreLow');
+  const hero = document.createElement('div'); hero.className = 'geo-hero';
+  hero.innerHTML =
+    `<div class="score-main">` +
+      `<div class="score-eyebrow">${t('geoScoreTitle')}</div>` +
+      `<div class="score-figure"><span class="score-num">${composite == null ? '—' : composite}</span><span class="score-den">/ 100</span></div>` +
+      `<div class="score-label">${scoreLabel} · ${t('geoScoreSub')}</div>` +
+    `</div>` +
+    `<div class="geo-subs">` +
+      CATS.map(C => `<div class="geo-sub"><div class="gl">${t(C.tkey)}</div><div class="gv">${subs[C.name] == null ? t('scoreNoData') : Math.round(subs[C.name])}</div></div>`).join('') +
+    `</div>`;
+  wrap.appendChild(hero);
+
+  // ── Per-engine breakdown ──
+  const enginesIn = [...new Set(rows.map(r => r.engine))].filter(Boolean).sort();
+  const engSec = document.createElement('div'); engSec.className = 'cat';
+  let engHtml = `<div class="cat-h"><div class="cat-titles"><span class="q">${t('perEngineTitle')}</span><span class="ask">${t('perEngineSub')}</span></div></div>`;
+  engHtml += `<div class="etbl"><div class="erow hd"><div>${t('perEngineEngine')}</div><div class="m">${t('kpiCitationRate')}</div><div class="m">${t('kpiShareOfVoice')}</div></div>`;
+  enginesIn.forEach(e => {
+    const er = rows.filter(r => r.engine === e && r.topic_cluster !== 'Brand');
+    const cr = pct(sum(er, 'brand_cited'), er.length);
+    const sv = pct(sum(er, 'brand_cited'), sum(er, 'total_brands_cited'));
+    engHtml += `<div class="erow"><div class="ename">${esc(properCase(e))}</div>` +
+      `<div class="m"><span class="mv">${fmt(cr.value, '%')}</span><div class="ml">${cr.basis}</div></div>` +
+      `<div class="m"><span class="mv">${fmt(sv.value, '%')}</span><div class="ml">${sv.basis}</div></div></div>`;
+  });
+  engHtml += `</div>`;
+  engSec.innerHTML = engHtml; wrap.appendChild(engSec);
+
+  // ── Recommendation rate by topic cluster + Sentiment donut (side by side) ──
+  const dualRow = document.createElement('div'); dualRow.className = 'dual';
+
+  // Recommendation rate by topic cluster (bars hoverable via title tooltip)
+  const CLUSTER_ORDER = ['Brand', 'Category', 'Problem', 'Competitor', 'Persona'];
+  const CLUSTER_TKEY = { Brand: 'clusterBrand', Category: 'clusterCategory', Problem: 'clusterProblem', Competitor: 'clusterCompetitor', Persona: 'clusterPersona' };
+  const clustersIn = CLUSTER_ORDER.filter(c => rows.some(r => r.topic_cluster === c));
+  if (clustersIn.length) {
+    const clSec = document.createElement('div'); clSec.className = 'cat';
+    let clHtml = `<div class="cat-h"><div class="cat-titles"><span class="q">${t('clusterTitle')}</span><span class="ask">${t('clusterSub')}</span></div></div><div class="bars">`;
+    clustersIn.forEach(c => {
+      const cr = rows.filter(r => r.topic_cluster === c);
+      const n = sum(cr, 'brand_cited'), d = cr.length;
+      const p = pct(n, d);
+      const label = t(CLUSTER_TKEY[c]);
+      const tip = esc(t('clusterBarTooltip', label, p.value.toFixed(1), n, d));
+      clHtml += `<div class="barrow" data-tip="${tip}"><div class="blabel">${label}</div>` +
+        `<div class="bbar"><span style="width:${p.value.toFixed(1)}%"></span></div>` +
+        `<div class="bval">${fmt(p.value, '%')}</div></div>`;
+    });
+    clHtml += `</div>`;
+    clSec.innerHTML = clHtml; dualRow.appendChild(clSec);
+  }
+
+  // Sentiment donut (over brand-mentioned answers with an assessed tone)
+  const sm = rows.filter(r => r.brand_mentioned && ['positive', 'neutral', 'negative'].includes(r.sentiment));
+  const sPos = sm.filter(r => r.sentiment === 'positive').length;
+  const sNeu = sm.filter(r => r.sentiment === 'neutral').length;
+  const sNeg = sm.filter(r => r.sentiment === 'negative').length;
+  const sTot = sm.length;
+  const sentSec = document.createElement('div'); sentSec.className = 'cat sent-col';
+  let sentHtml = `<div class="cat-h"><div class="cat-titles"><span class="q">${t('sentimentTitle')}</span><span class="ask">${t('sentimentSub')}</span></div></div>`;
+  if (sTot === 0) { sentHtml += `<div class="empty">${t('sentimentNone')}</div>`; }
+  else {
+    const COL_POS = 'var(--emerald)', COL_NEU = 'var(--muted)', COL_NEG = 'var(--red, #c74b4b)';
+    const R = 60, CIRC = 2 * Math.PI * R;
+    let acc = 0;
+    const arc = (n, color, label) => {
+      if (!n) return '';
+      const len = CIRC * n / sTot;
+      const tip = esc(`${label}: ${n} · ${(100 * n / sTot).toFixed(0)}%`);
+      const s = `<circle data-tip="${tip}" cx="80" cy="80" r="${R}" fill="none" stroke="${color}" stroke-width="24" stroke-dasharray="${len.toFixed(3)} ${(CIRC - len).toFixed(3)}" stroke-dashoffset="${(-acc).toFixed(3)}"/>`;
+      acc += len;
+      return s;
+    };
+    const litem = (label, n, color) => `<div class="sitem"><span class="sdot" style="background:${color}"></span><span class="slab">${label}</span><span class="snum">${n} · ${(100 * n / sTot).toFixed(0)}%</span></div>`;
+    sentHtml += `<div class="donut-wrap">` +
+      `<div class="donut"><svg viewBox="0 0 160 160" width="100%" height="100%" role="img" aria-label="${esc(t('sentimentTitle'))}">${arc(sPos, COL_POS, t('sentPositive'))}${arc(sNeu, COL_NEU, t('sentNeutral'))}${arc(sNeg, COL_NEG, t('sentNegative'))}</svg>` +
+        `<div class="center"><div class="dt">${sTot}</div><div class="dl">${t('sentAssessed')}</div></div></div>` +
+      `<div class="dlegend">${litem(t('sentPositive'), sPos, COL_POS)}${litem(t('sentNeutral'), sNeu, COL_NEU)}${litem(t('sentNegative'), sNeg, COL_NEG)}</div>` +
+    `</div>`;
+  }
+  sentSec.innerHTML = sentHtml; dualRow.appendChild(sentSec);
+  wrap.appendChild(dualRow);
+
   CATS.forEach(C => {
     const catKpis = KPIS.filter(k => k.cat === C.name);
     const hasExcludeBrand = catKpis.some(k => k.excludeBrand);
@@ -523,12 +794,35 @@ function render() {
     });
     sec.appendChild(grid); wrap.appendChild(sec);
   });
+
+  // ── Where you're invisible: prompts (non-Brand clusters) that no engine ever cited you in ──
+  const invByPrompt = {};
+  rows.filter(r => r.topic_cluster !== 'Brand').forEach(r => { (invByPrompt[r.prompt_id] = invByPrompt[r.prompt_id] || []).push(r); });
+  const invisible = Object.keys(invByPrompt).filter(pid => invByPrompt[pid].every(r => !r.brand_cited)).sort();
+  const invSec = document.createElement('div'); invSec.className = 'cat';
+  let invHtml = `<div class="cat-h"><div class="cat-titles"><span class="q">${t('invisibleTitle')}</span><span class="ask">${t('invisibleSub')}</span></div><span class="cat-note">${t('invisibleCount', invisible.length)}</span></div>`;
+  if (invisible.length === 0) { invHtml += `<div class="empty">${t('invisibleNone')}</div>`; }
+  else {
+    invHtml += `<div class="invlist">` + invisible.map(pid => `<div class="invrow"><span class="code">${esc(pid)}</span><span class="invtxt">${esc(promptMap[pid] || '')}</span></div>`).join('') + `</div>`;
+  }
+  invSec.innerHTML = invHtml; wrap.appendChild(invSec);
+
   foot.innerHTML = t('footText', company, BASELINE_DATE);
 
   // Same rationale as the excludeBrand KPIs: a prompt that names the company directly would
-  // trivially make it "most cited" in that answer, skewing the competitive leaderboard.
-  renderCompetitors(rows.filter(r => r.topic_cluster !== 'Brand'));
+  // trivially make it "most cited" in that answer, skewing the competitive leaderboard. The
+  // Brand topic cluster is only part of this — comparison prompts like "You vs X" also name
+  // the company, so exclude any prompt whose text mentions it.
+  renderCompetitors(rows.filter(r => r.topic_cluster !== 'Brand' && !promptNamesCompany(r)));
   renderPrompts(rows);
+}
+
+// True when the prompt text itself names the company. Such prompts trivially "mention" the
+// company (and often rank it first), inflating its position on the competitor leaderboard —
+// so they're excluded from it, extending the Brand-cluster exclusion to comparison prompts.
+function promptNamesCompany(r) {
+  const name = (company || '').trim().toLowerCase();
+  return !!name && (r.prompt_text || '').toLowerCase().includes(name);
 }
 
 function renderCompetitors(rows) {
@@ -567,6 +861,7 @@ function renderCompetitors(rows) {
     const isYou = b.name.toLowerCase() === youKey;
     const w = 100 * b.cited / maxCited;
     const row = document.createElement('div'); row.className = 'crow';
+    row.dataset.tip = t('leaderBarTooltip', b.name, b.cited, b.sov.toFixed(0), b.leader);
     row.innerHTML = `<div class="crank">${i + 1}</div>` +
       `<div class="cname${isYou ? ' you' : ''}">${b.name}</div>` +
       `<div class="cbar${isYou ? ' you' : ''}"><span style="width:${w.toFixed(1)}%"></span><em>${b.cited} &middot; ${b.sov.toFixed(0)}%</em></div>` +

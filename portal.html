@@ -3,6 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/styles/akore-tokens.css">
+<style>
+  .cust-cards { display: flex; flex-direction: column; gap: 10px; }
+  .cust-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
+  .cust-card-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: none; border: none; cursor: pointer; font-family: inherit; text-align: left; }
+  .cust-card-head:hover { background: var(--surface2); }
+  .cust-card-name { font-family: var(--display); font-weight: 700; font-size: 15px; color: var(--text); flex-shrink: 0; }
+  .cust-card-tags { display: flex; gap: 14px; flex-wrap: wrap; flex: 1; align-items: center; }
+  .tagchip { display: inline-flex; align-items: center; gap: 5px; }
+  .tagchip-l { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-mid); font-weight: 700; }
+  .cust-card-chevron { color: var(--text-mid); flex-shrink: 0; transition: transform 0.2s var(--ease-standard); }
+  .cust-card.open .cust-card-chevron { transform: rotate(180deg); }
+  .cust-card-body { display: none; padding: 4px 18px 18px; border-top: 1px solid var(--border); }
+  .cust-card.open .cust-card-body { display: block; }
+</style>
 <title>Akore Labs — Portal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -122,23 +137,17 @@ if (!checkAuth()) {
 <style>
 :root {
   --navy: #6d4fe0;
-  --violet-700: #4834b0;
-  --violet-100: #ece7fd;
-  --violet-50: #f6f3fe;
   --emerald-700: #0f7d5b;
-  --emerald-100: #d5f4e8;
   --bg: #f4f6f8;
   --surface: #FFFFFF;
   --surface2: #f4f2fb;
   --border: #e3e6ea;
-  --border-bright: #c3c8d0;
   --text: #08090c;
   --text-dim: #757f8f;
   --text-mid: #3d4653;
   --accent: #6d4fe0;
   --accent-glow: rgba(109,79,224,0.18);
   --accent-dim: rgba(109,79,224,0.10);
-  --focus-ring: rgba(109,79,224,0.35);
   --green: #0f7d5b;
   --green-dim: #eefaf4;
   --yellow: #8a6a12;
@@ -146,20 +155,8 @@ if (!checkAuth()) {
   --red: #b03a3a;
   --red-dim: #fce9e9;
   --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius: 16px;
-  --radius-xl: 24px;
-  --radius-pill: 999px;
   --shadow-xs: 0 1px 2px rgba(16,19,25,0.06);
-  --shadow-sm: 0 1px 3px rgba(16,19,25,0.08), 0 1px 2px rgba(16,19,25,0.04);
-  --shadow-md: 0 6px 16px rgba(16,19,25,0.08), 0 2px 4px rgba(16,19,25,0.04);
-  --shadow-lg: 0 18px 40px rgba(16,19,25,0.12), 0 6px 12px rgba(16,19,25,0.06);
-  --shadow-brand: 0 12px 30px rgba(109,79,224,0.28);
-  --shadow-accent: 0 12px 30px rgba(30,169,124,0.24);
   --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
   --fs-h1: 2.5rem;
   --fs-h2: 1.5rem;
   --fs-h3: 1.125rem;
@@ -250,7 +247,7 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
 <body>
 
 <header class="header">
-  <div class="logo">
+  <div class="logo" onclick="location.href='/portal.html'" style="cursor:pointer;" title="Akore Labs — Home">
     <img class="logo-lockup" src="/brand/logo-horizontal-light.png" alt="Akore Labs">
     <span class="logo-divider"></span>
     <div class="logo-sub" data-t="logoSub">Internal Portal</div>
@@ -323,25 +320,36 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
     <div class="card-title" id="manage-users-title">Manage Users</div>
     <div class="field-hint" style="margin-bottom:14px;" data-t="manageUsersHint">Anyone in this list can log into this customer's Client Portal, Intake form, and Prompt Review with their own username/password. "Viewer" accounts can view only — they can't approve prompts, edit intake, or change account settings.</div>
     <div id="members-list" style="margin-bottom:16px;"></div>
-    <div class="field-hint" style="font-weight:700; text-transform:uppercase; font-size:11px; color:var(--text-mid); margin-bottom:8px;" data-t="addUserTitle">Add a user</div>
-    <div class="field">
-      <label data-t="usernameLabel">username</label>
-      <input type="text" id="new-member-username" placeholder="" autocomplete="off" autocapitalize="off">
+
+    <div id="add-user-toggle-row">
+      <button class="btn btn-sm" onclick="toggleAddUser(true)" data-t="addUserBtn">+ Add User</button>
     </div>
-    <div class="field">
-      <label data-t="passwordLabel">password</label>
-      <input type="text" id="new-member-password" placeholder="" autocomplete="off">
+
+    <div id="add-user-form" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:14px;">
+      <div class="field-hint" style="font-weight:700; text-transform:uppercase; font-size:11px; color:var(--text-mid); margin-bottom:8px;" data-t="addUserTitle">Add a user</div>
+      <div class="field">
+        <label data-t="usernameLabel">username</label>
+        <input type="text" id="new-member-username" placeholder="" autocomplete="off" autocapitalize="off">
+      </div>
+      <div class="field">
+        <label data-t="passwordLabel">password</label>
+        <input type="text" id="new-member-password" placeholder="" autocomplete="off">
+      </div>
+      <div class="field">
+        <label data-t="roleLabel">Role</label>
+        <select id="new-member-role">
+          <option value="full" data-t="roleFull">Full access</option>
+          <option value="viewer" data-t="roleViewer">Viewer (read-only)</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="toggleAddUser(false)" data-t="cancelBtn">Cancel</button>
+        <button class="btn" onclick="addMember()" data-t="confirmAddUserBtn">Add user</button>
+      </div>
     </div>
-    <div class="field">
-      <label data-t="roleLabel">Role</label>
-      <select id="new-member-role">
-        <option value="full" data-t="roleFull">Full access</option>
-        <option value="viewer" data-t="roleViewer">Viewer (read-only)</option>
-      </select>
-    </div>
-    <div style="display:flex; gap:8px; justify-content:flex-end;">
+
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
       <button class="btn btn-ghost" onclick="closeManageUsersModal()" data-t="closeBtn">Close</button>
-      <button class="btn" onclick="addMember()" data-t="addUserBtn">+ Add User</button>
     </div>
     <div class="error-box" id="member-error-box"></div>
   </div>
@@ -349,28 +357,40 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
 
 <div class="modal-backdrop" id="manage-staff-modal">
   <div class="modal-box">
-    <div class="card-title" data-t="manageStaffTitle">Manage Staff Logins</div>
+    <div class="card-title" data-t="manageStaffTitle">Admin Settings</div>
     <div class="field-hint" style="margin-bottom:14px;" data-t="manageStaffHint">Admins can do everything, including deleting customers/results, toggling monitoring, and managing other staff logins. Users can do everything else.</div>
+    <div class="field-hint" style="font-weight:700; text-transform:uppercase; font-size:11px; color:var(--text-mid); margin-bottom:8px;" data-t="staffUsersLabel">Staff users</div>
     <div id="staff-list" style="margin-bottom:16px;"></div>
-    <div class="field-hint" style="font-weight:700; text-transform:uppercase; font-size:11px; color:var(--text-mid); margin-bottom:8px;" data-t="addStaffTitle">Add a staff login</div>
-    <div class="field">
-      <label data-t="usernameLabel">username</label>
-      <input type="text" id="new-staff-username" placeholder="" autocomplete="off" autocapitalize="off">
+
+    <div id="add-staff-toggle-row">
+      <button class="btn btn-sm" onclick="toggleAddStaff(true)" data-t="addUserBtn">+ Add User</button>
     </div>
-    <div class="field">
-      <label data-t="passwordLabel">password</label>
-      <input type="text" id="new-staff-password" placeholder="" autocomplete="off">
+
+    <div id="add-staff-form" style="display:none; margin-top:14px; border-top:1px solid var(--border); padding-top:14px;">
+      <div class="field-hint" style="font-weight:700; text-transform:uppercase; font-size:11px; color:var(--text-mid); margin-bottom:8px;" data-t="addStaffTitle">Add a staff login</div>
+      <div class="field">
+        <label data-t="usernameLabel">username</label>
+        <input type="text" id="new-staff-username" placeholder="" autocomplete="off" autocapitalize="off">
+      </div>
+      <div class="field">
+        <label data-t="passwordLabel">password</label>
+        <input type="text" id="new-staff-password" placeholder="" autocomplete="off">
+      </div>
+      <div class="field">
+        <label data-t="roleLabel">Role</label>
+        <select id="new-staff-role">
+          <option value="user" data-t="roleStaffUser">User</option>
+          <option value="admin" data-t="roleStaffAdmin">Admin</option>
+        </select>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="toggleAddStaff(false)" data-t="cancelBtn">Cancel</button>
+        <button class="btn" onclick="addStaffUser()" data-t="confirmAddUserBtn">Add user</button>
+      </div>
     </div>
-    <div class="field">
-      <label data-t="roleLabel">Role</label>
-      <select id="new-staff-role">
-        <option value="user" data-t="roleStaffUser">User</option>
-        <option value="admin" data-t="roleStaffAdmin">Admin</option>
-      </select>
-    </div>
-    <div style="display:flex; gap:8px; justify-content:flex-end;">
+
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
       <button class="btn btn-ghost" onclick="closeManageStaffModal()" data-t="closeBtn">Close</button>
-      <button class="btn" onclick="addStaffUser()" data-t="addUserBtn">+ Add User</button>
     </div>
     <div class="error-box" id="staff-error-box"></div>
   </div>
@@ -400,7 +420,7 @@ const T = {
   chatgptKeyLabel: { en: 'ChatGPT API Key', es: 'Clave API de ChatGPT' },
   geminiKeyLabel: { en: 'Gemini API Key', es: 'Clave API de Gemini' },
   optionalHint: { en: '(optional)', es: '(opcional)' },
-  keysHint: { en: "Optional here — you can also add or update keys anytime from the customer's Akore Labs page (Generate Prompts → API Keys).", es: 'Opcional aquí — también puedes agregar o actualizar las claves cuando quieras desde la página de Akore Labs del cliente (Generar Prompts → Claves API).' },
+  keysHint: { en: "Optional here — you can also add or update keys anytime from the customer's Akore Labs page (Generate Prompts → API Keys).", es: 'Aquí es opcional — también puedes agregar o actualizar las claves cuando quieras desde la página de Akore Labs del cliente (Generar Prompts → Claves API).' },
   cancelBtn: { en: 'Cancel', es: 'Cancelar' },
   createBtn: { en: '+ Create Customer', es: '+ Crear Cliente' },
   doneBtn: { en: 'Done', es: 'Listo' },
@@ -418,10 +438,10 @@ const T = {
   thAudit: { en: 'Audit', es: 'Auditoría' },
   thActions: { en: 'Actions', es: 'Acciones' },
   badgeSubmitted: { en: 'Submitted ', es: 'Enviado ' },
-  badgeAwaitingClient: { en: 'Awaiting client', es: 'Esperando al cliente' },
+  badgeAwaitingClient: { en: 'Awaiting client', es: 'En espera del cliente' },
   badgeApproved: { en: 'Approved ', es: 'Aprobado ' },
-  badgeAwaitingReview: { en: 'Awaiting review', es: 'Esperando revisión' },
-  badgeNotYet: { en: 'Not yet', es: 'Aún no' },
+  badgeAwaitingReview: { en: 'Awaiting review', es: 'En espera de revisión' },
+  badgeNotYet: { en: 'Pending', es: 'Pendiente' },
   run: { en: 'run', es: 'ejecución' },
   runs: { en: 'runs', es: 'ejecuciones' },
   usernameRowLabel: { en: 'username', es: 'usuario' },
@@ -429,7 +449,7 @@ const T = {
   monitoringLabel: { en: 'Monitoring', es: 'Monitoreo' },
   adminOnlyTitle: { en: 'Admin only', es: 'Solo administradores' },
   manageUsersBtn: { en: 'Manage Users', es: 'Gestionar Usuarios' },
-  manageUsersHint: { en: "Anyone in this list can log into this customer's Client Portal, Intake form, and Prompt Review with their own username/password. \"Viewer\" accounts can view only — they can't approve prompts, edit intake, or change account settings.", es: 'Cualquiera en esta lista puede iniciar sesión en el Portal del Cliente, el Formulario de Admisión y la Revisión de Prompts de este cliente con su propio usuario/contraseña. Las cuentas de "Solo lectura" solo pueden ver — no pueden aprobar prompts, editar el formulario ni cambiar la configuración de la cuenta.' },
+  manageUsersHint: { en: "Anyone in this list can log into this customer's Client Portal, Intake form, and Prompt Review with their own username/password. \"Viewer\" accounts can view only — they can't approve prompts, edit intake, or change account settings.", es: 'Cualquier persona de esta lista puede iniciar sesión en el Portal del Cliente, el Formulario de Admisión y la Revisión de Prompts de este cliente con su propio usuario y contraseña. Las cuentas de "Solo lectura" solo pueden ver — no pueden aprobar prompts, editar el formulario ni cambiar la configuración de la cuenta.' },
   addUserTitle: { en: 'Add a user', es: 'Agregar un usuario' },
   roleLabel: { en: 'Role', es: 'Rol' },
   roleFull: { en: 'Full access', es: 'Acceso completo' },
@@ -437,21 +457,24 @@ const T = {
   roleStaffUser: { en: 'User', es: 'Usuario' },
   roleStaffAdmin: { en: 'Admin', es: 'Administrador' },
   addUserBtn: { en: '+ Add User', es: '+ Agregar Usuario' },
+  confirmAddUserBtn: { en: 'Add user', es: 'Agregar usuario' },
+  cancelBtn: { en: 'Cancel', es: 'Cancelar' },
   closeBtn: { en: 'Close', es: 'Cerrar' },
   memberOwnerTag: { en: '(owner)', es: '(propietario)' },
   removeMemberBtn: { en: 'Remove', es: 'Quitar' },
   resetPasswordBtn: { en: 'Reset Password', es: 'Restablecer Contraseña' },
   newPasswordPrompt: { en: (u) => `New password for "${u}" (min. 6 characters):`, es: (u) => `Nueva contraseña para "${u}" (mín. 6 caracteres):` },
   passwordTooShortAlert: { en: 'Password must be at least 6 characters.', es: 'La contraseña debe tener al menos 6 caracteres.' },
-  passwordResetDone: { en: (u, p) => `Password reset for "${u}". New password: ${p}\n\nShare this with them now — it won't be shown again.`, es: (u, p) => `Contraseña restablecida para "${u}". Nueva contraseña: ${p}\n\nCompártela con ellos ahora — no se volverá a mostrar.` },
+  passwordResetDone: { en: (u, p) => `Password reset for "${u}". New password: ${p}\n\nShare this with them now — it won't be shown again.`, es: (u, p) => `Contraseña restablecida para "${u}". Nueva contraseña: ${p}\n\nCompártela ahora con esa persona — no se volverá a mostrar.` },
   failedResetPassword: { en: 'Failed to reset password: ', es: 'Error al restablecer la contraseña: ' },
   confirmRemoveMember: { en: (u) => `Remove "${u}"? They will no longer be able to log in.`, es: (u) => `¿Quitar a "${u}"? Ya no podrá iniciar sesión.` },
   failedAddMember: { en: 'Failed to add user: ', es: 'Error al agregar usuario: ' },
   failedRemoveMember: { en: 'Failed to remove user: ', es: 'Error al quitar usuario: ' },
   fillUserPassword: { en: 'Enter a username and password.', es: 'Ingresa un usuario y una contraseña.' },
-  manageStaffNav: { en: 'Staff Logins', es: 'Accesos de Personal' },
-  manageStaffTitle: { en: 'Manage Staff Logins', es: 'Gestionar Accesos de Personal' },
-  manageStaffHint: { en: 'Admins can do everything, including deleting customers/results, toggling monitoring, and managing other staff logins. Users can do everything else.', es: 'Los administradores pueden hacer todo, incluyendo eliminar clientes/resultados, activar el monitoreo y gestionar otros accesos de personal. Los usuarios pueden hacer todo lo demás.' },
+  manageStaffNav: { en: 'Admin Settings', es: 'Configuración' },
+  manageStaffTitle: { en: 'Admin Settings', es: 'Configuración de administrador' },
+  staffUsersLabel: { en: 'Staff users', es: 'Usuarios del equipo' },
+  manageStaffHint: { en: 'Admins can do everything, including deleting customers/results, toggling monitoring, and managing other staff logins. Users can do everything else.', es: 'Los administradores pueden hacerlo todo: eliminar clientes o resultados, activar o desactivar el monitoreo y gestionar otros accesos de personal. Los usuarios pueden hacer todo lo demás.' },
   addStaffTitle: { en: 'Add a staff login', es: 'Agregar un acceso de personal' },
   failedAddStaff: { en: 'Failed to add staff login: ', es: 'Error al agregar el acceso de personal: ' },
   failedRemoveStaff: { en: 'Failed to remove staff login: ', es: 'Error al quitar el acceso de personal: ' },
@@ -463,6 +486,8 @@ const T = {
   openBtn: { en: 'Open →', es: 'Abrir →' },
   copyReviewLink: { en: 'Copy Review Link', es: 'Copiar Enlace de Revisión' },
   copyPortalLink: { en: 'Copy Client Portal Link', es: 'Copiar Enlace del Portal del Cliente' },
+  copyClientLink: { en: 'Copy client link', es: 'Copiar enlace del cliente' },
+  clientLinkHint: { en: 'One link for the client — intake, prompt review, and dashboards in a guided flow.', es: 'Un solo enlace para el cliente: formulario, revisión de prompts y tableros en un flujo guiado.' },
   deleteBtn: { en: 'Delete', es: 'Eliminar' },
   linkCopiedPasswordNote: { en: 'Link copied (password was only shown once, at creation — resend it separately if the client needs it again).', es: 'Enlace copiado (la contraseña solo se mostró una vez, al crearlo — reenvíala por separado si el cliente la necesita de nuevo).' },
   reviewLinkCopied: { en: 'Review link copied!', es: '¡Enlace de revisión copiado!' },
@@ -651,11 +676,8 @@ function renderCustomerTable() {
 
   try {
     container.innerHTML = `
-      <div style="overflow-x:auto;">
-      <table>
-        <thead><tr><th>${t('thCompany')}</th><th>${t('thIntake')}</th><th>${t('thPrompts')}</th><th>${t('thAudit')}</th><th>${t('thActions')}</th></tr></thead>
-        <tbody>
-          ${items.map(i => {
+      <div class="cust-cards">
+        ${items.map(i => {
             const members = i.members || [];
             const owner = members[0] || { username: slugify(i.company) };
             const slug = owner.username;
@@ -674,38 +696,36 @@ function renderCustomerTable() {
               ? `<span class="badge badge-done">${runs.size} ${runs.size === 1 ? t('run') : t('runs')}</span>`
               : `<span class="badge badge-pending">${t('badgeNotYet')}</span>`;
             return `
-            <tr data-row-company="${companyAttr}">
-              <td data-label="${t('thCompany')}"><div class="company-name">${companyAttr}</div><div class="field-hint">${t('usernameRowLabel')} <code>${owner.username}</code> &middot; ${t('usersCountLabel', members.length)}</div></td>
-              <td data-label="${t('thIntake')}">${intakeCell}</td>
-              <td data-label="${t('thPrompts')}">${promptsCell}</td>
-              <td data-label="${t('thAudit')}">${auditCell}<div class="job-status" data-job-status></div><div class="progress-wrap" data-job-progress style="display:none;"><div class="progress-bar" style="width:0%"></div></div>
-                <label style="display:flex; align-items:center; gap:6px; margin-top:8px; text-transform:none; font-size:11px; color:var(--text-mid); cursor:${isAdmin() ? 'pointer' : 'not-allowed'};" title="${isAdmin() ? '' : t('adminOnlyTitle')}">
+            <div class="cust-card" data-row-company="${companyAttr}">
+              <button type="button" class="cust-card-head" data-action="toggle-card">
+                <span class="cust-card-name">${companyAttr}</span>
+                <span class="cust-card-tags">
+                  <span class="tagchip"><span class="tagchip-l">${t('thIntake')}</span>${intakeCell}</span>
+                  <span class="tagchip"><span class="tagchip-l">${t('thPrompts')}</span>${promptsCell}</span>
+                  <span class="tagchip"><span class="tagchip-l">${t('thAudit')}</span>${auditCell}</span>
+                </span>
+                <span class="cust-card-chevron" aria-hidden="true">&#9662;</span>
+              </button>
+              <div class="cust-card-body">
+                <div class="field-hint" style="margin-bottom:12px;">${t('usernameRowLabel')} <code>${owner.username}</code> &middot; ${t('usersCountLabel', members.length)}</div>
+                <div class="job-status" data-job-status></div>
+                <div class="progress-wrap" data-job-progress style="display:none;"><div class="progress-bar" style="width:0%"></div></div>
+                <label style="display:flex; align-items:center; gap:6px; margin:8px 0 14px; text-transform:none; font-size:12px; color:var(--text-mid); cursor:${isAdmin() ? 'pointer' : 'not-allowed'};" title="${isAdmin() ? '' : t('adminOnlyTitle')}">
                   <input type="checkbox" data-action="toggle-monitoring" data-username="${owner.username}" ${i.monitoringEnabled ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'} style="width:auto;"> ${t('monitoringLabel')}
                 </label>
-              </td>
-              <td data-label="${t('thActions')}">
                 <div class="action-list">
                   <a class="btn btn-sm" href="/index.html?company=${encodeURIComponent(i.company)}">${t('openHieronymus')}</a>
                   <button class="btn btn-ghost btn-sm" data-action="manage-users" data-company="${companyAttr}" style="width:100%;">${t('manageUsersBtn')}</button>
                   <div style="display:flex; gap:6px; width:100%;">
-                    <button class="btn btn-ghost btn-sm" data-action="copy-link" data-username="${owner.username}" style="width:auto; flex-grow:1;">${t('copyIntakeLink')}</button>
-                    <a class="btn btn-ghost btn-sm" href="/intake.html?username=${encodeURIComponent(owner.username)}" target="_blank" rel="noopener" style="width:auto; flex-grow:0; flex-shrink:0;">${t('openBtn')}</a>
-                  </div>
-                  ${prompts ? `<div style="display:flex; gap:6px; width:100%;">
-                    <button class="btn btn-ghost btn-sm" data-action="copy-review-link" data-username="${owner.username}" style="width:auto; flex-grow:1;">${t('copyReviewLink')}</button>
-                    <a class="btn btn-ghost btn-sm" href="/prompt-review.html?username=${encodeURIComponent(owner.username)}" target="_blank" rel="noopener" style="width:auto; flex-grow:0; flex-shrink:0;">${t('openBtn')}</a>
-                  </div>` : ''}
-                  <div style="display:flex; gap:6px; width:100%;">
-                    <button class="btn btn-ghost btn-sm" data-action="copy-portal-link" data-username="${owner.username}" style="width:auto; flex-grow:1;">${t('copyPortalLink')}</button>
+                    <button class="btn btn-ghost btn-sm" data-action="copy-portal-link" data-username="${owner.username}" style="width:auto; flex-grow:1;">${t('copyClientLink')}</button>
                     <a class="btn btn-ghost btn-sm" href="/client-portal.html?username=${encodeURIComponent(owner.username)}" target="_blank" rel="noopener" style="width:auto; flex-grow:0; flex-shrink:0;">${t('openBtn')}</a>
                   </div>
+                  <div class="field-hint" style="margin:-4px 0 2px;">${t('clientLinkHint')}</div>
                   <button class="btn btn-ghost btn-sm" data-action="delete-customer" data-username="${owner.username}" data-company="${companyAttr}" style="color:var(--red);" ${isAdmin() ? '' : 'disabled title="' + t('adminOnlyTitle') + '"'}>${t('deleteBtn')}</button>
                 </div>
-              </td>
-            </tr>`;
+              </div>
+            </div>`;
           }).join('')}
-        </tbody>
-      </table>
       </div>
     `;
     items.forEach(i => pollJobStatus(i.company, { once: true }));
@@ -717,6 +737,10 @@ function renderCustomerTable() {
 document.getElementById('customers-list').addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-action]');
   if (!btn) return;
+  if (btn.dataset.action === 'toggle-card') {
+    btn.closest('.cust-card').classList.toggle('open');
+    return;
+  }
   if (btn.dataset.action === 'copy-link') {
     const link = location.origin + '/intake.html?username=' + encodeURIComponent(btn.dataset.username);
     navigator.clipboard.writeText(link).then(() => alert(t('linkCopiedPasswordNote')));
@@ -813,6 +837,7 @@ async function openManageUsersModal(company) {
   document.getElementById('new-member-role').value = 'full';
   document.getElementById('member-error-box').style.display = 'none';
   document.getElementById('manage-users-modal').classList.add('open');
+  toggleAddUser(false);
   await renderMembersList();
 }
 function closeManageUsersModal() {
@@ -844,6 +869,22 @@ async function renderMembersList() {
   }
 }
 
+// The add-user form is hidden by default — the Manage Users view just lists existing users
+// plus a "+ Add User" button; clicking it reveals the form.
+function toggleAddUser(show) {
+  const form = document.getElementById('add-user-form');
+  const row = document.getElementById('add-user-toggle-row');
+  if (!form || !row) return;
+  form.style.display = show ? 'block' : 'none';
+  row.style.display = show ? 'none' : 'block';
+  const errBox = document.getElementById('member-error-box');
+  if (errBox) errBox.style.display = 'none';
+  const u = document.getElementById('new-member-username');
+  const p = document.getElementById('new-member-password');
+  if (show) { if (u) u.focus(); }
+  else { if (u) u.value = ''; if (p) p.value = ''; }
+}
+
 async function addMember() {
   const username = document.getElementById('new-member-username').value.trim().toLowerCase();
   const password = document.getElementById('new-member-password').value.trim();
@@ -867,6 +908,7 @@ async function addMember() {
     document.getElementById('new-member-password').value = '';
     await renderMembersList();
     await loadAll();
+    toggleAddUser(false);
   } catch (err) {
     errBox.textContent = t('failedAddMember') + err.message;
     errBox.style.display = 'block';
@@ -920,12 +962,27 @@ function getStaffPassword() {
 }
 
 // ── Manage Staff Logins (internal Admin/User accounts) ──
+// Mirrors the customer Add-User pattern: the staff add form is hidden until "+ Add User".
+function toggleAddStaff(show) {
+  const form = document.getElementById('add-staff-form');
+  const row = document.getElementById('add-staff-toggle-row');
+  if (!form || !row) return;
+  form.style.display = show ? 'block' : 'none';
+  row.style.display = show ? 'none' : 'block';
+  const errBox = document.getElementById('staff-error-box');
+  if (errBox) errBox.style.display = 'none';
+  const u = document.getElementById('new-staff-username');
+  const p = document.getElementById('new-staff-password');
+  if (show) { if (u) u.focus(); }
+  else { if (u) u.value = ''; if (p) p.value = ''; }
+}
 function openManageStaffModal() {
   document.getElementById('new-staff-username').value = '';
   document.getElementById('new-staff-password').value = '';
   document.getElementById('new-staff-role').value = 'user';
   document.getElementById('staff-error-box').style.display = 'none';
   document.getElementById('manage-staff-modal').classList.add('open');
+  toggleAddStaff(false);
   renderStaffList();
 }
 function closeManageStaffModal() {
@@ -980,6 +1037,7 @@ async function addStaffUser() {
     document.getElementById('new-staff-username').value = '';
     document.getElementById('new-staff-password').value = '';
     await renderStaffList();
+    toggleAddStaff(false);
   } catch (err) {
     errBox.textContent = t('failedAddStaff') + err.message;
     errBox.style.display = 'block';

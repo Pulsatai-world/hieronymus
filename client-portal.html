@@ -3,41 +3,37 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/styles/akore-tokens.css">
+<style>
+  .wf { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+  .wf-step { display: flex; align-items: flex-start; gap: 14px; }
+  .wf-step.current { border-color: var(--navy); box-shadow: 0 0 0 2px var(--violet-100); }
+  .wf-step.locked { opacity: 0.55; }
+  .wf-num { flex-shrink: 0; width: 30px; height: 30px; border-radius: 999px; background: var(--violet-100); color: var(--navy); font-family: var(--font-display); font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .wf-step.done .wf-num { background: var(--emerald-700); color: #fff; }
+  .wf-step.current .wf-num { background: var(--navy); color: #fff; }
+  .wf-body { flex: 1; min-width: 0; }
+  .wf-action { margin-top: 12px; }
+</style>
 <title>GEO Audit — Client Portal | Akore Labs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
 :root {
   --navy: #6d4fe0;
-  --violet-700: #4834b0;
-  --violet-100: #ece7fd;
   --emerald-700: #0f7d5b;
   --ink: #08090c;
-  --ink-60: #757f8f;
   --surface: #f4f6f8;
   --card: #ffffff;
   --accent: #6d4fe0;
   --accent-light: #f4f2fb;
   --border: #e3e6ea;
-  --border-strong: #c3c8d0;
-  --focus-ring: rgba(109,79,224,0.35);
   --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius: 16px;
-  --radius-pill: 999px;
-  --shadow-sm: 0 1px 3px rgba(16,19,25,0.08), 0 1px 2px rgba(16,19,25,0.04);
-  --shadow-md: 0 6px 16px rgba(16,19,25,0.08), 0 2px 4px rgba(16,19,25,0.04);
-  --shadow-lg: 0 18px 40px rgba(16,19,25,0.12), 0 6px 12px rgba(16,19,25,0.06);
-  --shadow-brand: 0 12px 30px rgba(109,79,224,0.28);
   --shadow: var(--shadow-sm);
   --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
   --fs-h2: 1.5rem;
   --fs-eyebrow: 0.6875rem;
   --font-display: "Montserrat", "Helvetica Neue", Arial, sans-serif;
-  --font-body: "Manrope", "Helvetica Neue", Arial, sans-serif;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font-body); background: var(--surface); color: var(--ink); min-height: 100vh; font-size: 15px; line-height: 1.6; }
@@ -124,7 +120,7 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--i
 <body>
 
 <div class="app-header">
-  <div class="logo">
+  <div class="logo" onclick="location.href = location.pathname + location.search" style="cursor:pointer;" title="Akore Labs — Home">
     <img class="logo-lockup" src="/brand/logo-horizontal-light.png" alt="Akore Labs">
     <span class="logo-divider"></span>
     <div class="logo-sub" id="logo-sub">GEO Audit — Client Portal</div>
@@ -192,35 +188,50 @@ function findMember(group, username) {
 }
 
 const T = {
-  logoSub: { en: 'GEO Audit — Client Portal', es: 'Auditoría GEO — Portal del Cliente' },
-  gateTitle: { en: 'Client Access', es: 'Acceso de Cliente' },
-  gateDesc: { en: 'Enter the username and password from your invitation to view your GEO audit dashboard.', es: 'Ingresa el usuario y la contraseña de tu invitación para ver tu tablero de auditoría GEO.' },
+  logoSub: { en: 'GEO Audit — Client Portal', es: 'Auditoría GEO — Portal del cliente' },
+  gateTitle: { en: 'Client Access', es: 'Acceso de clientes' },
+  gateDesc: { en: 'Enter the username and password from your invitation to view your GEO audit dashboard.', es: 'Ingresa el usuario y la contraseña que recibiste en tu invitación para ver el tablero de tu auditoría GEO.' },
   usernamePlaceholder: { en: 'Username', es: 'Usuario' },
   passwordPlaceholder: { en: 'Password', es: 'Contraseña' },
   continueBtn: { en: 'Continue', es: 'Continuar' },
   enterCreds: { en: 'Enter your username and password.', es: 'Ingresa tu usuario y contraseña.' },
-  invalidCreds: { en: 'Invalid username or password. Please check and try again.', es: 'Usuario o contraseña inválidos. Verifica e intenta de nuevo.' },
+  invalidCreds: { en: 'Invalid username or password. Please check and try again.', es: 'Usuario o contraseña incorrectos. Verifica e inténtalo de nuevo.' },
   loading: { en: 'Loading…', es: 'Cargando…' },
-  notRunYet: { en: "Your GEO audit hasn't run yet — check back once it's complete.", es: 'Tu auditoría GEO aún no se ha ejecutado — vuelve a revisar cuando esté completa.' },
+  notRunYet: { en: "Your GEO audit hasn't run yet — check back once it's complete.", es: 'Tu auditoría GEO todavía no se ha realizado — vuelve a consultarla cuando esté lista.' },
   pageSub: { en: 'Your AI-visibility audit results.', es: 'Los resultados de tu auditoría de visibilidad en IA.' },
-  intakeCardTitle: { en: 'Intake form', es: 'Formulario de admisión' },
+  intakeCardTitle: { en: 'Intake form', es: 'Formulario inicial' },
   intakeDescPending: { en: 'Tell us about your business so we can build accurate audit prompts.', es: 'Cuéntanos sobre tu negocio para que podamos crear prompts de auditoría precisos.' },
   intakeSubmittedOn: { en: (d) => `✓ Submitted ${d}`, es: (d) => `✓ Enviado el ${d}` },
-  completeIntakeBtn: { en: 'Complete Intake Form →', es: 'Completar Formulario →' },
+  completeIntakeBtn: { en: 'Complete Intake Form →', es: 'Llenar formulario →' },
   viewResponsesLink: { en: 'View my responses', es: 'Ver mis respuestas' },
   hideResponsesLink: { en: 'Hide my responses', es: 'Ocultar mis respuestas' },
   loadingResponses: { en: 'Loading your responses…', es: 'Cargando tus respuestas…' },
   failedToLoadResponses: { en: 'Could not load your responses: ', es: 'No se pudieron cargar tus respuestas: ' },
   promptsCardTitle: { en: 'Audit prompts', es: 'Prompts de auditoría' },
-  promptsCardDesc: { en: "Review and approve the questions we'll ask AI engines about your business.", es: 'Revisa y aprueba las preguntas que le haremos a los motores de IA sobre tu negocio.' },
-  reviewPromptsBtn: { en: 'Review Prompts →', es: 'Revisar Prompts →' },
-  diagTitle: { en: 'Diagnostic Dashboard', es: 'Tablero de Diagnóstico' },
-  diagDesc: { en: 'Where your AI visibility stood as of your most recent audit.', es: 'Dónde estaba tu visibilidad en IA según tu auditoría más reciente.' },
+  promptsCardDesc: { en: "Review and approve the questions we'll ask AI engines about your business.", es: 'Revisa y aprueba las preguntas que les haremos a los motores de IA sobre tu negocio.' },
+  reviewPromptsBtn: { en: 'Review Prompts →', es: 'Revisar prompts →' },
+  diagTitle: { en: 'Diagnostic Dashboard', es: 'Tablero de diagnóstico' },
+  diagDesc: { en: 'Where your AI visibility stood as of your most recent audit.', es: 'Cómo estaba tu visibilidad en IA en el momento de tu auditoría más reciente.' },
   openBtn: { en: 'Open →', es: 'Abrir →' },
-  monTitle: { en: 'Monitoring Dashboard', es: 'Tablero de Monitoreo' },
-  monDesc: { en: 'How your AI visibility has moved over time.', es: 'Cómo ha cambiado tu visibilidad en IA a través del tiempo.' },
-  monDisabled: { en: "Monthly monitoring isn't enabled for your account yet — ask your consultant to turn it on if you'd like ongoing tracking.", es: 'El monitoreo mensual aún no está activado para tu cuenta — pídele a tu consultor que lo active si quieres seguimiento continuo.' },
+  monTitle: { en: 'Monitoring Dashboard', es: 'Tablero de monitoreo' },
+  monDesc: { en: 'How your AI visibility has moved over time.', es: 'Cómo ha cambiado tu visibilidad en IA a lo largo del tiempo.' },
+  monDisabled: { en: "Monthly monitoring isn't enabled for your account yet — ask your consultant to turn it on if you'd like ongoing tracking.", es: 'El monitoreo mensual aún no está activado para tu cuenta — pídele a tu consultor que lo active si quieres un seguimiento continuo.' },
   settingsBtn: { en: 'Settings', es: 'Ajustes' },
+  wfIntro: { en: 'Your GEO audit in three steps — complete each one and your dashboard appears at the end.', es: 'Tu auditoría GEO en tres pasos: completa cada uno y tu tablero aparecerá al final.' },
+  wfIntakeTitle: { en: 'Step 1 · Intake form', es: 'Paso 1 · Formulario inicial' },
+  wfIntakeTodo: { en: 'Tell us about your business so we can build accurate audit prompts.', es: 'Cuéntanos sobre tu negocio para crear prompts de auditoría precisos.' },
+  wfIntakeDone: { en: (d) => `Submitted ${d}. You can still edit your answers.`, es: (d) => `Enviado el ${d}. Aún puedes editar tus respuestas.` },
+  wfEditIntake: { en: 'Edit responses', es: 'Editar respuestas' },
+  wfPromptsTitle: { en: 'Step 2 · Review your prompts', es: 'Paso 2 · Revisa tus prompts' },
+  wfPromptsLocked: { en: "Complete your intake first — then we'll prepare your prompts.", es: 'Primero completa tu formulario; luego prepararemos tus prompts.' },
+  wfPromptsWaiting: { en: "We're preparing your prompts from your intake. Check back soon.", es: 'Estamos preparando tus prompts a partir de tu formulario. Vuelve pronto.' },
+  wfPromptsReady: { en: 'Your prompts are ready — review and approve them.', es: 'Tus prompts están listos: revísalos y apruébalos.' },
+  wfPromptsDone: { en: (d) => `Approved ${d}.`, es: (d) => `Aprobados el ${d}.` },
+  wfViewPrompts: { en: 'View prompts', es: 'Ver prompts' },
+  wfDashTitle: { en: 'Step 3 · Your dashboard', es: 'Paso 3 · Tu tablero' },
+  wfDashLocked: { en: 'Your dashboard appears here after your first audit runs.', es: 'Tu tablero aparecerá aquí después de tu primera auditoría.' },
+  wfDashReady: { en: 'Your results are ready.', es: 'Tus resultados están listos.' },
+  wfOpenDashboard: { en: 'Open dashboard', es: 'Abrir tablero' },
   logoutBtn: { en: 'Log out', es: 'Cerrar sesión' },
   settingsTitle: { en: 'Settings', es: 'Ajustes' },
   changePasswordTitle: { en: 'Change password', es: 'Cambiar contraseña' },
@@ -526,40 +537,73 @@ async function showApp() {
   main.style.display = 'block';
   main.innerHTML = `${titleRow()}<div class="empty-state">${t('loading')}</div>`;
 
-  let hasRuns = false;
+  let hasRuns = false, promptsExist = false, promptsApprovedAt = '';
   try {
     const res = await fetch('/api/results');
     const rows = parseCSV(await res.text());
     hasRuns = rows.some(r => r.brand === clientCompany);
-  } catch { /* if this fails, just fall back to "not ready yet" below */ }
+  } catch { /* fall back to "not ready" below */ }
+  try {
+    const pr = await fetch('/api/prompts?company=' + encodeURIComponent(clientCompany));
+    if (pr.ok) { const pd = await pr.json(); promptsExist = !!(pd && pd.promptsText); promptsApprovedAt = (pd && pd.approvedAt) || ''; }
+  } catch { /* treat as not-generated */ }
+
+  const intakeDone = !!clientSubmittedAt;
+  const promptsDone = !!promptsApprovedAt;
+  // Highlight the single step the client should act on now (in priority order).
+  const cur = !intakeDone ? 1 : (promptsExist && !promptsDone ? 2 : (hasRuns ? 3 : 0));
+  const cls = (done, locked, n) => `card wf-step${done ? ' done' : ''}${locked ? ' locked' : ''}${cur === n ? ' current' : ''}`;
+  const uname = encodeURIComponent(clientUsername);
+
+  // Step 1 — Intake
+  const step1 = `
+    <div class="${cls(intakeDone, false, 1)}">
+      <div class="wf-num">${intakeDone ? '✓' : '1'}</div>
+      <div class="wf-body">
+        <div class="card-title">${t('wfIntakeTitle')}</div>
+        <div class="card-desc">${intakeDone ? t('wfIntakeDone', esc(new Date(clientSubmittedAt).toLocaleDateString())) : t('wfIntakeTodo')}</div>
+        <div class="wf-action">${intakeDone
+          ? `<a class="card-link" href="/intake.html?username=${uname}">${t('wfEditIntake')}</a>
+             <button type="button" class="link-btn" id="intake-toggle-btn" onclick="toggleIntakeResponses()" style="margin-left:14px;">${t('viewResponsesLink')}</button>`
+          : `<a class="btn-accent" href="/intake.html?username=${uname}">${t('completeIntakeBtn')}</a>`}</div>
+        ${intakeDone ? `<div class="kv-panel" id="intake-responses-panel" style="display:none; margin-top:12px;"></div>` : ''}
+      </div>
+    </div>`;
+
+  // Step 2 — Review prompts
+  let s2status, s2action = '';
+  if (!intakeDone) { s2status = t('wfPromptsLocked'); }
+  else if (!promptsExist) { s2status = t('wfPromptsWaiting'); }
+  else if (!promptsDone) { s2status = t('wfPromptsReady'); s2action = `<a class="btn-accent" href="/prompt-review.html?username=${uname}">${t('reviewPromptsBtn')}</a>`; }
+  else { s2status = t('wfPromptsDone', esc(new Date(promptsApprovedAt).toLocaleDateString())); s2action = `<a class="card-link" href="/prompt-review.html?username=${uname}">${t('wfViewPrompts')}</a>`; }
+  const step2 = `
+    <div class="${cls(promptsDone, !intakeDone, 2)}">
+      <div class="wf-num">${promptsDone ? '✓' : '2'}</div>
+      <div class="wf-body">
+        <div class="card-title">${t('wfPromptsTitle')}</div>
+        <div class="card-desc">${s2status}</div>
+        ${s2action ? `<div class="wf-action">${s2action}</div>` : ''}
+      </div>
+    </div>`;
+
+  // Step 3 — Dashboard
+  const step3 = `
+    <div class="${cls(hasRuns, !hasRuns, 3)}">
+      <div class="wf-num">${hasRuns ? '✓' : '3'}</div>
+      <div class="wf-body">
+        <div class="card-title">${t('wfDashTitle')}</div>
+        <div class="card-desc">${hasRuns ? t('wfDashReady') : t('wfDashLocked')}</div>
+        ${hasRuns ? `<div class="wf-action">
+          <a class="btn-accent" href="/dashboard-diagnostic.html?company=${encodeURIComponent(clientCompany)}">${t('wfOpenDashboard')}</a>
+          ${clientMonitoring ? `<a class="card-link" href="/dashboard-monitoring.html?company=${encodeURIComponent(clientCompany)}" style="margin-left:14px;">${t('monTitle')}</a>` : ''}
+        </div>` : ''}
+      </div>
+    </div>`;
 
   main.innerHTML = `
     ${titleRow()}
-    <div class="page-sub">${t('pageSub')}</div>
-    ${intakeCard()}
-    ${promptsCard()}
-    ${hasRuns ? `
-      <div class="card">
-        <div>
-          <div class="card-title">${t('diagTitle')}</div>
-          <div class="card-desc">${t('diagDesc')}</div>
-        </div>
-        <a class="card-link" href="/dashboard-diagnostic.html?company=${encodeURIComponent(clientCompany)}">${t('openBtn')}</a>
-      </div>
-      ${clientMonitoring ? `
-      <div class="card">
-        <div>
-          <div class="card-title">${t('monTitle')}</div>
-          <div class="card-desc">${t('monDesc')}</div>
-        </div>
-        <a class="card-link" href="/dashboard-monitoring.html?company=${encodeURIComponent(clientCompany)}">${t('openBtn')}</a>
-      </div>
-      ` : `
-      <div class="empty-state">${t('monDisabled')}</div>
-      `}
-    ` : `
-      <div class="empty-state">${t('notRunYet')}</div>
-    `}
+    <div class="page-sub">${t('wfIntro')}</div>
+    <div class="wf">${step1}${step2}${step3}</div>
   `;
 }
 

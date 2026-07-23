@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="/styles/akore-tokens.css">
 <title>Akore Labs — Customer Detail</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -32,7 +33,7 @@ const GATE_T = {
   placeholder: { en: 'Password', es: 'Contraseña' },
   accessBtn: { en: 'Access Tool →', es: 'Acceder →' },
   error: { en: 'Incorrect username or password. Try again.', es: 'Usuario o contraseña incorrectos. Intenta de nuevo.' },
-  footer: { en: 'Akore Labs — Internal Use Only', es: 'Akore Labs — Uso Interno Únicamente' }
+  footer: { en: 'Akore Labs — Internal Use Only', es: 'Akore Labs — Solo Uso Interno' }
 };
 function gt(key) { return GATE_T[key][localStorage.getItem('hieronymus_lang') || 'es']; }
 
@@ -131,23 +132,17 @@ if (!checkAuth()) {
 <style>
 :root {
   --navy: #6d4fe0;
-  --violet-700: #4834b0;
-  --violet-100: #ece7fd;
-  --violet-50: #f6f3fe;
   --emerald-700: #0f7d5b;
-  --emerald-100: #d5f4e8;
   --bg: #f4f6f8;
   --surface: #FFFFFF;
   --surface2: #f4f2fb;
   --border: #e3e6ea;
-  --border-bright: #c3c8d0;
   --text: #08090c;
   --text-dim: #757f8f;
   --text-mid: #3d4653;
   --accent: #6d4fe0;
   --accent-glow: rgba(109,79,224,0.18);
   --accent-dim: rgba(109,79,224,0.10);
-  --focus-ring: rgba(109,79,224,0.35);
   --green: #0f7d5b;
   --green-dim: #eefaf4;
   --yellow: #8a6a12;
@@ -155,20 +150,8 @@ if (!checkAuth()) {
   --red: #b03a3a;
   --red-dim: #fce9e9;
   --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius: 16px;
-  --radius-xl: 24px;
-  --radius-pill: 999px;
   --shadow-xs: 0 1px 2px rgba(16,19,25,0.06);
-  --shadow-sm: 0 1px 3px rgba(16,19,25,0.08), 0 1px 2px rgba(16,19,25,0.04);
-  --shadow-md: 0 6px 16px rgba(16,19,25,0.08), 0 2px 4px rgba(16,19,25,0.04);
-  --shadow-lg: 0 18px 40px rgba(16,19,25,0.12), 0 6px 12px rgba(16,19,25,0.06);
-  --shadow-brand: 0 12px 30px rgba(109,79,224,0.28);
-  --shadow-accent: 0 12px 30px rgba(30,169,124,0.24);
   --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
   --fs-h1: 2.5rem;
   --fs-h2: 1.5rem;
   --fs-h3: 1.125rem;
@@ -243,7 +226,7 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
 <body>
 
 <header class="header">
-  <div class="logo">
+  <div class="logo" onclick="location.href='/portal.html'" style="cursor:pointer;" title="Akore Labs — Home">
     <img class="logo-lockup" src="/brand/logo-horizontal-light.png" alt="Akore Labs">
     <span class="logo-divider"></span>
     <div class="logo-sub" data-t="logoSub">Customer Detail</div>
@@ -324,12 +307,12 @@ const T = {
   backToPortal: { en: '← Portal', es: '← Portal' },
   logoutBtn: { en: 'Log out', es: 'Cerrar sesión' },
   selectCustomer: { en: 'Select a customer…', es: 'Selecciona un cliente…' },
-  selectFromDropdown: { en: 'Select a customer from the dropdown above, or open this page from the Portal.', es: 'Selecciona un cliente en el menú de arriba, o abre esta página desde el Portal.' },
+  selectFromDropdown: { en: 'Select a customer from the dropdown above, or open this page from the Portal.', es: 'Selecciona un cliente del menú de arriba o abre esta página desde el Portal.' },
   genModalCaption: { en: "These are the GEO audit prompts generated from this customer's intake answers.", es: 'Estos son los prompts de auditoría GEO generados a partir de las respuestas del formulario de este cliente.' },
   promptsToGenerate: { en: 'Prompts to generate', es: 'Prompts a generar' },
   languagesLabel: { en: 'Languages', es: 'Idiomas' },
   languagesHint: { en: 'Select as many as you like. Prompts are split evenly across the languages chosen.', es: 'Selecciona los que quieras. Los prompts se dividen en partes iguales entre los idiomas elegidos.' },
-  enginesLabel: { en: 'AI engines to audit with', es: 'Motores de IA a usar en la auditoría' },
+  enginesLabel: { en: 'AI engines to audit with', es: 'Motores de IA para la auditoría' },
   enginesHint: { en: 'Only engines with an API key configured for this customer (set at customer creation in the Portal) will actually run, even if selected here.', es: 'Solo se ejecutarán los motores que tengan una clave API configurada para este cliente (definida al crear el cliente en el Portal), aunque estén seleccionados aquí.' },
   cancelBtn: { en: 'Cancel', es: 'Cancelar' },
   generateBtn: { en: 'Generate', es: 'Generar' },
@@ -367,20 +350,34 @@ const T = {
   thEngine: { en: 'Engine', es: 'Motor' },
   thPrompt: { en: 'Prompt', es: 'Prompt' },
   thCategory: { en: 'Category', es: 'Categoría' },
-  thCited: { en: 'Cited', es: 'Citado' },
+  thCited: { en: 'Recommended', es: 'Recomendado' },
   thSentiment: { en: 'Sentiment', es: 'Sentimiento' },
   showingRecent: { en: (n) => `Showing the 5 most recent of ${n} rows — see the dashboards below for the full picture.`, es: (n) => `Se muestran las 5 filas más recientes de ${n} — consulta los tableros de abajo para ver el panorama completo.` },
   noResultsYet: { en: 'No audit results yet for this customer.', es: 'Aún no hay resultados de auditoría para este cliente.' },
   dashboardsTitle: { en: 'Dashboards', es: 'Tableros' },
   diagnosticDashboard: { en: 'Diagnostic Dashboard →', es: 'Tablero de Diagnóstico →' },
   monitoringDashboard: { en: 'Monitoring Dashboard →', es: 'Tablero de Monitoreo →' },
+  monitoringSettingsTitle: { en: 'Monitoring', es: 'Monitoreo' },
+  monitoringSettingsHint: { en: 'Turn on recurring audits. The current diagnosis becomes the first snapshot; new snapshots are captured on the cadence below.', es: 'Activa auditorías recurrentes. El diagnóstico actual se toma como la primera captura; las siguientes se generan con la frecuencia que elijas abajo.' },
+  monEnableLabel: { en: 'Monitoring enabled', es: 'Monitoreo activado' },
+  monCadenceLabel: { en: 'Cadence', es: 'Frecuencia' },
+  cadWeekly: { en: 'Weekly', es: 'Semanal' },
+  cadSemimonthly: { en: 'Semi-monthly (~15 days)', es: 'Quincenal (~15 días)' },
+  cadMonthly: { en: 'Monthly', es: 'Mensual' },
+  cadQuarterly: { en: 'Quarterly', es: 'Trimestral' },
+  monStartLabel: { en: 'Start date', es: 'Fecha de inicio' },
+  monNextRun: { en: (d) => `Next scheduled run: ${d}`, es: (d) => `Próxima ejecución programada: ${d}` },
+  monNoDiagnosisWarn: { en: 'No diagnosis run yet — run an audit first so it can seed the first monitoring snapshot.', es: 'Aún no hay diagnóstico — primero ejecuta una auditoría para que sirva como la primera captura del monitoreo.' },
+  saveMonitoringBtn: { en: 'Save monitoring', es: 'Guardar monitoreo' },
+  saveMonitoringFailed: { en: 'Failed to save monitoring: ', es: 'No se pudo guardar el monitoreo: ' },
+  monPickStart: { en: 'Please pick a start date.', es: 'Elige una fecha de inicio.' },
   reviewLinkCopied: { en: 'Review link copied!', es: '¡Enlace de revisión copiado!' },
   runningLabel: { en: 'Running', es: 'En proceso' },
-  runningDetail: { en: (c, t, ci) => `${c}/${t} (${ci} cited)`, es: (c, t, ci) => `${c}/${t} (${ci} citados)` },
-  stalledNote: { en: 'No progress for a while — this run may have stalled. You can cancel it and try again.', es: 'Sin progreso por un rato — esta ejecución podría haberse detenido. Puedes cancelarla e intentar de nuevo.' },
+  runningDetail: { en: (c, t, ci) => `${c}/${t} (${ci} recommended)`, es: (c, t, ci) => `${c}/${t} (${ci} recomendados)` },
+  stalledNote: { en: 'No progress for a while — this run may have stalled. You can cancel it and try again.', es: 'Lleva un rato sin avanzar — puede que esta ejecución se haya atascado. Puedes cancelarla e intentar de nuevo.' },
   runningBtnLabel: { en: 'Running...', es: 'En proceso...' },
   errorLabel: { en: 'Error', es: 'Error' },
-  lastRunLabel: { en: (c, ci) => `Last run: ${c} rows, ${ci} cited`, es: (c, ci) => `Última ejecución: ${c} filas, ${ci} citados` },
+  lastRunLabel: { en: (c, ci) => `Last run: ${c} rows, ${ci} recommended`, es: (c, ci) => `Última ejecución: ${c} filas, ${ci} recomendados` },
   finishedAt: { en: 'finished ', es: 'terminó ' },
   noAuditYet: { en: 'No audit run yet', es: 'Aún no se ha ejecutado ninguna auditoría' },
   couldNotLoadStatus: { en: 'Could not load audit status.', es: 'No se pudo cargar el estado de la auditoría.' },
@@ -464,15 +461,50 @@ async function loadCompany(company) {
   const main = document.getElementById('main-content');
   main.innerHTML = `<div class="page-title">${esc(company)}</div><div class="empty-state">${t('loading')}</div>`;
 
-  const [intakeRes, promptsRes, resultsText] = await Promise.all([
+  const [intakeRes, promptsRes, resultsText, codeRec] = await Promise.all([
     fetch('/api/intake?company=' + encodeURIComponent(company)).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch('/api/prompts?company=' + encodeURIComponent(company)).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch('/api/results').then(r => r.ok ? r.text() : '').catch(() => '')
+    fetch('/api/results').then(r => r.ok ? r.text() : '').catch(() => ''),
+    fetch('/api/intake-codes?company=' + encodeURIComponent(company)).then(r => r.ok ? r.json() : null).catch(() => null)
   ]);
 
   const rows = parseCSV(resultsText).filter(r => r.brand === company);
   currentRows = rows;
   const runDates = [...new Set(rows.map(r => r.snapshot_date))].sort().reverse();
+
+  // ── Monitoring settings card ──
+  const mon = codeRec || {};
+  const monEnabled = !!mon.monitoringEnabled;
+  const monCadence = mon.monitoringCadence || 'monthly';
+  const monStart = mon.monitoringStartDate || new Date().toISOString().slice(0, 10);
+  const monNext = mon.nextRunAt ? mon.nextRunAt.slice(0, 10) : '';
+  const hasDiagnosis = rows.some(r => r.run_type !== 'monitoring'); // diagnosis data to seed snapshot #1
+  const cadOpt = (v, label) => `<option value="${v}"${monCadence === v ? ' selected' : ''}>${label}</option>`;
+  const monitoringBlock = `
+    <div class="card">
+      <div class="card-title">${t('monitoringSettingsTitle')}</div>
+      <div class="card-caption">${t('monitoringSettingsHint')}</div>
+      <label class="row" style="gap:8px;align-items:center;margin:6px 0 14px;cursor:pointer;">
+        <input type="checkbox" id="mon-enabled" ${monEnabled ? 'checked' : ''}> ${t('monEnableLabel')}
+      </label>
+      <div class="two-col">
+        <div class="field">
+          <label>${t('monCadenceLabel')}</label>
+          <select id="mon-cadence">
+            ${cadOpt('weekly', t('cadWeekly'))}${cadOpt('semimonthly', t('cadSemimonthly'))}${cadOpt('monthly', t('cadMonthly'))}${cadOpt('quarterly', t('cadQuarterly'))}
+          </select>
+        </div>
+        <div class="field">
+          <label>${t('monStartLabel')}</label>
+          <input type="date" id="mon-start" value="${esc(monStart)}">
+        </div>
+      </div>
+      ${monEnabled && monNext ? `<div class="field-hint" style="margin-top:10px;">${t('monNextRun', esc(monNext))}</div>` : ''}
+      ${!hasDiagnosis ? `<div class="field-hint" style="margin-top:10px;color:var(--warning);">${t('monNoDiagnosisWarn')}</div>` : ''}
+      <div class="row" style="margin-top:12px;">
+        <button class="btn btn-sm" onclick="saveMonitoring()">${t('saveMonitoringBtn')}</button>
+      </div>
+    </div>`;
 
   const intakeBlock = intakeRes
     ? `<span class="badge badge-submitted">${t('submittedOn')}${esc((intakeRes.savedAt || '').slice(0, 10))}</span> <a class="btn btn-ghost btn-sm" href="/intake-view.html?company=${encodeURIComponent(company)}">${t('viewResponses')}</a>`
@@ -546,6 +578,8 @@ async function loadCompany(company) {
       ${rows.length > 5 ? `<div class="field-hint" style="margin-top:10px;">${t('showingRecent', rows.length)}</div>` : ''}
       ` : `<div class="empty-state">${t('noResultsYet')}</div>`}
     </div>
+
+    ${monitoringBlock}
 
     <div class="card">
       <div class="card-title">${t('dashboardsTitle')}</div>
@@ -707,6 +741,36 @@ async function runAudit() {
     }
   } catch { /* network-level failure only — polling below will surface anything else */ }
   setTimeout(() => pollJobStatus(currentCompany, { graceRetriesLeft: 6 }), 500);
+}
+
+// ── Monitoring settings ──
+// Staff-only (verified server-side). Saves cadence + start date; enabling adopts the existing
+// diagnosis as the first monitoring snapshot, then the daily cron fires runs on this cadence.
+async function saveMonitoring() {
+  if (!currentCompany) return;
+  const enabled = document.getElementById('mon-enabled').checked;
+  const cadence = document.getElementById('mon-cadence').value;
+  const startDate = document.getElementById('mon-start').value;
+  if (enabled && !startDate) { alert(t('monPickStart')); return; }
+  try {
+    const res = await fetch('/api/intake-codes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company: currentCompany,
+        monitoringEnabled: enabled,
+        monitoringCadence: cadence,
+        monitoringStartDate: startDate,
+        requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
+        requestingStaffPassword: getStaffPassword()
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    await loadCompany(currentCompany);
+  } catch (err) {
+    alert(t('saveMonitoringFailed') + err.message);
+  }
 }
 
 // ── Generate Prompts modal ──

@@ -21,7 +21,7 @@ async function requireAdmin(username, password) {
 // key, so concurrent POSTs can never clobber each other. GET reconstructs the CSV by listing
 // and reading back every row.
 const CSV_COLUMNS = [
-  'run_id', 'snapshot_date', 'engine', 'prompt_id', 'prompt_text', 'query_intent', 'topic_cluster',
+  'run_id', 'run_type', 'snapshot_date', 'engine', 'prompt_id', 'prompt_text', 'query_intent', 'topic_cluster',
   'brand', 'brand_mentioned', 'brand_cited', 'brand_citation_rank', 'total_brands_cited',
   'brands_cited_list', 'top_cited_brand', 'brand_is_leader', 'linked_to_site', 'sentiment',
   'claims_about_brand', 'incorrect_claims', 'has_incorrect_claim', 'services_correct',
