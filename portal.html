@@ -710,9 +710,6 @@ function renderCustomerTable() {
                 <div class="field-hint" style="margin-bottom:12px;">${t('usernameRowLabel')} <code>${owner.username}</code> &middot; ${t('usersCountLabel', members.length)}</div>
                 <div class="job-status" data-job-status></div>
                 <div class="progress-wrap" data-job-progress style="display:none;"><div class="progress-bar" style="width:0%"></div></div>
-                <label style="display:flex; align-items:center; gap:6px; margin:8px 0 14px; text-transform:none; font-size:12px; color:var(--text-mid); cursor:${isAdmin() ? 'pointer' : 'not-allowed'};" title="${isAdmin() ? '' : t('adminOnlyTitle')}">
-                  <input type="checkbox" data-action="toggle-monitoring" data-username="${owner.username}" ${i.monitoringEnabled ? 'checked' : ''} ${isAdmin() ? '' : 'disabled'} style="width:auto;"> ${t('monitoringLabel')}
-                </label>
                 <div class="action-list">
                   <a class="btn btn-sm" href="/index.html?company=${encodeURIComponent(i.company)}">${t('openHieronymus')}</a>
                   <button class="btn btn-ghost btn-sm" data-action="manage-users" data-company="${companyAttr}" style="width:100%;">${t('manageUsersBtn')}</button>
@@ -758,21 +755,8 @@ document.getElementById('customers-list').addEventListener('click', async (e) =>
   }
 });
 
-document.getElementById('customers-list').addEventListener('change', async (e) => {
-  const checkbox = e.target.closest('input[data-action="toggle-monitoring"]');
-  if (!checkbox || !isAdmin()) return;
-  try {
-    const res = await fetch('/api/intake-codes', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: checkbox.dataset.username, monitoringEnabled: checkbox.checked })
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-  } catch (err) {
-    checkbox.checked = !checkbox.checked;
-    alert(t('failedMonitoring') + err.message);
-  }
-});
+// Monitoring is enabled/disabled from the per-customer detail page (behind a password gate),
+// not the Portal — so there is no monitoring toggle to handle here.
 
 async function deleteCustomer(username, company) {
   if (!confirm(t('deleteConfirm', company))) return;

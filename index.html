@@ -315,6 +315,16 @@ const T = {
   enginesLabel: { en: 'AI engines to audit with', es: 'Motores de IA para la auditoría' },
   enginesHint: { en: 'Only engines with an API key configured for this customer (set at customer creation in the Portal) will actually run, even if selected here.', es: 'Solo se ejecutarán los motores que tengan una clave API configurada para este cliente (definida al crear el cliente en el Portal), aunque estén seleccionados aquí.' },
   cancelBtn: { en: 'Cancel', es: 'Cancelar' },
+  pwGateLabel: { en: 'Enter your password to confirm', es: 'Ingresa tu contraseña para confirmar' },
+  pwGateConfirm: { en: 'Confirm', es: 'Confirmar' },
+  pwGateWrong: { en: 'Incorrect password.', es: 'Contraseña incorrecta.' },
+  pwRunAuditTitle: { en: 'Run audit', es: 'Ejecutar auditoría' },
+  pwRunAuditMsg: { en: (c) => `This starts a full audit run for <b>${c}</b> across every configured engine. Enter your password to confirm.`, es: (c) => `Esto inicia una auditoría completa para <b>${c}</b> en todos los motores configurados. Ingresa tu contraseña para confirmar.` },
+  pwGenTitle: { en: 'Generate prompts', es: 'Generar prompts' },
+  pwGenMsg: { en: (c) => `This will (re)generate the audit prompts for <b>${c}</b>, replacing the current set. Enter your password to confirm.`, es: (c) => `Esto (re)generará los prompts de auditoría para <b>${c}</b>, reemplazando los actuales. Ingresa tu contraseña para confirmar.` },
+  pwMonTitle: { en: 'Enable monitoring', es: 'Activar monitoreo' },
+  pwMonMsg: { en: (c, cad, d) => `This activates the recurring audit schedule for <b>${c}</b>: the current diagnosis becomes the first snapshot and audits then run automatically on the <b>${cad}</b> cadence starting <b>${d}</b>. Enter your password to confirm.`, es: (c, cad, d) => `Esto activa el calendario de auditorías recurrentes para <b>${c}</b>: el diagnóstico actual será la primera captura y las auditorías se ejecutarán automáticamente con frecuencia <b>${cad}</b> a partir del <b>${d}</b>. Ingresa tu contraseña para confirmar.` },
+  pwMonOffMsg: { en: (c) => `This turns off scheduled monitoring for <b>${c}</b>. Enter your password to confirm.`, es: (c) => `Esto desactiva el monitoreo programado para <b>${c}</b>. Ingresa tu contraseña para confirmar.` },
   generateBtn: { en: 'Generate', es: 'Generar' },
   loading: { en: 'Loading…', es: 'Cargando…' },
   submittedOn: { en: 'Submitted ', es: 'Enviado ' },
@@ -716,9 +726,63 @@ async function cancelAudit() {
   }
 }
 
+// Final confirmation gate for important actions (run audit / regenerate prompts / enable
+// monitoring). Forces a fresh password entry and verifies it against the current staff user
+// before the action proceeds; caches the verified password so the follow-up API call doesn't
+// prompt again. Resolves true only on a correct password, false on cancel.
+function requirePassword(title, message) {
+  return new Promise(resolve => {
+    const back = document.createElement('div');
+    back.className = 'modal-backdrop open';
+    back.style.zIndex = '3000';
+    back.innerHTML = `
+      <div class="modal-box" style="max-width:400px;">
+        <div class="card-title">${esc(title)}</div>
+        <div class="field-hint" style="margin-bottom:14px; line-height:1.5;">${message}</div>
+        <div class="field">
+          <label>${t('pwGateLabel')}</label>
+          <input type="password" id="pw-gate-input" autocomplete="current-password">
+        </div>
+        <div class="error-box" id="pw-gate-err" style="display:none; margin-bottom:10px;"></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button class="btn btn-ghost" id="pw-gate-cancel">${t('cancelBtn')}</button>
+          <button class="btn" id="pw-gate-ok">${t('pwGateConfirm')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(back);
+    const input = back.querySelector('#pw-gate-input');
+    const err = back.querySelector('#pw-gate-err');
+    const okBtn = back.querySelector('#pw-gate-ok');
+    const done = v => { back.remove(); resolve(v); };
+    back.querySelector('#pw-gate-cancel').onclick = () => done(false);
+    async function submit() {
+      const pw = input.value;
+      if (!pw) { input.focus(); return; }
+      err.style.display = 'none'; okBtn.disabled = true;
+      try {
+        const u = localStorage.getItem(USER_KEY) || '';
+        if (!u) throw new Error('no-user');
+        const res = await fetch('/api/staff-users?username=' + encodeURIComponent(u) + '&password=' + encodeURIComponent(pw));
+        const data = await res.json().catch(() => ({}));
+        // A valid single-user check returns that user's record (has `username`); the no-username
+        // path returns an { items } list with HTTP 200 — that must NOT be accepted as a pass.
+        if (!res.ok || !data || !data.username) throw new Error('bad');
+        sessionStorage.setItem('geo_staff_password', pw);
+        done(true);
+      } catch {
+        err.textContent = t('pwGateWrong'); err.style.display = 'block';
+        okBtn.disabled = false; input.value = ''; input.focus();
+      }
+    }
+    okBtn.onclick = submit;
+    input.onkeydown = e => { if (e.key === 'Enter') submit(); };
+    setTimeout(() => input.focus(), 50);
+  });
+}
+
 async function runAudit() {
   if (!currentCompany) return;
-  if (!confirm(t('confirmRunAudit', currentCompany))) return;
+  if (!(await requirePassword(t('pwRunAuditTitle'), t('pwRunAuditMsg', esc(currentCompany))))) return;
   const btn = document.getElementById('run-audit-btn');
   btn.disabled = true;
   btn.textContent = t('startingBtnLabel');
@@ -752,6 +816,11 @@ async function saveMonitoring() {
   const cadence = document.getElementById('mon-cadence').value;
   const startDate = document.getElementById('mon-start').value;
   if (enabled && !startDate) { alert(t('monPickStart')); return; }
+  const cadLabel = t(({ weekly: 'cadWeekly', semimonthly: 'cadSemimonthly', monthly: 'cadMonthly', quarterly: 'cadQuarterly' })[cadence] || 'cadMonthly');
+  const gateMsg = enabled
+    ? t('pwMonMsg', esc(currentCompany), cadLabel, esc(startDate))
+    : t('pwMonOffMsg', esc(currentCompany));
+  if (!(await requirePassword(t('pwMonTitle'), gateMsg))) return;
   try {
     const res = await fetch('/api/intake-codes', {
       method: 'PATCH',
@@ -815,6 +884,7 @@ async function confirmGenerate() {
   if (!engines.length) { alert(t('selectEngineAlert')); return; }
   const count = parseInt(document.getElementById('gen-count').value) || 100;
   const company = currentCompany;
+  if (!(await requirePassword(t('pwGenTitle'), t('pwGenMsg', esc(company))))) return;
   const confirmBtn = document.getElementById('gen-confirm-btn');
 
   // Guard against starting a second generation while one is already in flight for this
