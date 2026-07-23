@@ -730,7 +730,11 @@ async function cancelAudit() {
 // Final confirmation gate for important actions (run audit / regenerate prompts / enable
 // monitoring). Delegates to the shared window.requirePassword (js/confirm-gate.js) — one gate
 // implementation shared with the Portal — passing this page's localized labels + current user.
-function requirePassword(title, message) {
+// NOTE: deliberately NOT named requirePassword — a same-named top-level function declaration
+// here would overwrite window.requirePassword with itself (both refer to the same global
+// binding), turning the call below into infinite self-recursion instead of reaching the shared
+// implementation loaded from js/confirm-gate.js.
+function confirmWithPassword(title, message) {
   return window.requirePassword({
     title, message,
     username: localStorage.getItem(USER_KEY) || '',
@@ -740,7 +744,7 @@ function requirePassword(title, message) {
 
 async function runAudit() {
   if (!currentCompany) return;
-  if (!(await requirePassword(t('pwRunAuditTitle'), t('pwRunAuditMsg', esc(currentCompany))))) return;
+  if (!(await confirmWithPassword(t('pwRunAuditTitle'), t('pwRunAuditMsg', esc(currentCompany))))) return;
   const btn = document.getElementById('run-audit-btn');
   btn.disabled = true;
   btn.textContent = t('startingBtnLabel');
@@ -778,7 +782,7 @@ async function saveMonitoring() {
   const gateMsg = enabled
     ? t('pwMonMsg', esc(currentCompany), cadLabel, esc(startDate))
     : t('pwMonOffMsg', esc(currentCompany));
-  if (!(await requirePassword(t('pwMonTitle'), gateMsg))) return;
+  if (!(await confirmWithPassword(t('pwMonTitle'), gateMsg))) return;
   try {
     const res = await fetch('/api/intake-codes', {
       method: 'PATCH',
@@ -842,7 +846,7 @@ async function confirmGenerate() {
   if (!engines.length) { alert(t('selectEngineAlert')); return; }
   const count = parseInt(document.getElementById('gen-count').value) || 100;
   const company = currentCompany;
-  if (!(await requirePassword(t('pwGenTitle'), t('pwGenMsg', esc(company))))) return;
+  if (!(await confirmWithPassword(t('pwGenTitle'), t('pwGenMsg', esc(company))))) return;
   const confirmBtn = document.getElementById('gen-confirm-btn');
 
   // Guard against starting a second generation while one is already in flight for this
