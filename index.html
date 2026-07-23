@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
+<script src="/js/confirm-gate.js"></script>
 <title>Akore Labs — Customer Detail</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -727,56 +728,13 @@ async function cancelAudit() {
 }
 
 // Final confirmation gate for important actions (run audit / regenerate prompts / enable
-// monitoring). Forces a fresh password entry and verifies it against the current staff user
-// before the action proceeds; caches the verified password so the follow-up API call doesn't
-// prompt again. Resolves true only on a correct password, false on cancel.
+// monitoring). Delegates to the shared window.requirePassword (js/confirm-gate.js) — one gate
+// implementation shared with the Portal — passing this page's localized labels + current user.
 function requirePassword(title, message) {
-  return new Promise(resolve => {
-    const back = document.createElement('div');
-    back.className = 'modal-backdrop open';
-    back.style.zIndex = '3000';
-    back.innerHTML = `
-      <div class="modal-box" style="max-width:400px;">
-        <div class="card-title">${esc(title)}</div>
-        <div class="field-hint" style="margin-bottom:14px; line-height:1.5;">${message}</div>
-        <div class="field">
-          <label>${t('pwGateLabel')}</label>
-          <input type="password" id="pw-gate-input" autocomplete="current-password">
-        </div>
-        <div class="error-box" id="pw-gate-err" style="display:none; margin-bottom:10px;"></div>
-        <div style="display:flex; gap:8px; justify-content:flex-end;">
-          <button class="btn btn-ghost" id="pw-gate-cancel">${t('cancelBtn')}</button>
-          <button class="btn" id="pw-gate-ok">${t('pwGateConfirm')}</button>
-        </div>
-      </div>`;
-    document.body.appendChild(back);
-    const input = back.querySelector('#pw-gate-input');
-    const err = back.querySelector('#pw-gate-err');
-    const okBtn = back.querySelector('#pw-gate-ok');
-    const done = v => { back.remove(); resolve(v); };
-    back.querySelector('#pw-gate-cancel').onclick = () => done(false);
-    async function submit() {
-      const pw = input.value;
-      if (!pw) { input.focus(); return; }
-      err.style.display = 'none'; okBtn.disabled = true;
-      try {
-        const u = localStorage.getItem(USER_KEY) || '';
-        if (!u) throw new Error('no-user');
-        const res = await fetch('/api/staff-users?username=' + encodeURIComponent(u) + '&password=' + encodeURIComponent(pw));
-        const data = await res.json().catch(() => ({}));
-        // A valid single-user check returns that user's record (has `username`); the no-username
-        // path returns an { items } list with HTTP 200 — that must NOT be accepted as a pass.
-        if (!res.ok || !data || !data.username) throw new Error('bad');
-        sessionStorage.setItem('geo_staff_password', pw);
-        done(true);
-      } catch {
-        err.textContent = t('pwGateWrong'); err.style.display = 'block';
-        okBtn.disabled = false; input.value = ''; input.focus();
-      }
-    }
-    okBtn.onclick = submit;
-    input.onkeydown = e => { if (e.key === 'Enter') submit(); };
-    setTimeout(() => input.focus(), 50);
+  return window.requirePassword({
+    title, message,
+    username: localStorage.getItem(USER_KEY) || '',
+    labels: { enter: t('pwGateLabel'), confirm: t('pwGateConfirm'), cancel: t('cancelBtn'), wrong: t('pwGateWrong') }
   });
 }
 

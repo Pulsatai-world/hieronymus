@@ -76,6 +76,25 @@
   .ctrend-legend .sw{display:inline-block;width:16px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
   .ctrend-legend .sw.dash{background-image:repeating-linear-gradient(90deg,var(--navy) 0 5px,transparent 5px 9px);height:3px}
   .xaxis{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  /* Rich trend chart (SoV + competitive position): rendered at real pixel size so text/ticks stay crisp */
+  .trend-host{position:relative;width:100%;margin-top:16px}
+  .trend-plot svg{width:100%;height:240px;display:block;overflow:visible}
+  .trend-plot .grid{stroke:var(--line);stroke-width:1}
+  .trend-plot .zero{stroke:var(--line);stroke-width:1.5}
+  .trend-plot .ytick{fill:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+  .trend-plot .xtickl{fill:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+  .trend-plot .xtick{stroke:var(--muted);stroke-width:1;opacity:.45}
+  .trend-plot .guide{stroke:var(--dark);stroke-width:1;stroke-dasharray:3 3;opacity:0;transition:opacity .12s}
+  .trend-plot .dot{transition:r .1s ease}
+  .trend-plot .hot{fill:transparent;cursor:crosshair}
+  .ttip{position:absolute;transform:translate(-50%,-122%);background:var(--dark);color:#fff;padding:8px 11px;border-radius:9px;font-size:12px;line-height:1.5;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .12s;z-index:6;box-shadow:var(--shadow-md)}
+  .ttip.flip{transform:translate(-100%,-122%)}
+  .ttip.flipl{transform:translate(0,-122%)}
+  .ttip b{font-size:11px;opacity:.75;font-weight:600}
+  .ttip .r{display:flex;align-items:center;gap:7px;margin-top:4px}
+  .ttip .sw2{width:9px;height:9px;border-radius:2px;display:inline-block;flex-shrink:0}
+  .ttip .sw2.dash{border-radius:0;height:3px;width:12px;background-image:repeating-linear-gradient(90deg,currentColor 0 4px,transparent 4px 7px)}
+  .ttip .v{margin-left:18px;font-weight:700;font-variant-numeric:tabular-nums}
   .tabs{display:flex;gap:4px;padding:18px 48px 0}
   .tab{font-family:inherit;font-size:15px;font-weight:700;color:var(--muted);background:none;border:none;border-bottom:3px solid transparent;padding:8px 4px 10px;margin-right:20px;cursor:pointer}
   .tab.active{color:var(--navy);border-bottom-color:var(--teal)}
@@ -774,6 +793,98 @@ function buildComposite() {
   return card;
 }
 
+// ── RICH TREND CHART ──
+// Reusable multi-series line chart with Y/X ticks + gridlines and hover tooltips. Renders at the
+// host's real pixel width (viewBox == pixels) so text and ticks stay crisp — no preserveAspectRatio
+// stretching — and re-renders on resize. Used by the Share-of-Voice and competitive-position charts.
+let __trendUid = 0;
+function niceTicks(min, max, count, integer) {
+  let span = max - min; if (span <= 0) span = integer ? count : 1;
+  let step = span / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(step) || 0));
+  const norm = step / mag;
+  step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
+  if (integer) step = Math.max(1, Math.round(step));
+  const start = Math.floor(min / step) * step, end = Math.ceil(max / step) * step, out = [];
+  for (let v = start; v <= end + 1e-9; v += step) out.push(integer ? Math.round(v) : +v.toFixed(4));
+  return out;
+}
+function mountTrend(host, cfg) {
+  // cfg: { xLabels:[str], series:[{label,color,dashed,fill,pts:[num|null]}], yFmt, yMin, yMax,
+  //        integer, invertY, yTickCount, tip:(i)=>html }
+  const plot = document.createElement('div'); plot.className = 'trend-plot';
+  const tip = document.createElement('div'); tip.className = 'ttip';
+  host.appendChild(plot); host.appendChild(tip);
+  const n = cfg.xLabels.length;
+  const uid = 'tg' + (++__trendUid);
+  let X, Y, W, H, padB, padT;
+  function render() {
+    W = Math.max(host.clientWidth, 220); H = 240;
+    const padL = 46, padR = 18; padT = 18; padB = 40;
+    const allV = cfg.series.flatMap(s => s.pts).filter(v => v != null);
+    let dmin = cfg.yMin != null ? cfg.yMin : Math.min(...allV);
+    let dmax = cfg.yMax != null ? cfg.yMax : Math.max(...allV);
+    if (!isFinite(dmin) || !isFinite(dmax)) { dmin = 0; dmax = 1; }
+    if (dmin === dmax) { dmin -= 1; dmax += 1; }
+    const ticks = niceTicks(dmin, dmax, cfg.yTickCount || 4, cfg.integer);
+    dmin = ticks[0]; dmax = ticks[ticks.length - 1]; const rng = dmax - dmin || 1;
+    X = i => padL + (W - padL - padR) * (n <= 1 ? 0.5 : i / (n - 1));
+    Y = v => cfg.invertY ? padT + (H - padT - padB) * ((v - dmin) / rng) : padT + (H - padT - padB) * (1 - (v - dmin) / rng);
+    // gridlines + Y tick labels
+    const grid = ticks.map(v => '<line class="grid" x1="' + padL + '" y1="' + Y(v).toFixed(1) + '" x2="' + (W - padR) + '" y2="' + Y(v).toFixed(1) + '"/>' +
+      '<text class="ytick" x="' + (padL - 8) + '" y="' + (Y(v) + 3.5).toFixed(1) + '" text-anchor="end">' + cfg.yFmt(v) + '</text>').join('');
+    // X ticks (all) + labels (subset if crowded)
+    const labelIdx = n <= 7 ? cfg.xLabels.map((_, i) => i) : [0, Math.round((n - 1) / 2), n - 1];
+    const xaxis = cfg.xLabels.map((lab, i) => {
+      const x = X(i).toFixed(1), tick = '<line class="xtick" x1="' + x + '" y1="' + (H - padB) + '" x2="' + x + '" y2="' + (H - padB + 5) + '"/>';
+      if (!labelIdx.includes(i)) return tick;
+      const anc = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle';
+      return tick + '<text class="xtickl" x="' + x + '" y="' + (H - padB + 20) + '" text-anchor="' + anc + '">' + lab + '</text>';
+    }).join('');
+    const baseline = '<line class="zero" x1="' + padL + '" y1="' + (H - padB) + '" x2="' + (W - padR) + '" y2="' + (H - padB) + '"/>';
+    // series paths + optional area + dots
+    let paths = '', areas = '', dots = '';
+    cfg.series.forEach((s, si) => {
+      let d = '', started = false, hasNull = false;
+      s.pts.forEach((v, i) => { if (v == null) { started = false; hasNull = true; return; } d += (started ? ' L' : ' M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1); started = true; });
+      if (s.fill && !hasNull && s.pts.length) {
+        const gid = uid + '-' + si;
+        areas += '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + s.color + '" stop-opacity="0.18"/><stop offset="1" stop-color="' + s.color + '" stop-opacity="0"/></linearGradient></defs>' +
+          '<path d="M ' + X(0).toFixed(1) + ' ' + Y(s.pts[0]).toFixed(1) + ' ' + s.pts.map((v, i) => 'L ' + X(i).toFixed(1) + ' ' + Y(v).toFixed(1)).join(' ') + ' L ' + X(n - 1).toFixed(1) + ' ' + (H - padB).toFixed(1) + ' L ' + X(0).toFixed(1) + ' ' + (H - padB).toFixed(1) + ' Z" fill="url(#' + gid + ')"/>';
+      }
+      paths += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="2.6"' + (s.dashed ? ' stroke-dasharray="6 5"' : '') + ' stroke-linejoin="round" stroke-linecap="round"/>';
+      dots += s.pts.map((v, i) => v == null ? '' : '<circle class="dot" data-i="' + i + '" r="3.6" cx="' + X(i).toFixed(1) + '" cy="' + Y(v).toFixed(1) + '" fill="' + s.color + '" stroke="#fff" stroke-width="1.5"/>').join('');
+    });
+    const step = (W - padL - padR) / (n - 1 || 1);
+    const hots = cfg.xLabels.map((_, i) => '<rect class="hot" data-i="' + i + '" x="' + (X(i) - step / 2).toFixed(1) + '" y="' + padT + '" width="' + step.toFixed(1) + '" height="' + (H - padT - padB).toFixed(1) + '"/>').join('');
+    const guide = '<line class="guide" x1="0" x2="0" y1="' + padT + '" y2="' + (H - padB) + '"/>';
+    plot.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '">' + areas + grid + baseline + xaxis + guide + paths + dots + hots + '</svg>';
+    wire();
+  }
+  function wire() {
+    const guide = plot.querySelector('.guide'), dots = plot.querySelectorAll('.dot');
+    plot.querySelectorAll('.hot').forEach(h => {
+      h.addEventListener('mouseenter', () => {
+        const i = +h.dataset.i, x = X(i);
+        guide.setAttribute('x1', x); guide.setAttribute('x2', x); guide.style.opacity = .55;
+        dots.forEach(d => d.setAttribute('r', +d.dataset.i === i ? '5.5' : '3.6'));
+        tip.innerHTML = cfg.tip(i);
+        const ys = cfg.series.map(s => s.pts[i]).filter(v => v != null).map(v => Y(v));
+        tip.style.left = x + 'px';
+        tip.style.top = (ys.length ? Math.min(...ys) : padT) + 'px';
+        tip.classList.toggle('flip', x > W * 0.72);
+        tip.classList.toggle('flipl', x < W * 0.14);
+        tip.style.opacity = 1;
+      });
+    });
+    plot.addEventListener('mouseleave', () => { guide.style.opacity = 0; tip.style.opacity = 0; dots.forEach(d => d.setAttribute('r', '3.6')); });
+  }
+  let lastW = 0;
+  const ro = new ResizeObserver(() => { const w = host.clientWidth; if (Math.abs(w - lastW) < 1) return; lastW = w; render(); });
+  ro.observe(host);
+  render();
+}
+
 // ── COMPETITOR SHARE-OF-VOICE TREND ──
 // Per snapshot, your SoV vs. the leading competitor's SoV, using the same tally + exclusions as
 // the leaderboard (drop the Brand cluster and prompts that name the company). Filter-aware.
@@ -797,29 +908,25 @@ function competitorTrendSeries() {
 function buildCompetitorTrend() {
   if (DATES.length < 2) return null;
   const ser = competitorTrendSeries();
-  const W = 520, H = 170, padL = 8, padR = 8, padT = 16, padB = 12;
-  let mx = Math.max(...ser.flatMap(s => [s.value, s.rival]), 10) * 1.15;
-  if (!isFinite(mx) || mx <= 0) mx = 10;
-  const X = i => padL + (W - padL - padR) * i / (ser.length - 1 || 1);
-  const Y = v => padT + (H - padT - padB) * (1 - v / mx);
-  const path = key => ser.map((s, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(s[key]).toFixed(1)).join(' ');
-  const dots = (key, col) => ser.map((s, i) => '<circle r="3" cx="' + X(i).toFixed(1) + '" cy="' + Y(s[key]).toFixed(1) + '" fill="' + col + '"/>').join('');
-  const xl = ser.length > 2 ? [0, Math.floor((ser.length - 1) / 2), ser.length - 1] : ser.map((_, i) => i);
-  // Date labels render as crisp HTML below the chart — placed inside the SVG they'd be smeared
-  // wide by preserveAspectRatio="none", which scales the drawing (and any text) to the card width.
-  const xhtml = xl.map(i => '<span>' + ser[i].date.slice(0, 7) + '</span>').join('');
-  const svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
-    '<path d="' + path('rival') + '" fill="none" stroke="var(--navy)" stroke-width="2.2" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round"/>' +
-    '<path d="' + path('value') + '" fill="none" stroke="var(--emerald)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>' +
-    dots('rival', 'var(--navy)') + dots('value', 'var(--emerald)') + '</svg>';
   const latestRival = [...ser].reverse().find(s => s.rivalName);
   const rivalLabel = (latestRival && latestRival.rivalName) ? latestRival.rivalName : t('compTrendRival');
   const sec = document.createElement('div'); sec.className = 'cat';
   sec.innerHTML = '<div class="cat-h"><div class="cat-titles"><span class="q">' + t('compTrendTitle') + '</span><span class="ask">' + t('compTrendSub') + '</span></div></div>' +
-    '<div class="chart" style="height:170px">' + svg + '</div>' +
-    '<div class="xaxis">' + xhtml + '</div>' +
+    '<div class="trend-host"></div>' +
     '<div class="ctrend-legend"><span><span class="sw" style="background:var(--emerald)"></span>' + esc(company) + ' (' + t('compTrendYou') + ')</span>' +
     '<span><span class="sw dash"></span>' + esc(rivalLabel) + '</span></div>';
+  mountTrend(sec.querySelector('.trend-host'), {
+    xLabels: ser.map(s => s.date.slice(0, 7)),
+    yMin: 0, yTickCount: 4,
+    yFmt: v => Math.round(v) + '%',
+    series: [
+      { label: esc(company), color: 'var(--emerald)', fill: true, pts: ser.map(s => s.value) },
+      { label: rivalLabel, color: 'var(--navy)', dashed: true, pts: ser.map(s => s.rival) }
+    ],
+    tip: i => '<b>' + ser[i].date + '</b>' +
+      '<div class="r"><span class="sw2" style="background:var(--emerald)"></span>' + esc(company) + '<span class="v">' + Math.round(ser[i].value) + '%</span></div>' +
+      '<div class="r" style="color:var(--violet-400)"><span class="sw2 dash"></span><span style="color:#fff">' + esc(ser[i].rivalName || rivalLabel) + '</span><span class="v">' + Math.round(ser[i].rival) + '%</span></div>'
+  });
   return sec;
 }
 
@@ -843,17 +950,7 @@ function buildRankTrend() {
   const ser = rankTrendSeries();
   const ranked = ser.filter(s => s.rank != null);
   if (ranked.length < 2) return null;
-  const W = 520, H = 170, padL = 8, padR = 8, padT = 18, padB = 12;
   const maxR = Math.max(...ranked.map(s => s.rank), 3);
-  const X = i => padL + (W - padL - padR) * i / (ser.length - 1 || 1);
-  const Y = r => padT + (H - padT - padB) * (r - 1) / (maxR - 1 || 1);   // rank 1 pinned to the top
-  let dpath = '', started = false;
-  ser.forEach((s, i) => { if (s.rank == null) { started = false; return; } dpath += (started ? ' L' : ' M') + X(i).toFixed(1) + ' ' + Y(s.rank).toFixed(1); started = true; });
-  const dots = ser.map((s, i) => s.rank == null ? '' : '<circle r="3.6" cx="' + X(i).toFixed(1) + '" cy="' + Y(s.rank).toFixed(1) + '" fill="var(--emerald)"/>').join('');
-  const svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
-    '<path d="' + dpath.trim() + '" fill="none" stroke="var(--emerald)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>' + dots + '</svg>';
-  const xl = ser.length > 2 ? [0, Math.floor((ser.length - 1) / 2), ser.length - 1] : ser.map((_, i) => i);
-  const xhtml = xl.map(i => '<span>' + ser[i].date.slice(0, 7) + '</span>').join('');
   const first = ranked[0], last = ranked[ranked.length - 1];
   const delta = first.rank - last.rank;   // > 0 means the place number went down = improved
   let deltaHtml;
@@ -863,8 +960,15 @@ function buildRankTrend() {
   const sec = document.createElement('div'); sec.className = 'cat';
   sec.innerHTML = '<div class="cat-h"><div class="cat-titles"><span class="q">' + t('rankTrendTitle') + '</span><span class="ask">' + t('rankTrendSub') + '</span></div>' +
     '<div style="margin-left:auto;text-align:right;flex-shrink:0;"><div style="font-family:var(--font-display);font-size:1.7rem;font-weight:800;color:var(--dark);line-height:1;">' + t('rankCurrent', last.rank, last.of) + '</div>' + deltaHtml + '</div></div>' +
-    '<div class="chart" style="height:170px">' + svg + '</div>' +
-    '<div class="xaxis">' + xhtml + '</div>';
+    '<div class="trend-host"></div>';
+  mountTrend(sec.querySelector('.trend-host'), {
+    xLabels: ser.map(s => s.date.slice(0, 7)),
+    yMin: 1, yMax: maxR, integer: true, invertY: true, yTickCount: Math.min(maxR - 1, 5),
+    yFmt: v => '#' + v,
+    series: [{ label: t('rankTrendTitle'), color: 'var(--emerald)', pts: ser.map(s => s.rank) }],
+    tip: i => '<b>' + ser[i].date + '</b><div class="r">' + t('yourRank') +
+      '<span class="v">' + (ser[i].rank ? ('#' + ser[i].rank + ' / ' + ser[i].of) : '—') + '</span></div>'
+  });
   return sec;
 }
 function statusChip(rate) { const c = rate >= 50 ? 'g' : rate >= 25 ? 'm' : 'b'; return `<span class="chip ${c}">${rate.toFixed(0)}%</span>`; }

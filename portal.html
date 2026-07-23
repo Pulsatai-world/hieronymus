@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
+<script src="/js/confirm-gate.js"></script>
 <style>
   .cust-cards { display: flex; flex-direction: column; gap: 10px; }
   .cust-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
@@ -494,6 +495,11 @@ const T = {
   portalLinkCopied: { en: 'Client portal link copied!', es: '¡Enlace del portal del cliente copiado!' },
   deleteConfirm: { en: (c) => `Delete "${c}"? This removes their intake link/login. This cannot be undone.`, es: (c) => `¿Eliminar a "${c}"? Esto elimina su enlace/acceso al formulario. Esta acción no se puede deshacer.` },
   failedDelete: { en: 'Failed to delete: ', es: 'Error al eliminar: ' },
+  pwGateLabel: { en: 'Enter your password to confirm', es: 'Ingresa tu contraseña para confirmar' },
+  pwGateConfirm: { en: 'Delete customer', es: 'Eliminar cliente' },
+  pwGateWrong: { en: 'Incorrect password.', es: 'Contraseña incorrecta.' },
+  pwDeleteTitle: { en: 'Delete customer', es: 'Eliminar cliente' },
+  pwDeleteMsg: { en: (c) => `This permanently deletes <b>${c}</b> and their login, and cannot be undone. Enter your password to confirm.`, es: (c) => `Esto elimina permanentemente a <b>${c}</b> y su acceso, y no se puede deshacer. Ingresa tu contraseña para confirmar.` },
   failedMonitoring: { en: 'Failed to update monitoring: ', es: 'Error al actualizar el monitoreo: ' },
   runningStatus: { en: (c, t, ci) => `Running: ${c}/${t} (${ci} cited)`, es: (c, t, ci) => `En proceso: ${c}/${t} (${ci} citados)` },
   lastRunStatus: { en: (c, ci) => `Last run: ${c} rows, ${ci} cited`, es: (c, ci) => `Última ejecución: ${c} filas, ${ci} citados` }
@@ -759,7 +765,14 @@ document.getElementById('customers-list').addEventListener('click', async (e) =>
 // not the Portal — so there is no monitoring toggle to handle here.
 
 async function deleteCustomer(username, company) {
-  if (!confirm(t('deleteConfirm', company))) return;
+  // Password gate doubles as the confirmation — deleting a customer is destructive and permanent.
+  const okPw = await window.requirePassword({
+    title: t('pwDeleteTitle'),
+    message: t('pwDeleteMsg', escapeHtml(company)),
+    username: localStorage.getItem(USER_KEY) || '',
+    labels: { enter: t('pwGateLabel'), confirm: t('pwGateConfirm'), cancel: t('cancelBtn'), wrong: t('pwGateWrong') }
+  });
+  if (!okPw) return;
   try {
     const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username), { method: 'DELETE' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
