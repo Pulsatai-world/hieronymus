@@ -75,6 +75,7 @@
   .ctrend-legend{display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:12px}
   .ctrend-legend .sw{display:inline-block;width:16px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
   .ctrend-legend .sw.dash{background-image:repeating-linear-gradient(90deg,var(--navy) 0 5px,transparent 5px 9px);height:3px}
+  .xaxis{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;letter-spacing:.02em}
   .tabs{display:flex;gap:4px;padding:18px 48px 0}
   .tab{font-family:inherit;font-size:15px;font-weight:700;color:var(--muted);background:none;border:none;border-bottom:3px solid transparent;padding:8px 4px 10px;margin-right:20px;cursor:pointer}
   .tab.active{color:var(--navy);border-bottom-color:var(--teal)}
@@ -317,7 +318,13 @@ const T = {
   compTrendTitle: { en: 'Share of Voice over time', es: 'Cuota de voz a lo largo del tiempo' },
   compTrendSub: { en: 'Your Share of Voice vs. the leading competitor, run over run.', es: 'Tu cuota de voz vs. el competidor líder, ejecución tras ejecución.' },
   compTrendYou: { en: 'you', es: 'tú' },
-  compTrendRival: { en: 'Top competitor', es: 'Competidor líder' }
+  compTrendRival: { en: 'Top competitor', es: 'Competidor líder' },
+  rankTrendTitle: { en: 'Your competitive position over time', es: 'Tu posición competitiva a lo largo del tiempo' },
+  rankTrendSub: { en: 'Where you place among all recommended brands — #1 is the most-recommended. Lower is better.', es: 'Tu lugar entre todas las marcas recomendadas: #1 es la más recomendada. Menor es mejor.' },
+  rankCurrent: { en: (n, m) => `#${n} of ${m}`, es: (n, m) => `#${n} de ${m}` },
+  rankUp: { en: (k) => `▲ up ${k} ${k === 1 ? 'place' : 'places'} since the first run`, es: (k) => `▲ ${k} ${k === 1 ? 'lugar' : 'lugares'} arriba desde la primera ejecución` },
+  rankDown: { en: (k) => `▼ down ${k} ${k === 1 ? 'place' : 'places'} since the first run`, es: (k) => `▼ ${k} ${k === 1 ? 'lugar' : 'lugares'} abajo desde la primera ejecución` },
+  rankFlat: { en: 'No change since the first run', es: 'Sin cambios desde la primera ejecución' }
 };
 // Most customers are based in Mexico at first contact, so the dashboard opens in Spanish
 // until someone explicitly switches — a one-line internal setting, easy to flip later.
@@ -790,7 +797,7 @@ function competitorTrendSeries() {
 function buildCompetitorTrend() {
   if (DATES.length < 2) return null;
   const ser = competitorTrendSeries();
-  const W = 520, H = 170, padL = 8, padR = 8, padT = 16, padB = 24;
+  const W = 520, H = 170, padL = 8, padR = 8, padT = 16, padB = 12;
   let mx = Math.max(...ser.flatMap(s => [s.value, s.rival]), 10) * 1.15;
   if (!isFinite(mx) || mx <= 0) mx = 10;
   const X = i => padL + (W - padL - padR) * i / (ser.length - 1 || 1);
@@ -798,18 +805,66 @@ function buildCompetitorTrend() {
   const path = key => ser.map((s, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(s[key]).toFixed(1)).join(' ');
   const dots = (key, col) => ser.map((s, i) => '<circle r="3" cx="' + X(i).toFixed(1) + '" cy="' + Y(s[key]).toFixed(1) + '" fill="' + col + '"/>').join('');
   const xl = ser.length > 2 ? [0, Math.floor((ser.length - 1) / 2), ser.length - 1] : ser.map((_, i) => i);
-  const xlabels = xl.map(i => '<text class="axis" x="' + X(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? 'start' : i === ser.length - 1 ? 'end' : 'middle') + '">' + ser[i].date.slice(0, 7) + '</text>').join('');
+  // Date labels render as crisp HTML below the chart — placed inside the SVG they'd be smeared
+  // wide by preserveAspectRatio="none", which scales the drawing (and any text) to the card width.
+  const xhtml = xl.map(i => '<span>' + ser[i].date.slice(0, 7) + '</span>').join('');
   const svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
     '<path d="' + path('rival') + '" fill="none" stroke="var(--navy)" stroke-width="2.2" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round"/>' +
     '<path d="' + path('value') + '" fill="none" stroke="var(--emerald)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>' +
-    dots('rival', 'var(--navy)') + dots('value', 'var(--emerald)') + xlabels + '</svg>';
+    dots('rival', 'var(--navy)') + dots('value', 'var(--emerald)') + '</svg>';
   const latestRival = [...ser].reverse().find(s => s.rivalName);
   const rivalLabel = (latestRival && latestRival.rivalName) ? latestRival.rivalName : t('compTrendRival');
   const sec = document.createElement('div'); sec.className = 'cat';
   sec.innerHTML = '<div class="cat-h"><div class="cat-titles"><span class="q">' + t('compTrendTitle') + '</span><span class="ask">' + t('compTrendSub') + '</span></div></div>' +
     '<div class="chart" style="height:170px">' + svg + '</div>' +
+    '<div class="xaxis">' + xhtml + '</div>' +
     '<div class="ctrend-legend"><span><span class="sw" style="background:var(--emerald)"></span>' + esc(company) + ' (' + t('compTrendYou') + ')</span>' +
     '<span><span class="sw dash"></span>' + esc(rivalLabel) + '</span></div>';
+  return sec;
+}
+
+// ── COMPETITIVE POSITION TREND ──
+// Your standing (place) among all cited brands over time, using the same tally + exclusions as
+// the leaderboard. #1 = the most-recommended brand; the Y axis is inverted so up = better.
+function rankTrendSeries() {
+  const youKey = (company || '').toLowerCase();
+  return DATES.map(d => {
+    const rs = rowsForMulti(new Set([d]), selEngine, selIntent, selPrompt, selLang)
+      .filter(r => r.topic_cluster !== 'Brand' && !promptNamesCompany(r));
+    const tally = {};
+    rs.forEach(r => (r.brands_cited_list || '').split(';').filter(Boolean).forEach(b => { const k = b.toLowerCase(); tally[k] = (tally[k] || 0) + 1; }));
+    const sorted = Object.keys(tally).sort((a, b) => tally[b] - tally[a]);
+    const idx = sorted.indexOf(youKey);
+    return { date: d, rank: idx >= 0 ? idx + 1 : null, of: sorted.length };
+  });
+}
+function buildRankTrend() {
+  if (DATES.length < 2) return null;
+  const ser = rankTrendSeries();
+  const ranked = ser.filter(s => s.rank != null);
+  if (ranked.length < 2) return null;
+  const W = 520, H = 170, padL = 8, padR = 8, padT = 18, padB = 12;
+  const maxR = Math.max(...ranked.map(s => s.rank), 3);
+  const X = i => padL + (W - padL - padR) * i / (ser.length - 1 || 1);
+  const Y = r => padT + (H - padT - padB) * (r - 1) / (maxR - 1 || 1);   // rank 1 pinned to the top
+  let dpath = '', started = false;
+  ser.forEach((s, i) => { if (s.rank == null) { started = false; return; } dpath += (started ? ' L' : ' M') + X(i).toFixed(1) + ' ' + Y(s.rank).toFixed(1); started = true; });
+  const dots = ser.map((s, i) => s.rank == null ? '' : '<circle r="3.6" cx="' + X(i).toFixed(1) + '" cy="' + Y(s.rank).toFixed(1) + '" fill="var(--emerald)"/>').join('');
+  const svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
+    '<path d="' + dpath.trim() + '" fill="none" stroke="var(--emerald)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>' + dots + '</svg>';
+  const xl = ser.length > 2 ? [0, Math.floor((ser.length - 1) / 2), ser.length - 1] : ser.map((_, i) => i);
+  const xhtml = xl.map(i => '<span>' + ser[i].date.slice(0, 7) + '</span>').join('');
+  const first = ranked[0], last = ranked[ranked.length - 1];
+  const delta = first.rank - last.rank;   // > 0 means the place number went down = improved
+  let deltaHtml;
+  if (delta > 0) deltaHtml = '<div style="color:var(--good);font-size:12px;font-weight:600;margin-top:2px;">' + t('rankUp', delta) + '</div>';
+  else if (delta < 0) deltaHtml = '<div style="color:var(--bad);font-size:12px;font-weight:600;margin-top:2px;">' + t('rankDown', -delta) + '</div>';
+  else deltaHtml = '<div style="color:var(--muted);font-size:12px;margin-top:2px;">' + t('rankFlat') + '</div>';
+  const sec = document.createElement('div'); sec.className = 'cat';
+  sec.innerHTML = '<div class="cat-h"><div class="cat-titles"><span class="q">' + t('rankTrendTitle') + '</span><span class="ask">' + t('rankTrendSub') + '</span></div>' +
+    '<div style="margin-left:auto;text-align:right;flex-shrink:0;"><div style="font-family:var(--font-display);font-size:1.7rem;font-weight:800;color:var(--dark);line-height:1;">' + t('rankCurrent', last.rank, last.of) + '</div>' + deltaHtml + '</div></div>' +
+    '<div class="chart" style="height:170px">' + svg + '</div>' +
+    '<div class="xaxis">' + xhtml + '</div>';
   return sec;
 }
 function statusChip(rate) { const c = rate >= 50 ? 'g' : rate >= 25 ? 'm' : 'b'; return `<span class="chip ${c}">${rate.toFixed(0)}%</span>`; }
@@ -867,6 +922,8 @@ function renderCompetitors(rows) {
   cwrap.appendChild(sec);
   const trend = buildCompetitorTrend();
   if (trend) cwrap.appendChild(trend);
+  const rankTrend = buildRankTrend();
+  if (rankTrend) cwrap.appendChild(rankTrend);
 }
 
 let respCounter = 0;
