@@ -79,7 +79,17 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--i
 textarea { width: 100%; font-family: var(--font-body); font-size: 14px; border: 1.5px solid var(--border-strong); border-radius: var(--radius-md); padding: 12px 14px; outline: none; min-height: 90px; resize: vertical; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
 textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--ink-60); }
-@media (max-width: 600px) { .app-header { padding: 0 16px; } .logo-sub, .logo-divider { display: none; } }
+@media (max-width: 600px) {
+  .app-header { padding: 10px 16px; height: auto; flex-wrap: wrap; row-gap: 8px; }
+  .logo-sub, .logo-divider { display: none; }
+  .main { padding: 24px 16px 60px; }
+  .card { padding: 18px 16px; }
+  .page-title { font-size: 24px; }
+  /* Approve/release is the whole point of this page — full width so it can't end up clipped. */
+  .btn-accent { width: 100%; }
+  /* Editing a prompt on a phone needs room; one line per prompt is unusable. */
+  .prompt-input { font-size: 16px; }
+}
 </style>
 </head>
 <body>
@@ -90,7 +100,8 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-
     <span class="logo-divider"></span>
     <div class="logo-sub" id="logo-sub">GEO Audit — Prompt Review</div>
   </div>
-  <div style="display:flex; align-items:center; gap:10px;">
+  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+    <a class="btn-ghost" id="back-link" href="#" style="display:none;"></a>
     <div class="lang-toggle">
       <button class="lang-btn" id="lang-btn-en" onclick="setLang('en')">EN</button>
       <button class="lang-btn" id="lang-btn-es" onclick="setLang('es')">ES</button>
@@ -170,6 +181,8 @@ const T = {
   pwConfirm: { en: 'Confirm', es: 'Confirmar' },
   pwCancel: { en: 'Cancel', es: 'Cancelar' },
   pwWrong: { en: 'Incorrect password.', es: 'Contraseña incorrecta.' },
+  backToCustomer: { en: (c) => `← Back to ${c}`, es: (c) => `← Volver a ${c}` },
+  backToDashboards: { en: '← My dashboards', es: '← Mis paneles' },
   reviewNotReady: { en: "Your prompts are being prepared — we're reviewing them now and you'll be able to see them shortly.", es: 'Estamos preparando tus prompts — los estamos revisando y podrás verlos en breve.' }
 };
 let lang = localStorage.getItem('hieronymus_lang') || 'es';
@@ -186,6 +199,7 @@ function applyStaticLang() {
   document.getElementById('gate-continue-btn').textContent = t('continueBtn');
   document.getElementById('lang-btn-en').classList.toggle('active', lang === 'en');
   document.getElementById('lang-btn-es').classList.toggle('active', lang === 'es');
+  updateBackLink();
 }
 function setLang(newLang) {
   lang = newLang;
@@ -222,10 +236,31 @@ async function submitGate() {
   }
 }
 
+// This page was a dead end — you could get in but not back out. Where "back" goes depends on who
+// is looking: staff came from that customer's page inside the platform, a client came from their
+// own portal. Anyone we can't place gets no link rather than a guess (and a client is never shown
+// a route into an internal page).
+function updateBackLink() {
+  const el = document.getElementById('back-link');
+  if (!el) return;
+  if (isStaffReviewer && clientCompany) {
+    el.href = '/index.html?company=' + encodeURIComponent(clientCompany);
+    el.textContent = t('backToCustomer', clientCompany);
+    el.style.display = '';
+  } else if (clientUsername) {
+    el.href = '/client-portal.html?username=' + encodeURIComponent(clientUsername);
+    el.textContent = t('backToDashboards');
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 function showApp() {
   document.getElementById('access-gate').style.display = 'none';
   document.getElementById('main-content').style.display = 'block';
   document.getElementById('logout-btn').style.display = '';
+  updateBackLink();
   loadPrompts();
 }
 

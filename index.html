@@ -221,6 +221,16 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
   .header { padding: 14px 16px; flex-wrap: wrap; row-gap: 8px; }
   .logo-sub, .logo-divider { display: none; }
   .header-right { flex-wrap: wrap; row-gap: 8px; justify-content: flex-end; }
+  .main { padding: 24px 16px 60px; }
+  .card { padding: 18px 16px; }
+  /* Side-by-side fields (monitoring cadence + start date) can't hold two columns on a phone. */
+  .two-col { grid-template-columns: 1fr; }
+  /* Action rows carry several buttons; let them wrap and be tappable instead of overflowing. */
+  .row { flex-wrap: wrap; row-gap: 8px; }
+  .btn, .btn-sm { min-height: 40px; }
+  /* Inputs at 16px stop iOS Safari zooming the page on focus. */
+  input, select, textarea { font-size: 16px; }
+  .modal-box { padding: 20px 16px; max-height: 88vh; overflow-y: auto; }
 }
 </style>
 </head>

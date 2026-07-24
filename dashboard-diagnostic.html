@@ -73,7 +73,9 @@
   .val{font-family:var(--font-display);font-weight:800;font-size:2.25rem;color:var(--navy);line-height:1;margin-top:10px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .kpi-basis{font-size:12px;color:var(--muted);margin-top:auto;padding-top:12px}
   .empty{padding:40px;text-align:center;color:var(--muted);font-size:15px}
-  .tabs{display:flex;gap:4px;padding:18px 48px 0}
+  .tabs{display:flex;gap:4px;padding:18px 48px 0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{white-space:nowrap;flex:0 0 auto}
   .tab{font-family:inherit;font-size:15px;font-weight:700;color:var(--muted);background:none;border:none;border-bottom:3px solid transparent;padding:8px 4px 10px;margin-right:20px;cursor:pointer}
   .tab.active{color:var(--navy);border-bottom-color:var(--teal)}
   .panel{display:none}.panel.show{display:block}
@@ -121,8 +123,16 @@
   @media(max-width:900px){.prow{grid-template-columns:40px 1fr;gap:6px}.prow .m{text-align:left}.prow.hd .m{display:none}.prow .m:before{content:attr(data-l);font-size:10px;color:var(--muted);text-transform:uppercase;margin-right:6px}}
   @media(max-width:600px){.crow{grid-template-columns:1fr;gap:6px}.crow.hd{display:none}.crank,.cmetric{text-align:left}.ccards{grid-template-columns:1fr}}
   .foot{padding:24px 48px 0;font-size:11px;color:var(--muted);line-height:1.5}
-  @media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr)}.stats{grid-template-columns:repeat(2,1fr)}.wrap,.head,.controls,.foot{padding-left:22px;padding-right:22px}}
-  @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  @media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr)}.stats{grid-template-columns:repeat(2,1fr)}.wrap,.head,.controls,.foot,.tabs{padding-left:22px;padding-right:22px}}
+  @media(max-width:560px){
+    .grid{grid-template-columns:1fr}
+    .stats{grid-template-columns:1fr}
+    /* Filters stack instead of each holding a 220px floor that overflows a phone. */
+    .ctl{min-width:0;width:100%}
+    .wrap,.head,.controls,.foot,.tabs{padding-left:16px;padding-right:16px}
+    .tab{font-size:14px;margin-right:14px}
+    .geo-hero{padding:22px 18px;gap:22px}
+  }
   /* GEO Visibility Score hero */
   .geo-hero{margin-top:32px;background:var(--dark);color:#fff;border-radius:var(--radius-lg);padding:30px 34px;display:flex;gap:40px;flex-wrap:wrap;align-items:center;box-shadow:var(--shadow-md);position:relative;overflow:hidden}
   .geo-hero::after{content:"";position:absolute;right:-70px;top:-90px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(30,169,124,.35),transparent 70%);pointer-events:none}
@@ -993,5 +1003,26 @@ document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () =>
 
 applyStaticLang();
 loadData();
+
+// The back link used to be hardcoded to /portal.html, which sent a client straight at an internal
+// page they cannot open. Retarget by who is actually looking: staff go back to that customer's page
+// inside the platform, a client goes back to their own portal. The primary member's username is the
+// slug of the company name (intake-codes.js generates it that way), which is how a client arriving
+// here with only ?company= can still be routed home.
+(function retargetBackLink() {
+  const el = document.getElementById('link-back');
+  if (!el) return;
+  const params = new URLSearchParams(location.search);
+  const co = (params.get('company') || '').trim();
+  const user = (params.get('username') || '').trim();
+  const slug = s => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+  if (localStorage.getItem('hieronymus_internal_auth') === 'true') {
+    el.href = co ? '/index.html?company=' + encodeURIComponent(co) : '/portal.html';
+  } else if (user || co) {
+    el.href = '/client-portal.html?username=' + encodeURIComponent(user || slug(co));
+  } else {
+    el.style.display = 'none';
+  }
+})();
 </script>
 </body></html>
