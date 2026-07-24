@@ -152,6 +152,8 @@
   .crow.hd{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;border-bottom:2px solid var(--line)}
   .crank{font-family:var(--font-display);font-weight:700;font-size:18px;color:var(--muted);text-align:center}
   .cname{font-weight:700;font-size:15px;color:var(--dark)}.cname.you{color:var(--emerald);font-weight:800}
+  .crow.others .cname{color:var(--muted);font-weight:600}
+  .crow.others .cbar>span{opacity:.45}
   .cbar{position:relative;height:22px;background:var(--ice2);border-radius:6px;overflow:hidden}
   .cbar>span{position:absolute;left:0;top:0;height:100%;border-radius:6px;background:var(--navy)}
   .cbar.you>span{background:var(--emerald)}
@@ -310,6 +312,8 @@ const T = {
   yourTopRival: { en: 'Your top rival', es: 'Tu principal rival' },
   citationsVsYours: { en: (c, y) => `${c} recommendations vs. your ${y}`, es: (c, y) => `${c} recomendaciones vs. tus ${y}` },
   competitorsIntro: { en: (you) => `Brands the AI recommends when answering your industry's questions this run. Your brand (<b style="color:var(--teal)">${you}</b>) is highlighted. The bar shows how often each brand was recommended; "Leads" counts how often it was recommended first.`, es: (you) => `Marcas que la IA recomienda al responder las preguntas de tu sector en esta ejecución. Tu marca (<b style="color:var(--teal)">${you}</b>) está resaltada. La barra muestra con qué frecuencia se recomendó cada marca; "1ro" cuenta cuántas veces fue la primera recomendada.` },
+  othersRow: { en: (n) => `Others (${n} ${n === 1 ? 'brand' : 'brands'})`, es: (n) => `Otros (${n} ${n === 1 ? 'marca' : 'marcas'})` },
+  leaderboardCapNote: { en: (n) => `Only the top ${n} brands get their own row; the rest are combined into “Others”.`, es: (n) => `Solo las ${n} marcas principales tienen su propia fila; el resto se agrupan en “Otros”.` },
   crowRank: { en: '#', es: '#' },
   crowBrand: { en: 'Brand', es: 'Marca' },
   crowTimesCited: { en: 'Times recommended (Share of Voice)', es: 'Veces recomendada (Cuota de voz)' },
@@ -990,6 +994,11 @@ function promptNamesCompany(r) {
   return !!name && (r.prompt_text || '').toLowerCase().includes(name);
 }
 
+// A long tail of one-off brand mentions made the leaderboard unreadable, so only this many brands
+// get their own row — everything below folds into a single "Others" line. Kept in sync with
+// dashboard-diagnostic.html, which caps its leaderboard the same way.
+const COMPETITOR_ROW_LIMIT = 25;
+
 function renderCompetitors(rows) {
   cwrap.innerHTML = '';
   if (rows.length === 0) { cwrap.innerHTML = `<div class="empty">${t('noMatchFilter')}</div>`; return; }
@@ -1004,6 +1013,24 @@ function renderCompetitors(rows) {
   const you = brands.find(b => b.name.toLowerCase() === youKey) || { name: YOU, cited: 0, leader: 0, sov: 0 };
   const yourRank = brands.findIndex(b => b.name.toLowerCase() === youKey) + 1;
   const topRival = brands.find(b => b.name.toLowerCase() !== youKey);
+
+  // Two deliberate exceptions to the top-25 cut: the client's own brand always keeps a row, showing
+  // its real rank, even when it places below the cut — a client should never be missing from their
+  // own leaderboard. And the summary cards below still count every distinct brand, so "#N of M"
+  // reports the true field size rather than the number of visible rows. Same for the trend charts,
+  // which are computed from the full tally.
+  const leaderRows = brands.slice(0, COMPETITOR_ROW_LIMIT).map((b, i) => ({ b, rank: i + 1 }));
+  const tail = brands.slice(COMPETITOR_ROW_LIMIT);
+  const youInTail = tail.find(b => b.name.toLowerCase() === youKey);
+  if (youInTail) leaderRows.push({ b: youInTail, rank: yourRank });
+  const folded = tail.filter(b => b !== youInTail);
+  const others = folded.length ? {
+    count: folded.length,
+    cited: folded.reduce((s, b) => s + b.cited, 0),
+    leader: folded.reduce((s, b) => s + b.leader, 0),
+    sov: folded.reduce((s, b) => s + b.sov, 0)
+  } : null;
+
   const cards = document.createElement('div'); cards.className = 'ccards';
   cards.innerHTML =
     `<div class="ccard"><div class="l">${t('yourRank')}</div><div class="b">${yourRank > 0 ? ('#' + yourRank + ' of ' + brands.length) : '—'}</div><div class="s">${t('byNumCitations')}</div></div>` +
@@ -1011,18 +1038,26 @@ function renderCompetitors(rows) {
     `<div class="ccard"><div class="l">${t('yourTopRival')}</div><div class="b">${topRival ? topRival.name : '—'}</div><div class="s">${topRival ? t('citationsVsYours', topRival.cited, you.cited) : ''}</div></div>`;
   cwrap.appendChild(cards);
   const intro = document.createElement('div'); intro.className = 'cintro';
-  intro.innerHTML = t('competitorsIntro', YOU);
+  intro.innerHTML = t('competitorsIntro', YOU) + (others ? ' ' + t('leaderboardCapNote', COMPETITOR_ROW_LIMIT) : '');
   cwrap.appendChild(intro);
   const sec = document.createElement('div'); sec.className = 'cat';
   const hd = document.createElement('div'); hd.className = 'crow hd';
   hd.innerHTML = `<div>${t('crowRank')}</div><div>${t('crowBrand')}</div><div>${t('crowTimesCited')}</div><div class="cmetric">${t('crowLeads')}</div>`;
   sec.appendChild(hd);
-  brands.forEach((b, i) => {
+  leaderRows.forEach(({ b, rank }) => {
     const isYou = b.name.toLowerCase() === youKey; const w = 100 * b.cited / maxCited;
     const row = document.createElement('div'); row.className = 'crow';
-    row.innerHTML = `<div class="crank">${i + 1}</div><div class="cname${isYou ? ' you' : ''}">${b.name}</div><div class="cbar${isYou ? ' you' : ''}"><span style="width:${w.toFixed(1)}%"></span><em>${b.cited} &middot; ${b.sov.toFixed(0)}%</em></div><div class="cmetric"><span class="mv">${b.leader}</span><div class="ml">${t('timesFirst')}</div></div>`;
+    row.innerHTML = `<div class="crank">${rank}</div><div class="cname${isYou ? ' you' : ''}">${b.name}</div><div class="cbar${isYou ? ' you' : ''}"><span style="width:${w.toFixed(1)}%"></span><em>${b.cited} &middot; ${b.sov.toFixed(0)}%</em></div><div class="cmetric"><span class="mv">${b.leader}</span><div class="ml">${t('timesFirst')}</div></div>`;
     sec.appendChild(row);
   });
+  if (others) {
+    // Combined citations can exceed any single brand's, so the bar is clamped rather than allowed
+    // to overflow its track.
+    const w = Math.min(100, 100 * others.cited / maxCited);
+    const row = document.createElement('div'); row.className = 'crow others';
+    row.innerHTML = `<div class="crank">—</div><div class="cname">${t('othersRow', others.count)}</div><div class="cbar"><span style="width:${w.toFixed(1)}%"></span><em>${others.cited} &middot; ${others.sov.toFixed(0)}%</em></div><div class="cmetric"><span class="mv">${others.leader}</span><div class="ml">${t('timesFirst')}</div></div>`;
+    sec.appendChild(row);
+  }
   cwrap.appendChild(sec);
   const trend = buildCompetitorTrend();
   if (trend) cwrap.appendChild(trend);

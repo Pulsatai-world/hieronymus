@@ -15,6 +15,11 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 const ENGINE_DEFS = [
   {
     name: 'Claude',
+    // Deliberately pinned, and NOT upgraded alongside the grading call below. This request
+    // simulates what a real person gets when they ask Claude the question, so the monitoring
+    // dashboard only trends meaningfully if the answering model stays the same between snapshots
+    // — changing it resets the baseline and makes this month incomparable to last month. Change
+    // it only when you intend to start a new baseline, and note the change on the snapshot.
     buildAnswerRequest: query => ({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
@@ -205,9 +210,17 @@ For each engine's answer report:
 - ranking_note: one sentence on how "${company}" compares to any competitors named in that answer.${truthNote}`;
 
   return {
-    model: 'claude-sonnet-4-6',
-    max_tokens: 3072,
-    output_config: { format: { type: 'json_schema', schema: CLASSIFY_SCHEMA } },
+    // This is the interpretation step that builds the dataset — every figure on both dashboards
+    // derives from it, so it runs on the newest Sonnet rather than 4.6: better rubric consistency
+    // at the same list price, and structured outputs are documented as supported here (they are
+    // not documented for Sonnet 4.6, which this call was previously relying on).
+    // Sonnet 5 runs adaptive thinking by default and max_tokens caps thinking + JSON together,
+    // so the old 3072 would truncate the response and break the JSON.parse in
+    // parseClassifyResponse. Hence the larger ceiling, plus an explicit medium effort — rubric
+    // application doesn't need the default 'high', and this call runs once per prompt.
+    model: 'claude-sonnet-5',
+    max_tokens: 8000,
+    output_config: { effort: 'medium', format: { type: 'json_schema', schema: CLASSIFY_SCHEMA } },
     messages: [{ role: 'user', content: query }]
   };
 }

@@ -333,6 +333,11 @@ const T = {
   noIntakeYet: { en: 'No intake submitted yet', es: 'Aún no se ha enviado el formulario' },
   approvedOn: { en: 'Approved ', es: 'Aprobado ' },
   awaitingReview: { en: 'Awaiting client review', es: 'Esperando revisión del cliente' },
+  awaitingInternalReview: { en: 'Awaiting internal review', es: 'Esperando revisión interna' },
+  releasedOn: { en: 'Released ', es: 'Liberado ' },
+  internalReviewHint: { en: 'The customer cannot see these prompts yet. Review and release them first.', es: 'El cliente todavía no puede ver estos prompts. Revísalos y libéralos primero.' },
+  reviewAndReleaseBtn: { en: 'Review & release →', es: 'Revisar y liberar →' },
+  openInternalReviewBtn: { en: 'Open review page →', es: 'Abrir página de revisión →' },
   clientComments: { en: 'Client comments: ', es: 'Comentarios del cliente: ' },
   promptsCountLine: { en: (n, langs, date) => `${n} prompts · ${langs} · generated ${date}`, es: (n, langs, date) => `${n} prompts · ${langs} · generado ${date}` },
   regeneratePrompts: { en: 'Regenerate Prompts', es: 'Regenerar Prompts' },
@@ -401,7 +406,7 @@ const T = {
   generatingBtnLabel: { en: 'Generating...', es: 'Generando...' },
   failedToGenerate: { en: 'Failed to generate prompts: ', es: 'Error al generar los prompts: ' },
   alreadyGenerating: { en: 'A prompt generation is already running for this customer — please wait for it to finish.', es: 'Ya hay una generación de prompts en curso para este cliente — espera a que termine.' },
-  generateProgress: { en: (c, total) => `${c} of ${total} categories done`, es: (c, total) => `${c} de ${total} categorías completadas` },
+  generateProgress: { en: (c, total) => `${c} of ${total} steps done`, es: (c, total) => `${c} de ${total} pasos completados` },
   failedToStartAudit: { en: 'Failed to start audit: ', es: 'Error al iniciar la auditoría: ' },
   alreadyRunning: { en: 'An audit is already running for this customer.', es: 'Ya hay una auditoría en curso para este cliente.' }
 };
@@ -472,9 +477,18 @@ async function loadCompany(company) {
   const main = document.getElementById('main-content');
   main.innerHTML = `<div class="page-title">${esc(company)}</div><div class="empty-state">${t('loading')}</div>`;
 
+  // /api/prompts withholds the prompt text until an Akore reviewer releases it, so this internal
+  // page has to identify itself as staff to keep seeing unreleased sets. Uses whatever password is
+  // already cached — it never prompts here, because loadCompany() runs on every page view and a
+  // password dialog on load would be hostile. Without it the card falls back to showing status
+  // only, and the count comes from `promptCount`.
+  const cachedStaffPw = sessionStorage.getItem('geo_staff_password') || '';
+  const promptsQuery = '/api/prompts?company=' + encodeURIComponent(company) +
+    (cachedStaffPw ? '&staffUsername=' + encodeURIComponent(localStorage.getItem(USER_KEY) || '') + '&staffPassword=' + encodeURIComponent(cachedStaffPw) : '');
+
   const [intakeRes, promptsRes, resultsText, codeRec] = await Promise.all([
     fetch('/api/intake?company=' + encodeURIComponent(company)).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch('/api/prompts?company=' + encodeURIComponent(company)).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(promptsQuery).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch('/api/results').then(r => r.ok ? r.text() : '').catch(() => ''),
     fetch('/api/intake-codes?company=' + encodeURIComponent(company)).then(r => r.ok ? r.json() : null).catch(() => null)
   ]);
@@ -521,19 +535,32 @@ async function loadCompany(company) {
     ? `<span class="badge badge-submitted">${t('submittedOn')}${esc((intakeRes.savedAt || '').slice(0, 10))}</span> <a class="btn btn-ghost btn-sm" href="/intake-view.html?company=${encodeURIComponent(company)}">${t('viewResponses')}</a>`
     : `<span class="badge badge-pending">${t('noIntakeYet')}</span>`;
 
-  const hasPrompts = !!(promptsRes && promptsRes.promptsText);
+  // `promptsText` is present only for a verified staff request or an already-released set; the
+  // withheld response still carries promptCount, so the card works either way.
+  const hasPrompts = !!(promptsRes && (promptsRes.promptsText || promptsRes.promptCount));
   let promptsBlock;
   if (hasPrompts) {
-    const lines = promptsRes.promptsText.split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = promptsRes.promptsText
+      ? promptsRes.promptsText.split('\n').map(l => l.trim()).filter(Boolean).length
+      : (promptsRes.promptCount || 0);
     const langs = (promptsRes.languages || ['English']).join(', ');
-    const reviewStatus = promptsRes.approvedAt
-      ? `<span class="badge badge-done">${t('approvedOn')}${esc(promptsRes.approvedAt.slice(0, 10))}</span>`
-      : `<span class="badge badge-partial">${t('awaitingReview')}</span>`;
+    // Two gates, reported separately: internal release first, then the customer's own approval.
+    const pendingInternal = !!promptsRes.internalReviewPending;
+    const internalStatus = pendingInternal
+      ? `<span class="badge badge-pending">${t('awaitingInternalReview')}</span>`
+      : `<span class="badge badge-done">${t('releasedOn')}${esc((promptsRes.internalApprovedAt || '').slice(0, 10))}${promptsRes.internalApprovedBy ? ' · ' + esc(promptsRes.internalApprovedBy) : ''}</span>`;
+    const reviewStatus = pendingInternal
+      ? ''
+      : (promptsRes.approvedAt
+        ? `<span class="badge badge-done">${t('approvedOn')}${esc(promptsRes.approvedAt.slice(0, 10))}</span>`
+        : `<span class="badge badge-partial">${t('awaitingReview')}</span>`);
     const comments = promptsRes.comments ? `<div class="field-hint" style="margin-top:8px;">${t('clientComments')}${esc(promptsRes.comments)}</div>` : '';
     promptsBlock = `
-      <div class="row" style="margin-bottom:8px;">${reviewStatus}<span class="field-hint">${t('promptsCountLine', lines.length, esc(langs), esc((promptsRes.generatedAt || '').slice(0, 10)))}</span></div>
+      <div class="row" style="margin-bottom:8px;">${internalStatus}${reviewStatus}<span class="field-hint">${t('promptsCountLine', lines, esc(langs), esc((promptsRes.generatedAt || '').slice(0, 10)))}</span></div>
+      ${pendingInternal ? `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('internalReviewHint')}</div>` : ''}
       ${comments}
       <div class="row" style="margin-top:12px;">
+        <a class="btn ${pendingInternal ? '' : 'btn-ghost'} btn-sm" href="${reviewLink(company)}">${pendingInternal ? t('reviewAndReleaseBtn') : t('openInternalReviewBtn')}</a>
         <button class="btn btn-sm" onclick="openGenModal()">${t('regeneratePrompts')}</button>
         <button class="btn btn-ghost btn-sm" onclick="copyReviewLink('${esc(company)}')">${t('copyReviewLink')}</button>
       </div>`;
@@ -605,10 +632,17 @@ async function loadCompany(company) {
   pollJobStatus(company);
 }
 
+// The primary member's username is the slug of the company name (intake-codes.js generates it
+// that way at creation), so both the copyable client link and the internal review link resolve
+// through this one function rather than each deriving it.
+function reviewUsername(company) {
+  return String(company || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+}
+function reviewLink(company) {
+  return '/prompt-review.html?username=' + encodeURIComponent(reviewUsername(company));
+}
 function copyReviewLink(company) {
-  const username = company.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
-  const link = location.origin + '/prompt-review.html?username=' + encodeURIComponent(username);
-  navigator.clipboard.writeText(link).then(() => alert(t('reviewLinkCopied')));
+  navigator.clipboard.writeText(location.origin + reviewLink(company)).then(() => alert(t('reviewLinkCopied')));
 }
 
 const CSV_COLUMNS = [

@@ -30,6 +30,27 @@ async function isBlockedViewer(requestingUsername, requestingPassword) {
   return false;
 }
 
+// Generated prompts are held back from the customer until someone on the internal Akore team has
+// reviewed and released them. This has to be enforced here rather than in the browser: the
+// customer holds a working review link, so they can call this endpoint directly, and a gate that
+// only exists in prompt-review.html would be no gate at all. Staff prove who they are the same
+// way every other staff action in this app does — by sending their own username+password for
+// server-side verification against the staff registry.
+async function isStaff(username, password) {
+  if (!username || !password) return false;
+  const staffStore = getStore('hieronymus-staff-users');
+  const record = await staffStore.get(String(username).toLowerCase(), { type: 'json' });
+  if (!record) return false;
+  return verifyPassword(password, record.passwordHash);
+}
+
+// The brief is internal working material from the generator (competitor lists, the
+// "facts a searcher could not know" exclusion list) — it is never part of a client response.
+function withoutInternals(data) {
+  const { brief, ...rest } = data;
+  return rest;
+}
+
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
     status,
@@ -63,12 +84,35 @@ export default async (request, context) => {
     if (companyParam) {
       const data = await store.get(slugify(companyParam), { type: 'json' });
       if (!data) return json({ error: 'Not found' }, 404);
-      return json(data, 200);
+
+      const staff = await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'));
+      // Records the customer already approved predate this gate — they have demonstrably seen the
+      // prompts, so treating them as unreleased would lock a live customer out of their own
+      // review page for no benefit. Grandfather them in.
+      const released = !!data.internalApprovedAt || !!data.approvedAt;
+      if (staff) return json({ ...data, internalReviewPending: !released }, 200);
+
+      // Not a verified staff request: withhold the prompts themselves until they're released, but
+      // still report that they exist so the client page can say "not ready yet" rather than
+      // showing a bare error. Note run-audit-background.js reads this store directly via
+      // getStore(), so gating here never blocks an audit run.
+      if (!released) {
+        const { promptsText, ...rest } = withoutInternals(data);
+        return json({ ...rest, internalReviewPending: true, promptCount: String(promptsText || '').split('\n').filter(l => l.trim()).length }, 200);
+      }
+      return json({ ...withoutInternals(data), internalReviewPending: false }, 200);
     }
     const { blobs } = await store.list();
     const items = await Promise.all(blobs.map(async b => {
       const data = await store.get(b.key, { type: 'json' });
-      return { key: b.key, company: data?.company, generatedAt: data?.generatedAt || null, approvedAt: data?.approvedAt || null };
+      return {
+        key: b.key,
+        company: data?.company,
+        generatedAt: data?.generatedAt || null,
+        approvedAt: data?.approvedAt || null,
+        internalApprovedAt: data?.internalApprovedAt || null,
+        internalApprovedBy: data?.internalApprovedBy || null
+      };
     }));
     return json({ items }, 200);
   }
@@ -90,6 +134,32 @@ export default async (request, context) => {
     const key = slugify(company);
     const data = await store.get(key, { type: 'json' });
     if (!data) return json({ error: 'No generated prompts found for this customer' }, 404);
+
+    // ── Internal release ──
+    // An Akore reviewer releasing the prompts to the customer. Separate from the customer's own
+    // approval below and never reachable with customer credentials.
+    if (body.internalApprove) {
+      const staffUsername = (body.requestingStaffUsername || '').trim().toLowerCase();
+      if (!await isStaff(staffUsername, body.requestingStaffPassword)) {
+        return json({ error: 'Only a signed-in Akore staff user can release prompts to a customer' }, 403);
+      }
+      if (typeof body.promptsText === 'string' && body.promptsText.trim()) {
+        data.promptsText = body.promptsText.trim();
+        data.editedAt = new Date().toISOString();
+      }
+      data.internalApprovedAt = new Date().toISOString();
+      data.internalApprovedBy = staffUsername;
+      await store.setJSON(key, data);
+      return json({ status: 'ok', internalApprovedAt: data.internalApprovedAt, internalApprovedBy: staffUsername }, 200);
+    }
+
+    // ── Customer approval ──
+    // Refused until the prompts have been released internally, so a customer holding a stale tab
+    // (or calling the endpoint directly) can't approve a set they were never meant to see yet.
+    // `approvedAt` grandfathers pre-gate records, matching the GET above.
+    if (!data.internalApprovedAt && !data.approvedAt) {
+      return json({ error: 'These prompts are still in internal review and cannot be approved yet' }, 409);
+    }
 
     if (typeof body.promptsText === 'string' && body.promptsText.trim()) {
       data.promptsText = body.promptsText.trim();

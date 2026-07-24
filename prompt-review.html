@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
+<!-- Shared staff password gate — used here only for the internal review/release step. -->
+<script src="/js/confirm-gate.js"></script>
 <title>GEO Audit — Review Prompts | Akore Labs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -116,6 +118,10 @@ let clientCompany = '';
 let clientUsername = '';
 let clientPassword = '';
 let clientRole = 'full';
+// True when an internal Akore staff member opened this page through the Portal bypass. Staff see
+// prompts before they're released to the customer, and are the only ones who can release them.
+let isStaffReviewer = false;
+let staffUsername = '';
 function findMember(group, username) {
   return (group.members || []).find(m => m.username === username);
 }
@@ -148,7 +154,23 @@ const T = {
   catProblem: { en: 'Problem-based searches', es: 'Búsquedas por problema' },
   catCompetitor: { en: 'Competitor comparisons', es: 'Comparaciones con competidores' },
   catPersona: { en: 'Buyer persona searches', es: 'Búsquedas por perfil de comprador' },
-  catOther: { en: 'Other', es: 'Otros' }
+  catOther: { en: 'Other', es: 'Otros' },
+  // ── Internal review (staff-only; never shown to a customer) ──
+  internalPendingTitle: { en: 'Internal review — not yet visible to the customer', es: 'Revisión interna — todavía no visible para el cliente' },
+  internalPendingBody: { en: 'You are seeing these as Akore staff. The customer cannot see them yet. Fix anything that looks wrong, then release them.', es: 'Estás viendo esto como personal de Akore. El cliente todavía no puede verlos. Corrige lo que no se vea bien y después libéralos.' },
+  internalReleasedBy: { en: (who, date) => `✓ Released to the customer by ${who} on ${date}`, es: (who, date) => `✓ Liberado al cliente por ${who} el ${date}` },
+  releaseBtn: { en: '✓ Approve & release to customer', es: '✓ Aprobar y liberar al cliente' },
+  releasing: { en: 'Releasing…', es: 'Liberando…' },
+  releaseConfirmTitle: { en: 'Release prompts to customer', es: 'Liberar prompts al cliente' },
+  releaseConfirmMsg: { en: (c) => `This makes the prompts visible to <strong>${c}</strong> so they can review and approve them. Any edits you made here are saved at the same time.`, es: (c) => `Esto hace visibles los prompts para <strong>${c}</strong> para que puedan revisarlos y aprobarlos. Los cambios que hiciste aquí se guardan al mismo tiempo.` },
+  releaseFailed: { en: 'Failed to release prompts: ', es: 'Error al liberar los prompts: ' },
+  staffPasswordNeeded: { en: 'Confirm your Akore password to review these prompts.', es: 'Confirma tu contraseña de Akore para revisar estos prompts.' },
+  staffUnlockTitle: { en: 'Akore staff review', es: 'Revisión de personal Akore' },
+  pwEnter: { en: 'Enter your password to confirm', es: 'Ingresa tu contraseña para confirmar' },
+  pwConfirm: { en: 'Confirm', es: 'Confirmar' },
+  pwCancel: { en: 'Cancel', es: 'Cancelar' },
+  pwWrong: { en: 'Incorrect password.', es: 'Contraseña incorrecta.' },
+  reviewNotReady: { en: "Your prompts are being prepared — we're reviewing them now and you'll be able to see them shortly.", es: 'Estamos preparando tus prompts — los estamos revisando y podrás verlos en breve.' }
 };
 let lang = localStorage.getItem('hieronymus_lang') || 'es';
 function t(key, ...args) {
@@ -239,13 +261,36 @@ function groupByLabel(items) {
   return groups;
 }
 
+// A persistent Portal login can outlive the password cached in sessionStorage. Staff need that
+// password to prove staff status server-side, so ask for it just-in-time via the shared gate
+// (which verifies it against /api/staff-users and caches it on success).
+async function ensureStaffPassword() {
+  const cached = sessionStorage.getItem('geo_staff_password');
+  if (cached) return cached;
+  const ok = await window.requirePassword({
+    title: t('staffUnlockTitle'),
+    message: esc(t('staffPasswordNeeded')),
+    username: staffUsername,
+    labels: { enter: t('pwEnter'), confirm: t('pwConfirm'), cancel: t('pwCancel'), wrong: t('pwWrong') }
+  });
+  return ok ? (sessionStorage.getItem('geo_staff_password') || '') : '';
+}
+
 async function loadPrompts() {
   const main = document.getElementById('main-content');
   main.innerHTML = `<div class="page-title">${esc(clientCompany)}</div><div class="empty-state">${t('loading')}</div>`;
 
+  // Staff credentials are what unlock not-yet-released prompts; without them this request gets
+  // the same withheld response a customer would.
+  let query = '/api/prompts?company=' + encodeURIComponent(clientCompany);
+  if (isStaffReviewer && staffUsername) {
+    const pw = await ensureStaffPassword();
+    if (pw) query += '&staffUsername=' + encodeURIComponent(staffUsername) + '&staffPassword=' + encodeURIComponent(pw);
+  }
+
   let record;
   try {
-    const res = await fetch('/api/prompts?company=' + encodeURIComponent(clientCompany));
+    const res = await fetch(query);
     if (res.status === 404) {
       main.innerHTML = `<div class="page-title">${esc(clientCompany)}</div><div class="empty-state">${t('notReady')}</div>`;
       return;
@@ -257,6 +302,13 @@ async function loadPrompts() {
     return;
   }
 
+  // Held in internal review and we're not staff: the server withheld the prompt text, so show a
+  // waiting state rather than an empty list.
+  if (record.internalReviewPending && !record.promptsText) {
+    main.innerHTML = `<div class="page-title">${esc(clientCompany)}</div><div class="empty-state">${t('reviewNotReady')}</div>`;
+    return;
+  }
+
   currentItems = parsePrompts(record.promptsText || '');
   const groups = groupByLabel(currentItems);
   const banner = record.approvedAt
@@ -264,11 +316,20 @@ async function loadPrompts() {
     : `<div class="status-banner status-pending">${t('pendingBanner')}</div>`;
 
   const viewer = clientRole === 'viewer';
+  // Only staff ever reach this point with prompts still in internal review — the server withholds
+  // the text from everyone else, and the waiting state above catches that case.
+  const pendingInternal = !!record.internalReviewPending;
+  const releasedWhen = record.internalApprovedAt || record.approvedAt;
+  const internalBanner = !isStaffReviewer ? '' : (pendingInternal
+    ? `<div class="status-banner status-pending"><strong>${t('internalPendingTitle')}</strong><br>${t('internalPendingBody')}</div>`
+    : `<div class="status-banner status-approved">${t('internalReleasedBy', esc(record.internalApprovedBy || '—'), esc(releasedWhen ? new Date(releasedWhen).toLocaleDateString() : '—'))}</div>`);
+
   main.innerHTML = `
     <div class="page-title">${t('pageTitle')}</div>
     <div class="page-sub">${t('pageSub', esc(clientCompany))}</div>
+    ${internalBanner}
     ${viewer ? `<div class="status-banner status-pending">${t('viewOnlyBanner')}</div>` : ''}
-    ${banner}
+    ${pendingInternal ? '' : banner}
     <div class="card">
       ${Object.keys(groups).map(label => `
         <div class="cat-group">
@@ -277,7 +338,13 @@ async function loadPrompts() {
         </div>
       `).join('')}
     </div>
-    ${viewer ? '' : `
+    ${pendingInternal ? `
+    <div class="card">
+      <div style="margin-top:4px;">
+        <button class="btn-accent" style="width:auto;" id="release-btn" onclick="releasePrompts()">${t('releaseBtn')}</button>
+      </div>
+    </div>
+    ` : (viewer ? '' : `
     <div class="card">
       <div class="card-title" style="margin-bottom:12px;">${t('commentsTitle')}</div>
       <textarea id="comments-input" placeholder="${t('commentsPlaceholder')}">${esc(record.comments || '')}</textarea>
@@ -285,7 +352,7 @@ async function loadPrompts() {
         <button class="btn-accent" style="width:auto;" id="approve-btn" onclick="approvePrompts()">${t('saveApproveBtn')}</button>
       </div>
     </div>
-    `}
+    `)}
   `;
   document.querySelectorAll('.prompt-input').forEach(autoGrowPromptInput);
 }
@@ -293,6 +360,49 @@ async function loadPrompts() {
 function autoGrowPromptInput(el) {
   el.style.height = 'auto';
   el.style.height = el.scrollHeight + 'px';
+}
+
+// Internal release: an Akore reviewer approving the generated set and making it visible to the
+// customer. Any edits the reviewer made are saved in the same request, so releasing is always
+// releasing exactly what's on screen.
+async function releasePrompts() {
+  const btn = document.getElementById('release-btn');
+  document.querySelectorAll('.prompt-input').forEach(input => {
+    const idx = parseInt(input.dataset.idx, 10);
+    currentItems[idx].text = input.value.trim();
+  });
+  const promptsText = currentItems.map(item => `${item.cat}: ${item.text}`).join('\n');
+
+  const ok = await window.requirePassword({
+    title: t('releaseConfirmTitle'),
+    message: t('releaseConfirmMsg', esc(clientCompany)),
+    username: staffUsername,
+    labels: { enter: t('pwEnter'), confirm: t('pwConfirm'), cancel: t('pwCancel'), wrong: t('pwWrong') }
+  });
+  if (!ok) return;
+
+  btn.disabled = true;
+  btn.textContent = t('releasing');
+  try {
+    const res = await fetch('/api/prompts', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        company: clientCompany,
+        internalApprove: true,
+        promptsText,
+        requestingStaffUsername: staffUsername,
+        requestingStaffPassword: sessionStorage.getItem('geo_staff_password') || ''
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    await loadPrompts();
+  } catch (err) {
+    alert(t('releaseFailed') + err.message);
+    btn.disabled = false;
+    btn.textContent = t('releaseBtn');
+  }
 }
 
 async function approvePrompts() {
@@ -342,6 +452,10 @@ applyStaticLang();
         clientRole = 'full';
         clientUsername = '';
         clientPassword = '';
+        // Marks this as the internal reviewer's view: unreleased prompts are visible (once the
+        // staff password is confirmed) and the release action is available.
+        isStaffReviewer = true;
+        staffUsername = localStorage.getItem('hieronymus_internal_user') || '';
         showApp();
         return;
       }
