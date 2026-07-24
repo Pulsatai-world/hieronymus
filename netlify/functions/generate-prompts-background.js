@@ -180,8 +180,12 @@ const CATEGORIES = [
   },
   {
     key: 'CAT3',
-    brief: () => 'Someone in the middle of a specific problem, describing what is happening to them. They do not know the category name or any company name — they only know their symptom.',
-    rules: () => `Never name the client company and never use the category term as the main framing — this person does not know it yet. Build every prompt from a specific symptom in the brief: name the actual part or process, what it is doing wrong, how often, and what it is costing them. Most should be one to three sentences of real situation, and most should end by asking who can help or what to do, with a place named. Generic problem statements are the single worst failure mode here.`,
+    brief: () => 'Someone researching a problem they have not resolved — a recurring failure, a repair they keep paying for, a symptom they want to understand before they commit money. They are deliberating, not dispatching.',
+    rules: () => `Never name the client company. Two things to get right here, because this category fails more than any other:
+
+First, WHO this is. Someone whose line stopped five minutes ago picks up the phone — they do not open ChatGPT. The person actually typing is thinking ahead: the same part has failed three times, a quote looks wrong, they want to know what a job should cost or whether they are being sold the wrong fix. Write that person. Urgency is fine as context ("this has cost us two shifts this month"), never as the whole prompt.
+
+Second, WHAT they know. They do not know the name of the service category or the kind of vendor they need — that is what they are searching for, so do not use it as the framing. But they absolutely know their own equipment and they will name it: "our 200-tonne press", "the injection moulding machine", the brand on the nameplate, their industry, their city. Writing "the system" or "the machine" as the subject is the single worst failure in this category — it makes the prompt untestable. Every prompt must carry the operation or equipment, the specific symptom from the brief, and the place.`,
     good: () => [
       'The compressor on our walk-in freezer keeps cutting out after about 20 minutes and the temperature climbs to 4°C before it kicks back on. Who can come look at it today in Guadalajara?',
       "We're throwing out product every week because the display cases won't hold below 8°C, and the technician we've been using keeps replacing the thermostat and charging us for it. What should we do?",
@@ -191,7 +195,10 @@ const CATEGORIES = [
     bad: () => [
       'My machine broke (no symptom, no equipment, no consequence, no place — this matches nothing and points nowhere)',
       'I have a problem with my equipment and need help (same problem, longer)',
-      'Refrigeration problem in Guadalajara (a label, not a person describing their situation)'
+      'Refrigeration problem in Guadalajara (a label, not a person describing their situation)',
+      "The oil in the system is running hotter than normal and the cycles got very slow, we think the cooler isn't pulling anymore. Who can check it? (what system, on what machine, in what city? A floating symptom — reads like the middle of a conversation, and an engine answers it with generic troubleshooting and names nobody)",
+      'I need someone at the plant today, the line is down (no equipment, no place, and this person would be phoning, not typing)',
+      'How do I get a quote for a diagnostic? (a process question — answerable with generic advice, so no company ever gets named)'
     ]
   },
   {
@@ -213,7 +220,9 @@ const CATEGORIES = [
   {
     key: 'CAT5',
     brief: () => 'A specific buyer persona searching the way their role actually makes them search.',
-    rules: () => `Use the real job titles and situations from the brief. The role should be visible in what they say and worry about — budget approval, downtime windows, compliance, lead times, headcount, reporting to someone else — not stated as a label. Write in first person where it reads naturally. Never write the word "persona" or the job title as a prefix; put the role into the sentence.`,
+    rules: () => `Use the real job titles from the brief, but treat the brief's "situation" text as background only — never as words to reuse. The role shows through what they say they need and the constraints they carry: downtime windows, sign-off, lead times, compliance, multi-site, invoicing. Write in first person where it reads naturally.
+
+Do not open with the job title as a label ("As the purchasing lead…", "Como responsable de mantenimiento…"). A real person either introduces themselves with substance — role AND operation AND place, "Soy responsable de mantenimiento en una planta de inyección en Toluca" — or just states what they need. And never narrate internal process: "I'm raising the purchase order and they asked me to confirm stock first" is a message to a colleague, not a question for an AI. Convert the constraint into an actual ask: what they need, where, and under what conditions.`,
     good: () => [
       "I'm the maintenance manager at a food processing plant in Guadalajara and I need a refrigeration contractor who can work weekends without shutting the line down.",
       'As purchasing lead, what should I ask a refrigeration supplier before signing an annual maintenance contract?',
@@ -222,7 +231,9 @@ const CATEGORIES = [
     ],
     bad: () => [
       'Persona: Plant Director. Query: refrigeration services (the persona label leaked into the query)',
-      'Plant director looking for refrigeration company in Guadalajara (describing a persona in the third person instead of writing what they would type)'
+      'Plant director looking for refrigeration company in Guadalajara (describing a persona in the third person instead of writing what they would type)',
+      "I'm raising the purchase order and they asked me to confirm immediate stock of compressors before I issue it — who handles that inventory? (internal workflow narration, and \"that inventory\" points at something the reader cannot see. Ask for what you need instead: a supplier, in a named city, with stock)",
+      'As the maintenance manager I have intermittent pressure faults and want to contract a diagnostic. How do I quote that? (job title bolted on the front, no equipment, no city, and "how do I quote that" gets a generic answer that names no company)'
     ]
   }
 ];
@@ -269,14 +280,19 @@ function styleRules(languages, catKey) {
 
 Write what a real person types, unprompted, when nobody is watching. Not a keyword. Not a category label. Not marketing copy. A person with a situation.
 
-1. Vary the length deliberately — unless this batch's own instructions above say otherwise, aim for roughly a third short and clipped (4-8 words, the way people type into a search box), roughly a third one natural sentence, and roughly a third longer with real situational detail, the way people actually talk to ChatGPT. Where this batch's instructions specify a length, they win.
-2. Vary the shape too: questions, statements of need, "who does X", "how much does X cost", "is X worth it", "I need someone who can...". Not every line should be a question.
+EVERY PROMPT MUST STAND ALONE. It is the first thing this person types into a brand-new chat, to an AI that knows nothing about them. So it has to carry its own context: what operation or equipment they are talking about, and where they are. A bare symptom with no subject and no place — "the oil is running hot and the cycles got slow, who can check it?" — is a fragment of a conversation, not a prompt anyone would ever send cold. Before you write each line, ask yourself: if this arrived with no prior messages, would the reader know what machine and what city we are talking about? If not, it is wrong. Name the thing. Name the place.
+
+1. Write sentences, not keywords. This is a chat box, not a search box: "Servicio hidráulico en sitio fin de semana" is a Google query, and nobody types it into ChatGPT. Every prompt is at least one complete sentence; many are two or three. Vary the length within that range, but never drop to a bare keyword string.
+2. Vary the shape: questions, statements of need, "who does X", "how much does X cost", "is X worth it", "I need someone who can...". Not every line should be a question — but every line must be something a person would send.
 3. Ground them in the real world. Where it fits the category, name the place — the city, the region, a nearby city, or "near me" / "cerca de mí". Name real equipment, brands, quantities, timeframes and constraints from the brief. Specificity is what makes a prompt point somewhere.
 4. Situational detail is good; stacked search filters are not. Don't chain three or more requirements into one query the way a spec sheet would ("certified, 24-hour, bilingual, ISO-compliant supplier in X with financing"). Real people describe their situation, then ask one thing.
 5. NEVER include any fact a searcher could not know before finding the company: years in business, employee count, revenue, awards, review counts, client names, certifications the buyer wouldn't think to ask about, or founder history. A prompt like "What is the company in Toluca with 38 years of experience?" is nonsense — nobody searches that way.
 6. No marketing or vendor language. No "soluciones integrales", "líder en", "world-class", "trusted provider". If it sounds like the company wrote it, it is wrong.
 7. Do not invent facts. Only use places, brands, competitors, problems and roles that appear in the brief.
 8. No two prompts should be paraphrases of each other. Different intent, different phrasing, different length.
+9. A good answer to your prompt must be FORCED to name specific companies. If an engine could fully answer it with generic advice ("contact a supplier and ask for a quote", "check the thermostat first"), the prompt tests nothing — it produces an answer with no brands in it at all, which is worthless for this audit. Ask "who", "where can I get", "which company", "what are my options", "is X or Y better" — not "how do I quote this" or "who handles that".
+10. The brief is BACKGROUND, not a script. Never quote or transcribe its wording. In particular: never open with a job-title label ("As the maintenance manager…", "Como responsable de mantenimiento…") — a real person introduces themselves with substance ("Soy responsable de mantenimiento en una planta de inyección en Toluca"), or not at all. And never narrate internal company process ("I'm raising the purchase order and they asked me to confirm…") — that is workflow only a colleague would follow.
+11. Never use a demonstrative with nothing to point at. "ese inventario", "eso", "el sistema", "la máquina", "the equipment" — with no antecedent, the reader has no idea what you mean, because there is no earlier message. Name the actual thing every time.
 
 ${languageInstruction}
 
@@ -314,6 +330,108 @@ BAD — never write anything like these. The parenthetical says why, and must no
 ${examplesBad}
 
 Now write exactly ${perCategory} ${cat.key} prompts. Output only the prompt lines, nothing else.`;
+}
+
+// ── Stage 3: cold validation ──
+// Three rounds of tightening the generation instructions produced three new flavours of the same
+// failure (keyword fragments, floating symptoms, internal-process narration), because instructions
+// can only pre-empt failure modes already imagined. This pass verifies instead: it re-reads every
+// candidate WITHOUT the brief, so it judges each line the way an engine receiving it cold would,
+// and rewrites or drops whatever fails. Deliberately blind — a validator holding the brief would
+// fill in the missing context itself and wave the prompt through.
+
+const VALIDATION_SCHEMA = {
+  type: 'object',
+  properties: {
+    prompts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          index: { type: 'integer' },
+          verdict: { type: 'string', enum: ['keep', 'rewrite', 'drop'] },
+          text: { type: 'string' },
+          reason: { type: 'string' }
+        },
+        required: ['index', 'verdict', 'text', 'reason'],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ['prompts'],
+  additionalProperties: false
+};
+
+function buildValidationPrompt(candidates, company) {
+  const numbered = candidates.map((c, i) => `${i}. ${c}`).join('\n');
+  return `Below are candidate AI-search prompts written for a visibility audit of "${company}". They will be sent to Claude, ChatGPT and Gemini exactly as written, each one alone in a brand-new conversation with no other context.
+
+Judge each one strictly, using ONLY what the line itself says. You do not have the client's background material, and that is deliberate: you are standing in for an engine receiving this cold. If you find yourself guessing what the writer meant, the prompt has already failed.
+
+Four tests. A prompt must pass all four.
+
+1. SELF-SUFFICIENT. Reading only this line, is it clear what is being asked about? Any demonstrative with nothing to point at — "ese inventario", "eso", "el sistema", "la máquina", "the equipment", "that inventory" — fails, because there is no earlier message for it to refer to. A symptom with no named equipment fails.
+2. FORCES A RECOMMENDATION. Would a good answer HAVE to name specific companies, suppliers or brands? If the question can be fully answered with generic advice — "contact a supplier for a quote", "check the thermostat first", "here is how to request pricing" — it fails. An answer with no company in it teaches this audit nothing.
+3. A REAL PERSON WOULD SEND THIS COLD. Not a Google keyword string ("Servicio hidráulico en sitio fin de semana"). Not a message to a colleague. Not internal workflow narration ("I'm raising the purchase order and they asked me to confirm…"). Not a job title bolted on the front ("As the maintenance manager…", "Como responsable de mantenimiento…"). Also: would this person really be typing into a chat box at all? Someone whose line stopped minutes ago is on the phone, not here.
+4. CLEAN. Correct spelling, correct accents (Spanish especially — "hidraulico" must be "hidráulico"), starts with a capital letter, no stray numbering or quotes.
+
+For each prompt return:
+- verdict "keep" — passes all four. Return the text unchanged in "text".
+- verdict "rewrite" — the intent is worth keeping but the execution fails. Return the fixed version in "text": same language, same underlying intent, minimum necessary change. You may only use facts already present in the line — if the missing piece is a city or a machine you were never told, you cannot invent it, so drop instead.
+- verdict "drop" — unsalvageable, or a near-duplicate of an earlier prompt in this list. Return "" in "text".
+
+Give a short "reason" for every non-keep verdict. Be strict: dropping a weak prompt costs nothing, keeping one corrupts the audit.
+
+Candidates:
+${numbered}`;
+}
+
+async function validateCategory(apiKey, catKey, candidates, company) {
+  const raw = await callClaude(apiKey, {
+    prompt: buildValidationPrompt(candidates, company),
+    maxTokens: Math.min(16000, 4000 + candidates.length * 120),
+    effort: 'medium',
+    jsonSchema: VALIDATION_SCHEMA
+  });
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // A validator that returns junk must not silently discard a whole category — fall back to the
+    // unvalidated candidates rather than losing them.
+    return { kept: candidates, dropped: 0, rewritten: 0, validatorFailed: true };
+  }
+
+  const kept = [];
+  const judged = new Set();
+  let dropped = 0, rewritten = 0;
+  for (const v of (parsed.prompts || [])) {
+    // Verdicts are only honoured for indices that actually exist in the candidate list, and only
+    // once each. Without this, an entry the validator invented (or a stray duplicate) would be
+    // accepted as a prompt on the strength of its own "text" field.
+    const original = candidates[v.index];
+    if (typeof original !== 'string' || judged.has(v.index)) continue;
+    judged.add(v.index);
+
+    if (v.verdict === 'drop') { dropped++; continue; }
+    // On "keep" the original text is used, not the echoed copy — a keep verdict is permission to
+    // pass through unchanged, not licence to alter it. Only "rewrite" may supply new text, and it
+    // still has to survive the same formatting pass an original does.
+    const text = cleanPrompt(v.verdict === 'rewrite' ? (v.text || '') : original);
+    if (!text) { dropped++; continue; }
+    if (v.verdict === 'rewrite') rewritten++;
+    kept.push(text);
+  }
+
+  // A truncated or lazy response that judged only a handful of candidates would otherwise silently
+  // discard the rest. Treat that as a validator failure and fall back to the unvalidated set rather
+  // than throwing most of a category away.
+  if (judged.size < Math.ceil(candidates.length / 2)) {
+    return { kept: candidates, dropped: 0, rewritten: 0, validatorFailed: true };
+  }
+  // Anything the validator simply never mentioned has not passed, so it does not ship.
+  dropped += candidates.length - judged.size;
+  return { kept, dropped, rewritten, validatorFailed: false };
 }
 
 // ── Cleanup ──
@@ -419,8 +537,8 @@ export default async (request, context) => {
 
   const jobKey = slugify(company);
   const jobsStore = getStore('hieronymus-generate-jobs');
-  // Total is categories + 1 for the brief-extraction step.
-  const totalSteps = CATEGORIES.length + 1;
+  // One step for the brief, then a generate step and a validate step per category.
+  const totalSteps = CATEGORIES.length * 2 + 1;
   await jobsStore.setJSON(jobKey, { status: 'running', company, startedAt: new Date().toISOString(), completed: 0, total: totalSteps });
 
   try {
@@ -431,8 +549,11 @@ export default async (request, context) => {
     const languages = Array.isArray(body.languages) && body.languages.length ? body.languages : ['English'];
     const engines = Array.isArray(body.engines) && body.engines.length ? body.engines : ['claude', 'chatgpt', 'gemini'];
     const perCategory = Math.max(1, Math.round(count / CATEGORIES.length));
-    // Ask for a small surplus so cleaning and de-duplication don't leave a category short.
-    const requestPerCategory = Math.ceil(perCategory * 1.25) + 2;
+    // Generate a real surplus, because the cold-validation pass below is expected to reject a
+    // meaningful share. Whatever survives is what ships: the count is NOT padded back up to the
+    // requested number. A short set of prompts that force an engine to name companies is worth
+    // more than a full set where a third of the rows come back with no brands in them.
+    const requestPerCategory = Math.ceil(perCategory * 1.6) + 2;
 
     const intakeStore = getStore('hieronymus-intake');
     const intakeRecord = await intakeStore.get(jobKey, { type: 'json' });
@@ -456,37 +577,65 @@ export default async (request, context) => {
     }
     await updateJob(jobsStore, jobKey, { completed: 1 });
 
-    // Stage 2 — one call per category, run concurrently. Sequential Opus calls for six steps
-    // risked running long inside the background function's window.
+    // Stages 2 and 3 — generate then cold-validate, one chain per category, all five chains run
+    // concurrently. Sequential Opus calls across eleven steps risked running long inside the
+    // background function's window.
     const catMaxTokens = Math.min(16000, 4000 + requestPerCategory * 70);
     let completed = 1;
-    const rawByCategory = await Promise.all(CATEGORIES.map(async (cat) => {
-      const text = await callClaude(apiKey, {
+    const perCategoryResults = await Promise.all(CATEGORIES.map(async (cat) => {
+      const raw = await callClaude(apiKey, {
         prompt: buildCategoryPrompt(cat, company, brief, requestPerCategory, languages),
         maxTokens: catMaxTokens,
         effort: 'medium'
       });
       completed += 1;
       await bumpProgress(jobsStore, jobKey, completed);
-      return text;
+
+      // Parse with a generous cap — the validator, not this step, decides the final count.
+      const candidates = parseCategoryOutput(raw, cat.key, requestPerCategory, new Set())
+        .map(l => l.replace(new RegExp('^' + cat.key + ':\\s*'), ''));
+      const result = await validateCategory(apiKey, cat.key, candidates, company);
+      completed += 1;
+      await bumpProgress(jobsStore, jobKey, completed);
+      return { cat, generated: candidates.length, ...result };
     }));
 
     // De-duplication is shared across categories so the same query can't appear twice under two
-    // labels, and trimming happens after cleaning so a rejected line doesn't cost a slot.
+    // labels. Each category contributes at most perCategory prompts, but contributes fewer without
+    // complaint when validation rejected that many.
     const seen = new Set();
     const lines = [];
-    CATEGORIES.forEach((cat, i) => {
-      const kept = parseCategoryOutput(rawByCategory[i], cat.key, perCategory, seen);
-      if (!kept.length) throw new Error(`No usable prompts came back for ${cat.key}.`);
-      lines.push(...kept);
+    const stats = { requested: count, generated: 0, dropped: 0, rewritten: 0, validatorFailures: [], perCategory: {} };
+    perCategoryResults.forEach(({ cat, generated, kept, dropped, rewritten, validatorFailed }) => {
+      stats.generated += generated;
+      stats.dropped += dropped;
+      stats.rewritten += rewritten;
+      if (validatorFailed) stats.validatorFailures.push(cat.key);
+      let taken = 0;
+      for (const text of kept) {
+        if (taken >= perCategory) break;
+        const key = dedupeKey(text);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        lines.push(cat.key + ': ' + text);
+        taken++;
+      }
+      // A category can legitimately come back empty — everything it produced failed validation, or
+      // collided with an earlier category. That's recorded, not fatal: discarding eleven calls of
+      // work because one of five categories came up short would be worse than shipping four.
+      stats.perCategory[cat.key] = taken;
     });
+    stats.kept = lines.length;
+    if (!lines.length) throw new Error('No prompts survived validation — nothing usable was generated.');
 
     const promptsText = lines.join('\n');
     const promptsStore = getStore('hieronymus-prompts');
     // Written as a whole new record, which deliberately drops internalApprovedAt and approvedAt:
     // a regenerated set has never been reviewed, so it must go back through internal review before
     // the customer can see it. Do not carry either field forward from a previous record.
-    await promptsStore.setJSON(jobKey, { company, promptsText, generatedAt: new Date().toISOString(), languages, engines, brief });
+    // `stats` records what the validator rejected, so a set that lands well under the requested
+    // count is visibly a filtering result rather than a silent failure.
+    await promptsStore.setJSON(jobKey, { company, promptsText, generatedAt: new Date().toISOString(), languages, engines, brief, stats });
 
     await updateJob(jobsStore, jobKey, { status: 'done', finishedAt: new Date().toISOString() });
   } catch (err) {
