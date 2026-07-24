@@ -320,7 +320,7 @@ const T = {
   pwGateConfirm: { en: 'Confirm', es: 'Confirmar' },
   pwGateWrong: { en: 'Incorrect password.', es: 'Contraseña incorrecta.' },
   pwRunAuditTitle: { en: 'Run audit', es: 'Ejecutar auditoría' },
-  pwRunAuditMsg: { en: (c) => `This starts a full audit run for <b>${c}</b> across every configured engine. Enter your password to confirm.`, es: (c) => `Esto inicia una auditoría completa para <b>${c}</b> en todos los motores configurados. Ingresa tu contraseña para confirmar.` },
+  pwRunAuditMsg: { en: (c) => `This starts a full audit run for <b>${c}</b> across every configured engine. <b>The existing diagnosis for this customer will be deleted and replaced by this run.</b> Monitoring history is not affected. Enter your password to confirm.`, es: (c) => `Esto inicia una auditoría completa para <b>${c}</b> en todos los motores configurados. <b>El diagnóstico actual de este cliente se eliminará y será reemplazado por esta ejecución.</b> El historial de monitoreo no se ve afectado. Ingresa tu contraseña para confirmar.` },
   pwGenTitle: { en: 'Generate prompts', es: 'Generar prompts' },
   pwGenMsg: { en: (c) => `This will (re)generate the audit prompts for <b>${c}</b>, replacing the current set. Enter your password to confirm.`, es: (c) => `Esto (re)generará los prompts de auditoría para <b>${c}</b>, reemplazando los actuales. Ingresa tu contraseña para confirmar.` },
   pwMonTitle: { en: 'Enable monitoring', es: 'Activar monitoreo' },

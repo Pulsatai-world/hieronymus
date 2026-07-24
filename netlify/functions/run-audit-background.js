@@ -430,6 +430,29 @@ export default async (request, context) => {
     const totalUnits = (prompts.length - startIndex) * activeEngines.length;
     await updateJob(jobsStore, jobKey, { total: totalUnits });
 
+    // A fresh diagnostic run REPLACES the previous diagnosis instead of accumulating beside it.
+    // Without this, re-running after regenerating prompts changes nothing on screen: the diagnostic
+    // dashboard pins to the earliest snapshot_date it can find (BASELINE_DATE = DATES[0]), so the
+    // old prompt set would keep being displayed forever. Clearing first also means the new run is
+    // the only diagnostic snapshot, so it becomes that baseline.
+    //
+    // Two guards carry real weight:
+    //  - Monitoring rows are never touched. They are the trend history the monitoring dashboard is
+    //    built from, and wiping them would destroy months of snapshots. Rows with no run_type are
+    //    treated as diagnostic, matching how the diagnostic dashboard itself filters them.
+    //  - Skipped entirely on a resume (startIndex > 0). Those rows were written by this same run
+    //    minutes ago; deleting them would throw away exactly the work being resumed.
+    let clearedRows = 0;
+    if (runType === 'diagnostic' && startIndex === 0) {
+      const rowsStore = getStore('hieronymus-results-rows');
+      const { blobs } = await rowsStore.list();
+      const existing = await Promise.all(blobs.map(async b => ({ key: b.key, data: await rowsStore.get(b.key, { type: 'json' }) })));
+      const stale = existing.filter(r => r.data && r.data.brand === company && r.data.run_type !== 'monitoring');
+      await Promise.all(stale.map(r => rowsStore.delete(r.key)));
+      clearedRows = stale.length;
+      await updateJob(jobsStore, jobKey, { clearedRows });
+    }
+
     let completed = 0, citedCount = 0;
 
     async function processPrompt(rawPrompt, index) {
