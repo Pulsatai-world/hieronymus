@@ -437,8 +437,8 @@ const T = {
   auditUnits: { en: (c, tt) => `${c} of ${tt} answers graded`, es: (c, tt) => `${c} de ${tt} respuestas evaluadas` },
   auditPrompts: { en: (d, tt) => `prompt ${d} of ${tt}`, es: (d, tt) => `prompt ${d} de ${tt}` },
   auditCited: { en: (n) => `${n} recommended so far`, es: (n) => `${n} recomendados hasta ahora` },
-  stalledLabel: { en: 'Stalled', es: 'Atascada' },
-  stalledDetail: { en: (m) => `No progress for ${m}. Background runs can be cut off by the platform's execution limit — resume picks up where it stopped instead of paying for the whole run again.`, es: (m) => `Sin avance por ${m}. Las ejecuciones en segundo plano pueden cortarse por el límite de la plataforma — reanudar continúa donde se detuvo en vez de pagar toda la ejecución otra vez.` },
+  stalledLabel: { en: 'No progress', es: 'Sin avance' },
+  stalledDetail: { en: (m) => `Still shown as running, but the counter hasn't moved in ${m}. It may simply be slow — engine calls are batched, so quiet stretches are normal. If it stays like this, the platform's execution limit may have cut the run off, in which case resuming continues from where it stopped instead of paying for the whole set again.`, es: (m) => `Sigue marcada como en proceso, pero el contador no avanza desde hace ${m}. Puede que solo vaya lenta — las llamadas a los motores van por lotes, así que los periodos sin avance son normales. Si se queda así, puede que el límite de ejecución de la plataforma haya cortado la ejecución; en ese caso reanudar continúa donde se detuvo en vez de pagar todo el conjunto otra vez.` },
   resumeBtn: { en: (n) => `Resume from prompt ${n}`, es: (n) => `Reanudar desde el prompt ${n}` },
   resumeConfirm: { en: (n, c) => `This continues the audit for <b>${c}</b> from prompt ${n}, keeping everything already graded. Enter your password to confirm.`, es: (n, c) => `Esto continúa la auditoría de <b>${c}</b> desde el prompt ${n}, conservando todo lo ya evaluado. Ingresa tu contraseña para confirmar.` },
   resumeTitle: { en: 'Resume audit', es: 'Reanudar auditoría' },
@@ -812,7 +812,10 @@ function trackProgress(company, completed) {
   }
   return Date.now() - progressWatch.since;
 }
-const STALL_AFTER_MS = 90 * 1000;
+// Deliberately generous: work happens 12 prompts at a time, so `completed` advances in bursts and
+// a quiet stretch is normal. Anything tighter cries stalled at a healthy run — which is exactly the
+// false alarm the previous `!data.total` check produced.
+const STALL_AFTER_MS = 4 * 60 * 1000;
 
 // Exact resume point: units are prompt×engine, so the prompt index is derived from the engine count
 // the run recorded, offset by the index it already started from. Returns null when the job record
@@ -880,7 +883,7 @@ async function pollJobStatus(company, opts) {
 
       block.innerHTML =
         `<div class="row" style="align-items:center;">` +
-          `<span class="badge ${stalled ? 'badge-error' : 'badge-partial'}">${stalled ? t('stalledLabel') : t('runningLabel')}</span>` +
+          `<span class="badge badge-partial">${stalled ? t('stalledLabel') : t('runningLabel')}</span>` +
           `<span class="field-hint">${facts}</span>` +
           (total ? `<span class="field-hint" style="margin-left:auto;font-weight:700;">${pct}%</span>` : '') +
         `</div>` +
