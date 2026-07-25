@@ -807,6 +807,7 @@ select {
     <span class="logo-divider"></span>
     <div class="logo-sub">GEO Audit System</div>
   </div>
+  <a class="btn-ghost" id="intake-back-link" href="#" style="display:none;margin-left:auto;margin-right:10px;"></a>
   <div style="display:flex;align-items:center;gap:10px;">
     <a href="javascript:void(0)" onclick="window.saveProgress();return false;" id="save-progress-btn" style="text-decoration:none;font-family:var(--font-body);font-size:12px;font-weight:500;color:var(--accent);background:var(--accent-light);border:1px solid rgba(109,79,224,0.2);border-radius:999px;padding:6px 12px;-webkit-tap-highlight-color:transparent;" data-en="Save" data-es="Guardar">Save</a>
     <div class="lang-toggle">
@@ -1663,13 +1664,17 @@ async function restoreSavedProgress() {
 // describing a business the form no longer matches. Enforced server-side too — this only makes the
 // state visible instead of letting someone fill the form out again and hit a rejection on save.
 let intakeFrozen = false;
+// The server decides, and says so on the read — the page no longer infers the lock from a second
+// endpoint, so the form cannot show itself as editable while a save would be refused.
+let intakeLockReason = null;
 async function checkIntakeFrozen() {
   if (!clientCompany || isStaffBypass) return false;
   try {
-    const res = await fetch(await window.apiQuery('/api/prompts', { company: clientCompany }));
+    const res = await fetch(await window.intakeQuery(clientCompany));
     if (!res.ok) return false;
     const rec = await res.json();
-    return !!(rec && rec.approvedAt);
+    intakeLockReason = rec && rec.lockedBy ? rec.lockedBy : null;
+    return !!(rec && rec.locked);
   } catch { return false; }
 }
 
@@ -1686,9 +1691,13 @@ function applyIntakeFrozen() {
     const banner = document.createElement('div');
     banner.id = 'intake-frozen-banner';
     banner.style.cssText = 'background:var(--violet-100,#f4f2fb);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:20px;font-size:13px;line-height:1.6;';
-    banner.textContent = lang === 'es'
-      ? 'Tus respuestas están bloqueadas porque ya aprobaste los prompts generados a partir de ellas. Puedes consultarlas, pero no editarlas. Si algo necesita cambiar, escríbenos.'
-      : 'Your answers are locked because you have already approved the prompts generated from them. You can review them, but not edit them. If something needs to change, get in touch.';
+    banner.textContent = intakeLockReason === 'audit-run'
+      ? (lang === 'es'
+        ? 'Tus respuestas están bloqueadas porque ya se ejecutó una auditoría con ellas. Puedes consultarlas, pero no editarlas. Si algo necesita cambiar, escríbenos.'
+        : 'Your answers are locked because an audit has already run against them. You can review them, but not edit them. If something needs to change, get in touch.')
+      : (lang === 'es'
+        ? 'Tus respuestas están bloqueadas porque ya aprobaste los prompts generados a partir de ellas. Puedes consultarlas, pero no editarlas. Si algo necesita cambiar, escríbenos.'
+        : 'Your answers are locked because you have already approved the prompts generated from them. You can review them, but not edit them. If something needs to change, get in touch.');
     host.insertBefore(banner, host.firstChild);
   }
 }
@@ -1707,6 +1716,14 @@ function showApp() {
       <p style="color:var(--ink-60); line-height:1.6;">${lang === 'es' ? 'Tu cuenta tiene acceso de solo lectura y no puede enviar ni editar el formulario de admisión. Contacta a un administrador si necesitas hacer cambios.' : "Your account has view-only access and can't submit or edit the intake form. Contact an admin if you need to make changes."}</p>
     </div>`;
     return;
+  }
+  // The form was a dead end: no way back to the portal, and an inert logo.
+  if (window.wireLogoHome) window.wireLogoHome(clientCompany);
+  const backLink = document.getElementById('intake-back-link');
+  if (backLink && window.homeHref) {
+    backLink.href = window.homeHref(clientCompany);
+    backLink.textContent = lang === 'es' ? '← Mi portal' : '← My portal';
+    backLink.style.display = '';
   }
   document.getElementById('app-content').style.display = '';
   const companyInput = document.getElementById('company');

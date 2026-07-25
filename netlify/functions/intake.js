@@ -48,6 +48,27 @@ async function isStaff(username, password) {
   return verifyPassword(password, record.passwordHash);
 }
 
+// Two events settle the answers: the customer approving the prompt set generated from them, and an
+// audit having actually run against those prompts. After either, editing the intake would leave the
+// prompts — and any results already collected — describing a business the form no longer matches.
+async function intakeLock(company) {
+  const key = slugify(company);
+  const prompts = await getStore('hieronymus-prompts').get(key, { type: 'json' });
+  if (prompts && prompts.approvedAt) return { locked: true, reason: 'prompts-approved', at: prompts.approvedAt };
+
+  // Results are the ground truth for "an audit has run" — a job record can be cleared, rows cannot.
+  const rowsStore = getStore('hieronymus-results-rows');
+  const { blobs } = await rowsStore.list();
+  const want = String(company || '').trim().toLowerCase();
+  for (const b of blobs) {
+    const row = await rowsStore.get(b.key, { type: 'json' });
+    if (row && String(row.brand || '').toLowerCase() === want) {
+      return { locked: true, reason: 'audit-run', at: row.snapshot_date || null };
+    }
+  }
+  return { locked: false, reason: null, at: null };
+}
+
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
     status,
@@ -84,12 +105,14 @@ export default async (request, context) => {
     // convention isBlockedViewer relies on) and are still allowed through, so corrections remain
     // possible on our side.
     if (body.requestingUsername) {
-      const promptsRecord = await getStore('hieronymus-prompts').get(key, { type: 'json' });
-      if (promptsRecord && promptsRecord.approvedAt) {
+      const lock = await intakeLock(company);
+      if (lock.locked) {
         return json({
-          error: 'These answers are locked because the prompts generated from them have already been approved. Contact us if something needs to change.',
-          lockedBy: 'prompts-approved',
-          approvedAt: promptsRecord.approvedAt
+          error: lock.reason === 'audit-run'
+            ? 'These answers are locked because an audit has already run against them. Contact us if something needs to change.'
+            : 'These answers are locked because the prompts generated from them have already been approved. Contact us if something needs to change.',
+          lockedBy: lock.reason,
+          lockedAt: lock.at
         }, 409);
       }
     }
@@ -108,7 +131,9 @@ export default async (request, context) => {
       if (!staff && !member) return json({ error: 'Not authorised to read this intake' }, 403);
       const data = await store.get(slugify(companyParam), { type: 'json' });
       if (!data) return json({ error: 'Not found' }, 404);
-      return json(data, 200);
+      // Reported here so the form and the save guard can never disagree about whether it is editable.
+      const lock = await intakeLock(companyParam);
+      return json({ ...data, locked: lock.locked, lockedBy: lock.reason, lockedAt: lock.at }, 200);
     }
 
     // The full list names every customer, so it is staff-only.

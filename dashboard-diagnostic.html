@@ -393,6 +393,7 @@ function setLang(newLang) {
   lang = newLang;
   localStorage.setItem('hieronymus_lang', lang);
   applyStaticLang();
+if (window.wireLogoHome) window.wireLogoHome(typeof company !== 'undefined' ? company : '');
   if (company) buildForCompany();
 }
 

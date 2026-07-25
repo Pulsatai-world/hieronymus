@@ -67,4 +67,32 @@
     });
     return endpoint + (p.toString() ? '?' + p.toString() : '');
   };
+
+  // "Home" differs by who is looking: staff belong in the internal portal, a customer in their own.
+  // Client-facing pages had no route home at all — the logo was inert and the intake form had no way
+  // back — so a customer who opened a link was stranded on it.
+  window.homeHref = function (company) {
+    try {
+      if (localStorage.getItem('hieronymus_internal_auth') === 'true') return '/portal.html';
+    } catch (e) { /* private mode */ }
+    let user = '';
+    for (const k of ['geo_portal_username', 'geo_review_username', 'geo_intake_username']) {
+      try { user = user || sessionStorage.getItem(k) || ''; } catch (e) { /* ignore */ }
+    }
+    if (!user && company) {
+      user = String(company).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+    }
+    return user ? '/client-portal.html?username=' + encodeURIComponent(user) : '/client-portal.html';
+  };
+
+  // Makes the logo a route home on every page that includes this script.
+  window.wireLogoHome = function (company) {
+    document.querySelectorAll('.logo').forEach(el => {
+      if (el.dataset.homeWired) return;
+      el.dataset.homeWired = '1';
+      el.style.cursor = 'pointer';
+      el.title = 'Akore Labs — Home';
+      el.addEventListener('click', () => { location.href = window.homeHref(company); });
+    });
+  };
 })();
