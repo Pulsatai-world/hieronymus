@@ -23,7 +23,7 @@
     if (readLocal('hieronymus_internal_auth') === 'true') {
       const staffUser = readLocal('hieronymus_internal_user');
       let staffPass = readSession(['geo_staff_password']);
-      if (staffUser && !staffPass && typeof window.requirePassword === 'function') {
+      if (staffUser && !staffPass && window.__resultsAuthNoPrompt !== true && typeof window.requirePassword === 'function') {
         await window.requirePassword({
           title: 'Confirm your password',
           message: 'Your session needs your password again to load audit results.',
@@ -53,5 +53,18 @@
   window.intakeQuery = async function (company) {
     const url = await window.resultsQuery(company);
     return url.replace('/api/results?', '/api/intake?');
+  };
+
+  // Generic form: append whatever credentials this session has to any scoped endpoint. `prompt:false`
+  // suppresses the just-in-time password dialog, which matters for pollers — a dialog every three
+  // seconds would be unusable.
+  window.apiQuery = async function (endpoint, params, opts) {
+    const p = new URLSearchParams(params || {});
+    const base = await window.resultsQuery('');
+    const creds = new URLSearchParams(base.split('?')[1] || '');
+    ['staffUsername', 'staffPassword', 'username', 'password'].forEach(k => {
+      if (creds.get(k)) p.set(k, creds.get(k));
+    });
+    return endpoint + (p.toString() ? '?' + p.toString() : '');
   };
 })();

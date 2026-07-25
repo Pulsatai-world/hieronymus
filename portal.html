@@ -816,7 +816,7 @@ async function pollJobStatus(company, opts = {}) {
   if (activePolls[company]) clearTimeout(activePolls[company]);
 
   try {
-    const res = await fetch('/api/audit-job?company=' + encodeURIComponent(company));
+    const res = await fetch(await window.apiQuery('/api/audit-job', { company }));
     const data = await res.json();
 
     // Netlify Blobs can occasionally return a read shortly after a write with a field missing
@@ -976,7 +976,7 @@ async function renderCustomerKeysList() {
   list.innerHTML = t('loading') || 'Loading…';
   openResetKeyEngine = '';
   try {
-    const res = await fetch('/api/customer-keys?company=' + encodeURIComponent(manageUsersCompany));
+    const res = await fetch(await window.apiQuery('/api/customer-keys', { company: manageUsersCompany }));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const status = await res.json();
     list.innerHTML = ['claude', 'chatgpt', 'gemini'].map(engine => `

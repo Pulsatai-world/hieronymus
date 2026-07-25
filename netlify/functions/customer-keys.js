@@ -1,4 +1,21 @@
 import { getStore } from '@netlify/blobs';
+import crypto from 'node:crypto';
+
+// which engines a customer has keys configured for is customer-identifying, and every caller of this endpoint is an internal page — so it is
+// staff-only rather than open. Same check the other scoped endpoints use.
+function verifyPassword(password, stored) {
+  const [salt, hash] = String(stored || '').split(':');
+  if (!salt || !hash) return false;
+  const check = crypto.scryptSync(password, salt, 64).toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'));
+}
+async function isStaff(username, password) {
+  if (!username || !password) return false;
+  const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
+  if (!record) return false;
+  return verifyPassword(password, record.passwordHash);
+}
+
 
 // Raw key values are never returned by this endpoint under any query, ever — only ever read
 // internally (server-to-server, via getStore() directly) by run-audit-background.js. Any GET
@@ -56,6 +73,9 @@ export default async (request, context) => {
   }
 
   if (request.method === 'GET') {
+    if (!await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'))) {
+      return json({ error: 'Staff credentials required' }, 403);
+    }
     const companyParam = url.searchParams.get('company');
     if (!companyParam) return json({ error: 'Missing company param' }, 400);
     const data = await store.get(slugify(companyParam), { type: 'json' });

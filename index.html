@@ -556,6 +556,8 @@ async function populateCompanyPicker(selected) {
 }
 
 let jobPollTimer = null;
+// Pollers must never open a password dialog on a timer.
+window.__resultsAuthNoPrompt = false;
 let currentPromptCount = 0;
 let lastRunEngines = null;
 let currentCompany = '';
@@ -842,7 +844,7 @@ async function clearResults() {
     if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
     // Also clear the displayed audit status so it doesn't keep showing a "Last run" summary
     // for data that no longer exists.
-    await fetch('/api/audit-job?company=' + encodeURIComponent(currentCompany), { method: 'DELETE' }).catch(() => {});
+    await fetch(await window.apiQuery('/api/audit-job', { company: currentCompany }), { method: 'DELETE' }).catch(() => {});
     await loadCompany(currentCompany);
   } catch (err) {
     alert(t('failedToClearResults') + err.message);
@@ -913,13 +915,14 @@ function resumePromptIndex(data) {
 
 async function pollJobStatus(company, opts) {
   opts = opts || {};
+  window.__resultsAuthNoPrompt = true;
   if (jobPollTimer) clearTimeout(jobPollTimer);
   const block = document.getElementById('job-status-block');
   const runBtn = document.getElementById('run-audit-btn');
   const cancelBtn = document.getElementById('cancel-audit-btn');
   if (!block) return;
   try {
-    const res = await fetch('/api/audit-job?company=' + encodeURIComponent(company));
+    const res = await fetch(await window.apiQuery('/api/audit-job', { company }));
     const data = await res.json();
     // Netlify Blobs can occasionally return a read shortly after a write with a field missing
     // (eventual consistency, not a real state change) — the 'status' key has been the one that
@@ -1044,7 +1047,7 @@ async function cancelAudit() {
   if (!currentCompany) return;
   if (!confirm(t('cancelConfirm'))) return;
   try {
-    await fetch('/api/audit-job?company=' + encodeURIComponent(currentCompany), { method: 'DELETE' });
+    await fetch(await window.apiQuery('/api/audit-job', { company: currentCompany }), { method: 'DELETE' });
     // Deliberately clearing the run means we are no longer waiting on one — without this the status
     // block would flip to "hasn't started" and offer to re-check a run you just dismissed.
     clearAuditPending(currentCompany);
@@ -1084,7 +1087,7 @@ async function runAudit() {
   // configured/not-configured booleans only — never the key values themselves.
   let configured = {};
   try {
-    const res = await fetch('/api/customer-keys?company=' + encodeURIComponent(currentCompany));
+    const res = await fetch(await window.apiQuery('/api/customer-keys', { company: currentCompany }));
     if (res.ok) configured = await res.json();
   } catch { /* fall through: everything renders selectable and the server filters anyway */ }
 
@@ -1214,7 +1217,7 @@ async function resumeAudit(startIndex) {
   // The in-flight guard rejects a second run while status is still 'running', so the stale record
   // is cleared first — the run it describes is already dead.
   try {
-    await fetch('/api/audit-job?company=' + encodeURIComponent(currentCompany), { method: 'DELETE' });
+    await fetch(await window.apiQuery('/api/audit-job', { company: currentCompany }), { method: 'DELETE' });
   } catch { /* if this fails the POST below will surface the 409 */ }
   markAuditPending(currentCompany);
   const statusBlock = document.getElementById('job-status-block');
@@ -1284,7 +1287,7 @@ async function openGenModal() {
   // If a generation is already in flight for this customer (e.g. the modal was closed and
   // reopened mid-run), reflect that instead of letting them fire a conflicting second one.
   try {
-    const jobRes = await fetch('/api/generate-job?company=' + encodeURIComponent(currentCompany));
+    const jobRes = await fetch(await window.apiQuery('/api/generate-job', { company: currentCompany }));
     const jobData = await jobRes.json();
     if (jobData.status === 'running') {
       document.getElementById('gen-confirm-btn').disabled = true;
@@ -1314,7 +1317,7 @@ async function confirmGenerate() {
   // Guard against starting a second generation while one is already in flight for this
   // customer — overlapping runs would race on the same stored prompts record.
   try {
-    const statusRes = await fetch('/api/generate-job?company=' + encodeURIComponent(company));
+    const statusRes = await fetch(await window.apiQuery('/api/generate-job', { company }));
     const statusData = await statusRes.json().catch(() => ({}));
     if (statusData.status === 'running') { alert(t('alreadyGenerating')); return; }
   } catch { /* if the status check itself fails, fall through and let the POST below surface any real problem */ }
@@ -1337,11 +1340,12 @@ async function confirmGenerate() {
 
 async function pollGenerateJob(company, opts) {
   opts = opts || {};
+  window.__resultsAuthNoPrompt = true;
   if (genPollTimer) clearTimeout(genPollTimer);
   const confirmBtn = document.getElementById('gen-confirm-btn');
   if (!confirmBtn) return;
   try {
-    const res = await fetch('/api/generate-job?company=' + encodeURIComponent(company));
+    const res = await fetch(await window.apiQuery('/api/generate-job', { company }));
     const data = await res.json();
     if (data.status === 'running') {
       const pct = data.total ? Math.round((data.completed / data.total) * 100) : 0;
