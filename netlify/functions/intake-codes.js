@@ -180,9 +180,16 @@ export default async (request, context) => {
       if (!group || !member || !password || !verifyPassword(password, member.passwordHash)) {
         return json({ error: 'Invalid username or password' }, 401);
       }
+      // This trimmed payload is the ONLY thing client-portal.html sees on a real customer login, so
+      // anything that page renders from must be here. The dashboard release flags were missing, which
+      // meant a released dashboard stayed hidden for the customer while looking fine through the staff
+      // bypass (that path reads the full record instead).
       return json({
         username: member.username, role: member.role, defaultLanguage: member.defaultLanguage || null,
-        company: group.company, submittedAt: group.submittedAt, monitoringEnabled: group.monitoringEnabled
+        company: group.company, submittedAt: group.submittedAt,
+        monitoringEnabled: !!group.monitoringEnabled,
+        diagnosisReleased: !!group.diagnosisReleased,
+        monitoringReleased: !!group.monitoringReleased
       }, 200);
     }
 

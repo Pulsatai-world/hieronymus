@@ -201,7 +201,6 @@
     <a href="/portal.html" id="link-back" data-t="backNav">&larr; Back</a>
     <div class="headnav-right">
       <div class="lang-toggle"><button class="lang-btn" id="lang-btn-en" onclick="setLang('en')">EN</button><button class="lang-btn" id="lang-btn-es" onclick="setLang('es')">ES</button></div>
-      <a href="/dashboard-monitoring.html" id="link-monitoring" data-t="monitoringNav">Monitoring &rarr;</a>
     </div>
   </div>
   <div class="eyebrow" data-t="eyebrow">Akore Labs &middot; GEO</div>
@@ -228,7 +227,6 @@
 <script>
 // ── i18n ──
 const T = {
-  monitoringNav: { en: 'Monitoring →', es: 'Monitoreo →' },
   backNav: { en: '← Back', es: '← Volver' },
   eyebrow: { en: 'Akore Labs · GEO', es: 'Akore Labs · GEO' },
   h1: { en: 'Diagnostic · Starting point', es: 'Diagnóstico · Punto de partida' },
@@ -662,7 +660,6 @@ function makeMulti(mountId, options, placeholder, onChange) {
 }
 
 function buildForCompany() {
-  document.getElementById('link-monitoring').href = '/dashboard-monitoring.html?company=' + encodeURIComponent(company);
   // Back button: internal staff return to that customer's detail page; clients to their own portal.
   document.getElementById('link-back').href = (localStorage.getItem('hieronymus_internal_auth') === 'true'
     ? '/index.html?company=' : '/client-portal.html?company=') + encodeURIComponent(company);
