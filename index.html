@@ -397,6 +397,7 @@ const T = {
   runs: { en: 'runs', es: 'ejecuciones' },
   exportCustomerBtn: { en: '⬇ Export This Customer (CSV)', es: '⬇ Exportar Este Cliente (CSV)' },
   clearResultsBtn: { en: 'Clear Results', es: 'Borrar Resultados' },
+  pwClearResultsTitle: { en: 'Delete audit results', es: 'Eliminar resultados de auditoría' },
   confirmClearResults: { en: (c, n) => `Permanently delete all ${n} audit result rows for ${c}? This cannot be undone — the results table and both dashboards will go back to empty for this customer. Prompts are not affected; use Regenerate Prompts separately if you want a fresh prompt set.`, es: (c, n) => `¿Eliminar permanentemente las ${n} filas de resultados de auditoría de ${c}? Esto no se puede deshacer — la tabla de resultados y ambos tableros quedarán vacíos para este cliente. Los prompts no se ven afectados; usa Regenerar Prompts por separado si quieres un nuevo conjunto de prompts.` },
   failedToClearResults: { en: 'Failed to clear results: ', es: 'Error al borrar los resultados: ' },
   reenterPasswordPrompt: { en: 'Re-enter your admin password to confirm:', es: 'Vuelve a ingresar tu contraseña de administrador para confirmar:' },
@@ -773,7 +774,9 @@ function getStaffPassword() {
 
 async function clearResults() {
   if (!currentCompany) return;
-  if (!confirm(t('confirmClearResults', currentCompany, currentRows.length))) return;
+  // Password-gated like every other destructive action here: this wipes the dataset both dashboards
+  // are built from, and a plain confirm() is one stray click away from doing it.
+  if (!(await confirmWithPassword(t('pwClearResultsTitle'), t('confirmClearResults', esc(currentCompany), currentRows.length)))) return;
   try {
     const params = new URLSearchParams({
       company: currentCompany,
