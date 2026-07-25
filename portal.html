@@ -316,9 +316,9 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
   </div>
 </div>
 
-<div class="modal-backdrop" id="manage-users-modal">
+<div class="modal-backdrop" id="customer-settings-modal">
   <div class="modal-box">
-    <div class="card-title" id="manage-users-title">Manage Users</div>
+    <div class="card-title" id="customer-settings-title">Customer Settings</div>
     <div class="field-hint" style="margin-bottom:14px;" data-t="manageUsersHint">Anyone in this list can log into this customer's Client Portal, Intake form, and Prompt Review with their own username/password. "Viewer" accounts can view only — they can't approve prompts, edit intake, or change account settings.</div>
     <div id="members-list" style="margin-bottom:16px;"></div>
 
@@ -349,8 +349,14 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
       </div>
     </div>
 
+    <div style="border-top:1px solid var(--border); margin-top:22px; padding-top:16px;">
+      <div class="card-title" style="font-size:15px;" data-t="apiSectionTitle">API Keys</div>
+      <div class="field-hint" style="margin-bottom:12px;" data-t="apiSectionHint">Key values are never shown once saved. Resetting a key requires your staff password.</div>
+      <div id="customer-keys-list"></div>
+    </div>
+
     <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
-      <button class="btn btn-ghost" onclick="closeManageUsersModal()" data-t="closeBtn">Close</button>
+      <button class="btn btn-ghost" onclick="closeCustomerSettingsModal()" data-t="closeBtn">Close</button>
     </div>
     <div class="error-box" id="member-error-box"></div>
   </div>
@@ -450,6 +456,19 @@ const T = {
   monitoringLabel: { en: 'Monitoring', es: 'Monitoreo' },
   adminOnlyTitle: { en: 'Admin only', es: 'Solo administradores' },
   manageUsersBtn: { en: 'Manage Users', es: 'Gestionar Usuarios' },
+  customerSettingsBtn: { en: 'Customer Settings', es: 'Configuración del Cliente' },
+  apiSectionTitle: { en: 'API Keys', es: 'Claves de API' },
+  apiSectionHint: { en: 'Key values are never shown once saved. Resetting a key requires your staff password.', es: 'Los valores de las claves nunca se muestran una vez guardados. Restablecer una clave requiere tu contraseña de personal.' },
+  configuredLabel: { en: 'Configured', es: 'Configurada' },
+  notConfiguredLabel: { en: 'Not configured', es: 'No configurada' },
+  resetKeyBtn: { en: 'Reset API Key', es: 'Restablecer Clave API' },
+  pwResetKeyTitle: { en: 'Reset API Key', es: 'Restablecer Clave API' },
+  pwResetKeyMsg: { en: (engine, c) => `Reset the ${engine} API key for <b>${c}</b>? Enter your password to confirm.`, es: (engine, c) => `¿Restablecer la clave API de ${engine} para <b>${c}</b>? Ingresa tu contraseña para confirmar.` },
+  newKeyLabel: { en: 'New key', es: 'Nueva clave' },
+  saveKeyBtn: { en: 'Save', es: 'Guardar' },
+  failedSaveKey: { en: 'Failed to save key: ', es: 'Error al guardar la clave: ' },
+  failedLoadKeys: { en: 'Failed to load API key status.', es: 'Error al cargar el estado de las claves API.' },
+  fillNewKey: { en: 'Enter a key value.', es: 'Ingresa un valor para la clave.' },
   manageUsersHint: { en: "Anyone in this list can log into this customer's Client Portal, Intake form, and Prompt Review with their own username/password. \"Viewer\" accounts can view only — they can't approve prompts, edit intake, or change account settings.", es: 'Cualquier persona de esta lista puede iniciar sesión en el Portal del Cliente, el Formulario de Admisión y la Revisión de Prompts de este cliente con su propio usuario y contraseña. Las cuentas de "Solo lectura" solo pueden ver — no pueden aprobar prompts, editar el formulario ni cambiar la configuración de la cuenta.' },
   addUserTitle: { en: 'Add a user', es: 'Agregar un usuario' },
   roleLabel: { en: 'Role', es: 'Rol' },
@@ -496,7 +515,7 @@ const T = {
   deleteConfirm: { en: (c) => `Delete "${c}"? This removes their intake link/login. This cannot be undone.`, es: (c) => `¿Eliminar a "${c}"? Esto elimina su enlace/acceso al formulario. Esta acción no se puede deshacer.` },
   failedDelete: { en: 'Failed to delete: ', es: 'Error al eliminar: ' },
   pwGateLabel: { en: 'Enter your password to confirm', es: 'Ingresa tu contraseña para confirmar' },
-  pwGateConfirm: { en: 'Delete customer', es: 'Eliminar cliente' },
+  pwGateConfirm: { en: 'Confirm', es: 'Confirmar' },
   pwGateWrong: { en: 'Incorrect password.', es: 'Contraseña incorrecta.' },
   pwDeleteTitle: { en: 'Delete customer', es: 'Eliminar cliente' },
   pwDeleteMsg: { en: (c) => `This permanently deletes <b>${c}</b> and their login, and cannot be undone. Enter your password to confirm.`, es: (c) => `Esto elimina permanentemente a <b>${c}</b> y su acceso, y no se puede deshacer. Ingresa tu contraseña para confirmar.` },
@@ -718,7 +737,7 @@ function renderCustomerTable() {
                 <div class="progress-wrap" data-job-progress style="display:none;"><div class="progress-bar" style="width:0%"></div></div>
                 <div class="action-list">
                   <a class="btn btn-sm" href="/index.html?company=${encodeURIComponent(i.company)}">${t('openHieronymus')}</a>
-                  <button class="btn btn-ghost btn-sm" data-action="manage-users" data-company="${companyAttr}" style="width:100%;">${t('manageUsersBtn')}</button>
+                  <button class="btn btn-ghost btn-sm" data-action="customer-settings" data-company="${companyAttr}" style="width:100%;">${t('customerSettingsBtn')}</button>
                   <div style="display:flex; gap:6px; width:100%;">
                     <button class="btn btn-ghost btn-sm" data-action="copy-portal-link" data-username="${owner.username}" style="width:auto; flex-grow:1;">${t('copyClientLink')}</button>
                     <a class="btn btn-ghost btn-sm" href="/client-portal.html?username=${encodeURIComponent(owner.username)}" target="_blank" rel="noopener" style="width:auto; flex-grow:0; flex-shrink:0;">${t('openBtn')}</a>
@@ -756,8 +775,8 @@ document.getElementById('customers-list').addEventListener('click', async (e) =>
   } else if (btn.dataset.action === 'delete-customer') {
     if (!isAdmin()) return;
     await deleteCustomer(btn.dataset.username, btn.dataset.company);
-  } else if (btn.dataset.action === 'manage-users') {
-    openManageUsersModal(btn.dataset.company);
+  } else if (btn.dataset.action === 'customer-settings') {
+    openCustomerSettingsModal(btn.dataset.company);
   }
 });
 
@@ -823,22 +842,23 @@ async function pollJobStatus(company, opts = {}) {
   } catch { /* transient poll failure — next tick will retry */ }
 }
 
-// ── Manage Users (per-company group members) ──
+// ── Customer Settings (per-company user management + API keys) ──
 let manageUsersCompany = '';
 
-async function openManageUsersModal(company) {
+async function openCustomerSettingsModal(company) {
   manageUsersCompany = company;
-  document.getElementById('manage-users-title').textContent = t('manageUsersBtn') + ' — ' + company;
+  document.getElementById('customer-settings-title').textContent = t('customerSettingsBtn') + ' — ' + company;
   document.getElementById('new-member-username').value = '';
   document.getElementById('new-member-password').value = '';
   document.getElementById('new-member-role').value = 'full';
   document.getElementById('member-error-box').style.display = 'none';
-  document.getElementById('manage-users-modal').classList.add('open');
+  document.getElementById('customer-settings-modal').classList.add('open');
   toggleAddUser(false);
   await renderMembersList();
+  await renderCustomerKeysList();
 }
-function closeManageUsersModal() {
-  document.getElementById('manage-users-modal').classList.remove('open');
+function closeCustomerSettingsModal() {
+  document.getElementById('customer-settings-modal').classList.remove('open');
 }
 
 async function renderMembersList() {
@@ -943,6 +963,91 @@ async function resetMemberPassword(username) {
     alert(t('passwordResetDone', username, newPassword.trim()));
   } catch (err) {
     alert(t('failedResetPassword') + err.message);
+  }
+}
+
+// ── Customer Settings — API Keys (status only; raw values are never returned by the API) ──
+const ENGINE_LABEL_KEY = { claude: 'claudeKeyLabel', chatgpt: 'chatgptKeyLabel', gemini: 'geminiKeyLabel' };
+let openResetKeyEngine = '';
+
+async function renderCustomerKeysList() {
+  const list = document.getElementById('customer-keys-list');
+  list.innerHTML = t('loading') || 'Loading…';
+  openResetKeyEngine = '';
+  try {
+    const res = await fetch('/api/customer-keys?company=' + encodeURIComponent(manageUsersCompany));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const status = await res.json();
+    list.innerHTML = ['claude', 'chatgpt', 'gemini'].map(engine => `
+      <div style="padding:8px 0; border-bottom:1px solid var(--border);">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div>
+            <span>${t(ENGINE_LABEL_KEY[engine])}</span>
+            <span class="badge ${status[engine] ? 'badge-done' : 'badge-pending'}" style="margin-left:8px;">${status[engine] ? t('configuredLabel') : t('notConfiguredLabel')}</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="openResetKeyForm('${engine}')">${t('resetKeyBtn')}</button>
+        </div>
+        <div id="reset-key-form-${engine}" style="display:none; margin-top:10px;">
+          <div class="field">
+            <label>${t('newKeyLabel')}</label>
+            <input type="password" id="reset-key-input-${engine}" autocomplete="off">
+          </div>
+          <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <button class="btn btn-ghost btn-sm" onclick="cancelResetKey('${engine}')">${t('cancelBtn')}</button>
+            <button class="btn btn-sm" onclick="saveResetKey('${engine}')">${t('saveKeyBtn')}</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    list.innerHTML = `<div class="field-hint">${t('failedLoadKeys')}</div>`;
+  }
+}
+
+async function openResetKeyForm(engine) {
+  const okPw = await window.requirePassword({
+    title: t('pwResetKeyTitle'),
+    message: t('pwResetKeyMsg', t(ENGINE_LABEL_KEY[engine]), escapeHtml(manageUsersCompany)),
+    username: localStorage.getItem(USER_KEY) || '',
+    labels: { enter: t('pwGateLabel'), confirm: t('pwGateConfirm'), cancel: t('cancelBtn'), wrong: t('pwGateWrong') }
+  });
+  if (!okPw) return;
+  if (openResetKeyEngine && openResetKeyEngine !== engine) cancelResetKey(openResetKeyEngine);
+  openResetKeyEngine = engine;
+  const form = document.getElementById(`reset-key-form-${engine}`);
+  const input = document.getElementById(`reset-key-input-${engine}`);
+  if (input) input.value = '';
+  if (form) form.style.display = 'block';
+  if (input) input.focus();
+}
+
+function cancelResetKey(engine) {
+  const form = document.getElementById(`reset-key-form-${engine}`);
+  const input = document.getElementById(`reset-key-input-${engine}`);
+  if (form) form.style.display = 'none';
+  if (input) input.value = '';
+  if (openResetKeyEngine === engine) openResetKeyEngine = '';
+}
+
+async function saveResetKey(engine) {
+  const input = document.getElementById(`reset-key-input-${engine}`);
+  const value = (input?.value || '').trim();
+  const errBox = document.getElementById('member-error-box');
+  if (!value) { errBox.textContent = t('fillNewKey'); errBox.style.display = 'block'; return; }
+  errBox.style.display = 'none';
+  try {
+    const res = await fetch('/api/customer-keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company: manageUsersCompany, [engine]: value })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    cancelResetKey(engine);
+    await renderCustomerKeysList();
+  } catch (err) {
+    errBox.textContent = t('failedSaveKey') + err.message;
+    errBox.style.display = 'block';
   }
 }
 
