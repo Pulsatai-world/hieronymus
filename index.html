@@ -904,8 +904,10 @@ const STALL_AFTER_MS = 4 * 60 * 1000;
 function resumePromptIndex(data) {
   const engines = parseInt(data.engineCount, 10);
   if (!Number.isFinite(engines) || engines < 1) return null;
-  const base = parseInt(data.startIndex, 10) || 0;
-  return base + Math.floor((data.completed || 0) / engines);
+  // `completed` is cumulative for the whole run (it already accounts for the prompts skipped by an
+  // earlier segment), so the prompt index comes straight from it. Adding startIndex again here would
+  // double-count and skip work on resume.
+  return Math.floor((data.completed || 0) / engines);
 }
 
 async function pollJobStatus(company, opts) {

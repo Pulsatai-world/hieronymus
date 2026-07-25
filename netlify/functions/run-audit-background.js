@@ -385,15 +385,26 @@ export default async (request, context) => {
   // Reject a second run for the same customer while one is already in flight — two overlapping
   // invocations racing on the same job-status record is exactly what previously corrupted the
   // displayed progress/completion numbers (stale startedAt, completed counts jumping backward).
+  // A continuation is this same run picking itself up after the platform's time limit, so it must be
+  // allowed past the in-flight guard — the job it "conflicts" with is itself. The guard still blocks
+  // what it was built for: a second run started by hand while one is genuinely in progress, which
+  // never carries this flag.
+  const isContinuation = body.continuation === true && startIndex > 0;
   const existingJob = await jobsStore.get(jobKey, { type: 'json' });
-  if (existingJob && existingJob.status === 'running') {
+  if (existingJob && existingJob.status === 'running' && !isContinuation) {
     return new Response(JSON.stringify({ status: 'error', message: 'An audit is already running for this customer.' }), {
       status: 409, headers: { 'Content-Type': 'application/json' }
     });
   }
 
   // Mark as running immediately so a poll moments after triggering already sees 'running'.
-  await jobsStore.setJSON(jobKey, { status: 'running', company, startedAt: new Date().toISOString(), completed: 0, total: 0, cited: 0, message: '' });
+  // A continuation must not reset the counters or the start time — it is the same run, and zeroing
+  // them here would make the progress bar restart from nothing at every handoff.
+  if (isContinuation && existingJob) {
+    await jobsStore.setJSON(jobKey, { ...existingJob, status: 'running', message: '' });
+  } else {
+    await jobsStore.setJSON(jobKey, { status: 'running', company, startedAt: new Date().toISOString(), completed: 0, total: 0, cited: 0, message: '' });
+  }
 
   // Background Functions get their long execution window from Netlify itself — the platform
   // already responds to the original caller right away, so the actual work below is directly
@@ -461,7 +472,14 @@ export default async (request, context) => {
     // total counts prompt×engine units, which on its own can't tell the UI which *prompt* to resume
     // from. Recording the shape of the run lets the status panel offer an exact resume point instead
     // of forcing a full re-run (and re-spending the API budget) whenever one stalls.
-    const totalUnits = (prompts.length - startIndex) * activeEngines.length;
+    // Progress is accounted for the WHOLE run, not this invocation. A run that continues itself past
+    // the platform's time limit spans several invocations, and counting each from zero against a
+    // shrinking total made the progress bar rewind at every handoff. Deriving the baseline from
+    // startIndex keeps it exact without trusting the previous record, which the manual Resume button
+    // deletes before re-triggering.
+    const totalUnits = prompts.length * activeEngines.length;
+    const baseCompleted = startIndex * activeEngines.length;
+    const baseCited = isContinuation ? ((existingJob && existingJob.cited) || 0) : 0;
     await updateJob(jobsStore, jobKey, {
       total: totalUnits,
       promptsTotal: prompts.length,
@@ -544,7 +562,7 @@ export default async (request, context) => {
         } catch { /* one failed save shouldn't abort the whole run */ }
         completed++;
       }
-      await updateJob(jobsStore, jobKey, { completed, cited: citedCount });
+      await updateJob(jobsStore, jobKey, { completed: baseCompleted + completed, cited: baseCited + citedCount });
     }
 
     // A Netlify Background Function is capped at roughly 15 minutes by the platform — that ceiling is
@@ -581,7 +599,7 @@ export default async (request, context) => {
         await fetch(base + '/api/run-audit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ company, startIndex: handedOffAt, engines: selectedEngines || undefined, run_type: runType })
+          body: JSON.stringify({ company, startIndex: handedOffAt, engines: selectedEngines || undefined, run_type: runType, continuation: true })
         });
       } catch (err) {
         // The handoff itself failed, so nothing else will pick this up. Say so plainly rather than
