@@ -27,10 +27,11 @@ const ENGINE_DEFS = [
       messages: [{ role: 'user', content: query }]
     }),
     parseAnswer: data => data.content.filter(b => b.type === 'text').map(b => b.text).join(' ').trim(),
-    call: (apiKey, body) => fetch('https://api.anthropic.com/v1/messages', {
+    call: (apiKey, body, signal) => fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal
     })
   },
   {
@@ -47,10 +48,11 @@ const ENGINE_DEFS = [
       if (block && block.text) return block.text.trim();
       throw new Error('Could not find answer text in ChatGPT response');
     },
-    call: (apiKey, body) => fetch('https://api.openai.com/v1/responses', {
+    call: (apiKey, body, signal) => fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal
     })
   },
   {
@@ -72,10 +74,11 @@ const ENGINE_DEFS = [
       if (legacyText) return legacyText.trim();
       throw new Error('Could not find answer text in Gemini response');
     },
-    call: (apiKey, body) => fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
+    call: (apiKey, body, signal) => fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal
     })
   }
 ];
@@ -118,10 +121,31 @@ function isPermanentQuotaError(message) {
   return /credits are depleted|insufficient (credit|balance|funds)|billing|limit:\s*0\b/i.test(message || '');
 }
 
+// Node's fetch carries a 300-second headers timeout by default, so a wedged upstream request sits
+// there for five minutes before it throws. In a background function with a ~15 minute budget three
+// of those end the whole run, and everything it never reached gets written as an error row — which
+// is how an audit "completes" with most rows unusable. Bound the wait instead.
+const ENGINE_TIMEOUT_MS = 90 * 1000;
+
 async function callEngineWithRetry(def, apiKey, body, maxRetries = 4) {
   let attempt = 0;
   while (true) {
-    const res = await def.call(apiKey, body);
+    let res;
+    try {
+      res = await def.call(apiKey, body, AbortSignal.timeout(ENGINE_TIMEOUT_MS));
+    } catch (err) {
+      // Thrown fetch failures — timeouts, resets, DNS — were previously not retried at all: only
+      // HTTP status codes were, so a single blip produced an error row on the first attempt.
+      const timedOut = err.name === 'TimeoutError' || err.name === 'AbortError';
+      attempt++;
+      if (attempt > maxRetries) {
+        throw new Error(timedOut
+          ? `${def.name} timed out after ${Math.round(ENGINE_TIMEOUT_MS / 1000)}s — gave up after ${maxRetries} attempts`
+          : `${def.name} request failed: ${err.message} — gave up after ${maxRetries} attempts`);
+      }
+      await sleep(Math.min(30, 3 * Math.pow(2, attempt)) * 1000);
+      continue;
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       const message = err.error?.message || def.name + ' API error ' + res.status;
