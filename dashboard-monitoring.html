@@ -605,7 +605,20 @@ function buildForCompany() {
   makeMulti('ms-engine', engines.map(e => ({ value: e, label: e })), t('msEnginePlaceholder'), v => { selEngine = v; render(); });
   makeMulti('ms-intent', intents.map(i => ({ value: i, label: intentLabel(i) })), t('msTypePlaceholder'), v => { selIntent = v; render(); });
   makeMulti('ms-prompt', prompts.map(p => ({ value: p, code: p, label: promptMap[p] })), t('msPromptPlaceholder'), v => { selPrompt = v; render(); });
-  makeMulti('ms-lang', [{ value: 'en', label: t('langEnglish') }, { value: 'es', label: t('langSpanish') }], t('msLangPlaceholder'), v => { selLang = v; render(); });
+  // The filter used to offer English and Spanish unconditionally, so a Spanish-only prompt set
+  // showed an English option that could only ever select nothing. Offer what was actually run,
+  // and hide the control entirely when there is only one language to choose from.
+  const presentLangs = new Set(Object.values(promptLangMap));
+  const langOpts = [{ value: 'en', label: t('langEnglish') }, { value: 'es', label: t('langSpanish') }]
+    .filter(o => presentLangs.has(o.value));
+  const langCtl = document.getElementById('ms-lang').closest('.ctl');
+  if (langOpts.length < 2) {
+    if (langCtl) langCtl.style.display = 'none';
+    selLang = [];
+  } else {
+    if (langCtl) langCtl.style.display = '';
+    makeMulti('ms-lang', langOpts, t('msLangPlaceholder'), v => { selLang = v; render(); });
+  }
   render();
   loadScheduleStatus();
 }

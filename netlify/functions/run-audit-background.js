@@ -547,10 +547,54 @@ export default async (request, context) => {
       await updateJob(jobsStore, jobKey, { completed, cited: citedCount });
     }
 
+    // A Netlify Background Function is capped at roughly 15 minutes by the platform — that ceiling is
+    // not ours to raise, so a long run (many prompts across several engines) cannot finish inside one
+    // invocation no matter what timeout we set. Instead of dying at the ceiling and leaving the last
+    // prompts unprocessed, the run hands off to a fresh invocation of itself, continuing from the
+    // next unprocessed prompt. The same startIndex machinery the manual Resume button uses, only
+    // automatic — so a run of any length completes without anyone watching it.
+    const RUN_BUDGET_MS = 11 * 60 * 1000;
+    const runStartedAt = Date.now();
+    let handedOffAt = null;
+
     for (let i = startIndex; i < prompts.length; i += CONCURRENCY) {
+      // Checked before starting a chunk, not after, so the handoff happens with time in hand rather
+      // than being cut off mid-chunk.
+      if (i > startIndex && Date.now() - runStartedAt > RUN_BUDGET_MS) {
+        handedOffAt = i;
+        break;
+      }
       const chunk = prompts.slice(i, i + CONCURRENCY);
       await Promise.all(chunk.map((p, j) => processPrompt(p, i + j)));
       if (i + CONCURRENCY < prompts.length) await sleep(1200);
+    }
+
+    if (handedOffAt !== null) {
+      const base = process.env.URL || process.env.DEPLOY_URL || '';
+      await updateJob(jobsStore, jobKey, {
+        status: 'running',
+        continuedFrom: handedOffAt,
+        continuations: ((await jobsStore.get(jobKey, { type: 'json' }))?.continuations || 0) + 1,
+        message: ''
+      });
+      try {
+        await fetch(base + '/api/run-audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ company, startIndex: handedOffAt, engines: selectedEngines || undefined, run_type: runType })
+        });
+      } catch (err) {
+        // The handoff itself failed, so nothing else will pick this up. Say so plainly rather than
+        // leaving a job that looks alive but has no invocation behind it.
+        await updateJob(jobsStore, jobKey, {
+          status: 'error',
+          message: 'Could not continue past the platform time limit at prompt ' + (handedOffAt + 1) + ': ' + err.message,
+          finishedAt: new Date().toISOString()
+        });
+      }
+      return new Response(JSON.stringify({ status: 'continued', startIndex: handedOffAt }), {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     await updateJob(jobsStore, jobKey, { status: 'done', finishedAt: new Date().toISOString() });
