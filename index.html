@@ -545,7 +545,7 @@ function parseCSV(text) {
 async function populateCompanyPicker(selected) {
   const select = document.getElementById('company-select');
   try {
-    const res = await fetch('/api/intake-codes');
+    const res = await fetch(await window.apiQuery('/api/intake-codes', {}));
     const data = await res.json();
     (data.items || []).forEach(i => {
       const opt = document.createElement('option');
@@ -581,7 +581,7 @@ async function loadCompany(company) {
     fetch(await window.intakeQuery(company)).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(promptsQuery).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(await window.resultsQuery(company)).then(r => r.ok ? r.text() : '').catch(() => ''),
-    fetch('/api/intake-codes?company=' + encodeURIComponent(company)).then(r => r.ok ? r.json() : null).catch(() => null)
+    fetch(await window.apiQuery('/api/intake-codes', { company })).then(r => r.ok ? r.json() : null).catch(() => null)
   ]);
 
   const rows = parseCSV(resultsText).filter(r => r.brand === company);

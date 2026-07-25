@@ -310,38 +310,24 @@ function buildDbRow(r) {
   };
 }
 
-// Serialize writes: /api/results appends to one shared CSV blob via optimistic concurrency,
-// so firing many saves at once just makes them collide and retry against each other. Queuing
-// them here means the concurrent engine/grading calls still overlap (where the real latency is),
-// but the DB writes themselves happen one at a time.
-let saveQueue = Promise.resolve();
+// Rows are written straight to the store rather than POSTed back to this site's own /api/results.
+// That HTTP hop existed when results were one shared CSV blob needing a single writer; each row has
+// had its own key for a while, so the round trip bought nothing — and it forced POST /api/results to
+// stay open to unauthenticated callers, which meant anyone could inject fabricated rows into any
+// customer's dataset. Writing directly removes the hop, the failure mode, and the open endpoint.
 function saveResultRow(row) {
-  const run = async () => {
-    const base = process.env.URL || process.env.DEPLOY_URL || '';
-    const target = base + '/api/results';
-    try {
-      const res = await fetch(target, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(row)
-      });
-      if (!res.ok) throw new Error('Failed to save result row (HTTP ' + res.status + ')');
-    } catch (err) {
-      console.error('SAVE_ROW_FAILED', JSON.stringify({ target, base, envURL: process.env.URL, envDEPLOY_URL: process.env.DEPLOY_URL, run_id: row.run_id, error: err.message }));
-      throw err;
-    }
-  };
-  const result = saveQueue.then(run);
-  saveQueue = result.catch(() => {}); // one failed save shouldn't block the rest of the queue
-  return result;
+  return getStore('hieronymus-results-rows').setJSON(row.run_id, row).catch(err => {
+    console.error('SAVE_ROW_FAILED', JSON.stringify({ run_id: row.run_id, error: err.message }));
+    throw err;
+  });
 }
 
 // With CONCURRENCY=12, up to a dozen processPrompt() calls finish in parallel and each calls
 // updateJob() independently. Unserialized, their get()s interleave before either setJSON()
 // commits, so whichever write lands last clobbers whatever the other just set (e.g. status
 // silently reverting to an earlier value) — a lost-update race, not just Blobs propagation lag.
-// Serializing through a single queue (same pattern as saveResultRow below) makes each
-// read-modify-write cycle atomic relative to the others.
+// Serializing through a single queue makes each read-modify-write cycle atomic relative to the
+// others. (saveResultRow needs no such queue: every row has its own key, so writes never collide.)
 let jobUpdateQueue = Promise.resolve();
 function updateJob(store, key, patch) {
   const run = async () => {

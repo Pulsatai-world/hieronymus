@@ -74,6 +74,15 @@ export default async (request, context) => {
   const store = getStore('hieronymus-results-rows');
 
   if (request.method === 'POST') {
+    // The audit no longer calls this — run-audit-background.js writes rows straight to the store —
+    // so the only remaining callers would be manual imports, which are a staff action. Leaving it
+    // open let anyone fabricate rows in any customer's dataset.
+    const u = new URL(request.url);
+    if (!await isStaff(u.searchParams.get('staffUsername'), u.searchParams.get('staffPassword'))) {
+      return new Response(JSON.stringify({ error: 'Staff credentials required to write result rows' }), {
+        status: 403, headers: { 'Content-Type': 'application/json' }
+      });
+    }
     let body;
     try {
       body = await request.json();

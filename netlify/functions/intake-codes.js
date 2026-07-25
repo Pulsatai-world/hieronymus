@@ -88,6 +88,25 @@ async function requireStaffAdmin(requestingUsername, requestingPassword) {
   return verifyPassword(requestingPassword, record.passwordHash);
 }
 
+// Reads of the registry are scoped. The ?username=&password= form is the LOGIN for all three
+// client-facing pages and stays open by necessity — it is itself a credential check. The other two
+// forms were not: ?company= returned a customer's whole record (member usernames, roles, monitoring
+// configuration, release flags) and the parameterless form listed every customer, both to anyone.
+// Note this is any-staff, not admin-only: looking is not a mutation.
+async function isStaffReader(username, password) {
+  if (!username || !password) return false;
+  const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
+  if (!record) return false;
+  return verifyPassword(password, record.passwordHash);
+}
+
+async function isMemberOf(record, username, password) {
+  if (!record || !username || !password) return false;
+  const member = findMember(record, String(username).toLowerCase());
+  if (!member) return false;
+  return verifyPassword(password, member.passwordHash);
+}
+
 export default async (request, context) => {
   const store = getStore('hieronymus-intake-codes');
   const url = new URL(request.url);
@@ -137,6 +156,20 @@ export default async (request, context) => {
   }
 
   if (request.method === 'GET') {
+    // Order matters: a scoped read carries username+password as well as company, so the company
+    // form has to be recognised before the login form or it would be answered as a login.
+    const companyParam = url.searchParams.get('company');
+    const staffReader = await isStaffReader(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'));
+
+    if (companyParam) {
+      const record = await loadGroup(store, slugify(companyParam));
+      if (!record) return json({ error: 'Unknown company' }, 404);
+      // A customer may read their own company's record; anyone else needs staff credentials.
+      const member = await isMemberOf(record, url.searchParams.get('username'), url.searchParams.get('password'));
+      if (!staffReader && !member) return json({ error: 'Not authorised to read this customer record' }, 403);
+      return json(stripHashes(record), 200);
+    }
+
     const username = url.searchParams.get('username');
     if (username) {
       const password = url.searchParams.get('password');
@@ -152,12 +185,12 @@ export default async (request, context) => {
         company: group.company, submittedAt: group.submittedAt, monitoringEnabled: group.monitoringEnabled
       }, 200);
     }
-    const companyParam = url.searchParams.get('company');
-    if (companyParam) {
-      const record = await loadGroup(store, slugify(companyParam));
-      if (!record) return json({ error: 'Unknown company' }, 404);
-      return json(stripHashes(record), 200);
-    }
+
+    // Only the full list remains, and it names every customer — staff only. This guard must sit
+    // AFTER the login form above: a customer signing in has no staff credentials, so guarding
+    // earlier would refuse every client login.
+    if (!staffReader) return json({ error: 'Listing customers requires staff credentials' }, 403);
+
     const { blobs } = await store.list();
     // store.list() can momentarily include a key whose store.get() hasn't caught up yet
     // (Netlify Blobs eventual consistency, most visible right after creating a new customer) —

@@ -647,7 +647,7 @@ async function loadScheduleStatus() {
   block.style.display = '';
   block.innerHTML = `<div class="schedule-card"><div class="schedule-status">${t('loadingSchedule')}</div></div>`;
   try {
-    const res = await fetch('/api/intake-codes?company=' + encodeURIComponent(company));
+    const res = await fetch(await window.apiQuery('/api/intake-codes', { company }));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const record = await res.json();
     renderScheduleBlock(record);

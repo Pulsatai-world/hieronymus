@@ -1799,7 +1799,7 @@ function populateForm(d) {
   // through, without also needing that customer's own password.
   if (usernameFromUrl && localStorage.getItem('hieronymus_internal_auth') === 'true') {
     try {
-      const res = await fetch('/api/intake-codes');
+      const res = await fetch(await window.apiQuery('/api/intake-codes', {}));
       const data = await res.json();
       const group = (data.items || []).find(i => findMember(i, usernameFromUrl));
       if (group) {

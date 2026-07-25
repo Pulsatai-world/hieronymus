@@ -658,7 +658,7 @@ async function loadAll() {
   const container = document.getElementById('customers-list');
   try {
     const [codesRes, promptsRes, resultsRes] = await Promise.all([
-      fetch('/api/intake-codes'),
+      fetch(await window.apiQuery('/api/intake-codes', {})),
       fetch(await window.apiQuery('/api/prompts', {})),
       fetch(await window.resultsQuery(''))
     ]);
@@ -866,7 +866,7 @@ async function renderMembersList() {
   const list = document.getElementById('members-list');
   list.innerHTML = t('loading') || 'Loading…';
   try {
-    const res = await fetch('/api/intake-codes?company=' + encodeURIComponent(manageUsersCompany));
+    const res = await fetch(await window.apiQuery('/api/intake-codes', { company: manageUsersCompany }));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const record = await res.json();
     const members = record.members || [];
