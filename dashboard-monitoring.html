@@ -921,7 +921,7 @@ function competitorTrendSeries() {
     const rs = rowsForMulti(new Set([d]), selEngine, selIntent, selPrompt, selLang)
       .filter(r => r.topic_cluster !== 'Brand' && !promptNamesCompany(r));
     const tally = {}; let total = 0;
-    rs.forEach(r => (r.brands_cited_list || '').split(';').filter(Boolean).forEach(b => { const k = b.toLowerCase(); tally[k] = (tally[k] || 0) + 1; total++; }));
+    rs.forEach(r => (r.brands_cited_list || '').split(';').filter(Boolean).forEach(b => { const k = canonicalBrand(b); tally[k] = (tally[k] || 0) + 1; total++; }));
     let rivalKey = '', rivalCount = 0;
     Object.keys(tally).forEach(k => { if (k !== youKey && tally[k] > rivalCount) { rivalCount = tally[k]; rivalKey = k; } });
     return {
@@ -966,7 +966,7 @@ function rankTrendSeries() {
     const rs = rowsForMulti(new Set([d]), selEngine, selIntent, selPrompt, selLang)
       .filter(r => r.topic_cluster !== 'Brand' && !promptNamesCompany(r));
     const tally = {};
-    rs.forEach(r => (r.brands_cited_list || '').split(';').filter(Boolean).forEach(b => { const k = b.toLowerCase(); tally[k] = (tally[k] || 0) + 1; }));
+    rs.forEach(r => (r.brands_cited_list || '').split(';').filter(Boolean).forEach(b => { const k = canonicalBrand(b); tally[k] = (tally[k] || 0) + 1; }));
     const sorted = Object.keys(tally).sort((a, b) => tally[b] - tally[a]);
     const idx = sorted.indexOf(youKey);
     return { date: d, rank: idx >= 0 ? idx + 1 : null, of: sorted.length };
@@ -1012,6 +1012,31 @@ function mdLite(txt) {
 // True when the prompt text itself names the company. Such prompts trivially "mention" the
 // company (and often rank it first), inflating its position on the competitor leaderboard —
 // so they're excluded from it, extending the Brand-cluster exclusion to comparison prompts.
+// Engines name the same company inconsistently — "Bosch Rexroth", "Bosch Rexroth México" and
+// "Bosch Rexroth S.A. de C.V." are one competitor. Counting them separately splits that company's
+// share of voice across several rows and pushes it down the leaderboard, which also inflates your own
+// relative position. Only legal-entity and geography tails are stripped, never a word that carries
+// meaning: "Bosch" and "Bosch Rexroth" remain different companies, as they should.
+const BRAND_ENTITY_TAIL = /\b(s\s?a(\s+de\s+c\s?v)?|s\s+de\s+r\s?l(\s+de\s+c\s?v)?|sapi|inc|incorporated|llc|ltd|limited|gmbh|srl|corp|corporation|company|co|group|grupo|holding|holdings)\b/g;
+const BRAND_GEO_TAIL = /\b(de\s+)?(mexico|mx|mex|latinoamerica|latam|usa|us|espana|colombia|peru|chile|argentina|brasil|brazil|international|global|worldwide)\b/g;
+function canonicalBrand(name) {
+  const raw = String(name || '').trim();
+  let out = raw.toLowerCase()
+    .normalize('NFD').replace(/\p{Diacritic}/gu, '')
+    .replace(/[.,()]/g, ' ')
+    .replace(/&/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // Looped because one name can carry several tails ("... S.A. de C.V. México").
+  for (let i = 0; i < 3; i++) {
+    const before = out;
+    out = out.replace(BRAND_ENTITY_TAIL, ' ').replace(BRAND_GEO_TAIL, ' ').replace(/\s+/g, ' ').trim();
+    if (out === before) break;
+  }
+  // Never collapse a name to nothing: a company actually called "Grupo México" keeps its identity.
+  return out || raw.toLowerCase();
+}
+
 function promptNamesCompany(r) {
   const name = (company || '').trim().toLowerCase();
   return !!name && (r.prompt_text || '').toLowerCase().includes(name);
@@ -1025,17 +1050,24 @@ const COMPETITOR_ROW_LIMIT = 25;
 function renderCompetitors(rows) {
   cwrap.innerHTML = '';
   if (rows.length === 0) { cwrap.innerHTML = `<div class="empty">${t('noMatchFilter')}</div>`; return; }
-  const YOU = company; const youKey = YOU.toLowerCase(); const tally = {}; let totalCitations = 0;
+  const YOU = company; const youKey = canonicalBrand(YOU); const tally = {}; let totalCitations = 0;
   rows.forEach(r => {
     const list = (r.brands_cited_list || '').split(';').filter(Boolean);
-    list.forEach(b => { const k = b.toLowerCase(); tally[k] = tally[k] || { name: properCase(b), cited: 0, leader: 0 }; tally[k].cited++; totalCitations++; });
-    if (r.top_cited_brand) { const k = r.top_cited_brand.toLowerCase(); tally[k] = tally[k] || { name: properCase(r.top_cited_brand), cited: 0, leader: 0 }; tally[k].leader++; }
+    list.forEach(b => { const k = canonicalBrand(b); tally[k] = tally[k] || { variants: {}, cited: 0, leader: 0 }; const v = properCase(b); tally[k].variants[v] = (tally[k].variants[v] || 0) + 1; tally[k].cited++; totalCitations++; });
+    if (r.top_cited_brand) { const k = canonicalBrand(r.top_cited_brand); tally[k] = tally[k] || { variants: {}, cited: 0, leader: 0 }; const v = properCase(r.top_cited_brand); tally[k].variants[v] = (tally[k].variants[v] || 0) + 1; tally[k].leader++; }
   });
-  const brands = Object.keys(tally).map(k => ({ name: tally[k].name, cited: tally[k].cited, leader: tally[k].leader, sov: totalCitations ? 100 * tally[k].cited / totalCitations : 0 })).sort((a, b) => b.cited - a.cited);
+  const brands = Object.keys(tally).map(k => ({
+    key: k,
+    // Most-cited spelling wins the label; ties break toward the shorter name.
+    name: Object.keys(tally[k].variants).sort((a, b) =>
+      (tally[k].variants[b] - tally[k].variants[a]) || (a.length - b.length))[0] || k,
+    cited: tally[k].cited, leader: tally[k].leader,
+    sov: totalCitations ? 100 * tally[k].cited / totalCitations : 0
+  })).sort((a, b) => b.cited - a.cited);
   const maxCited = Math.max(...brands.map(b => b.cited), 1);
-  const you = brands.find(b => b.name.toLowerCase() === youKey) || { name: YOU, cited: 0, leader: 0, sov: 0 };
-  const yourRank = brands.findIndex(b => b.name.toLowerCase() === youKey) + 1;
-  const topRival = brands.find(b => b.name.toLowerCase() !== youKey);
+  const you = brands.find(b => b.key === youKey) || { name: YOU, cited: 0, leader: 0, sov: 0 };
+  const yourRank = brands.findIndex(b => b.key === youKey) + 1;
+  const topRival = brands.find(b => b.key !== youKey);
 
   // Two deliberate exceptions to the top-25 cut: the client's own brand always keeps a row, showing
   // its real rank, even when it places below the cut — a client should never be missing from their
@@ -1044,7 +1076,7 @@ function renderCompetitors(rows) {
   // which are computed from the full tally.
   const leaderRows = brands.slice(0, COMPETITOR_ROW_LIMIT).map((b, i) => ({ b, rank: i + 1 }));
   const tail = brands.slice(COMPETITOR_ROW_LIMIT);
-  const youInTail = tail.find(b => b.name.toLowerCase() === youKey);
+  const youInTail = tail.find(b => b.key === youKey);
   if (youInTail) leaderRows.push({ b: youInTail, rank: yourRank });
   const folded = tail.filter(b => b !== youInTail);
   const others = folded.length ? {
@@ -1068,7 +1100,7 @@ function renderCompetitors(rows) {
   hd.innerHTML = `<div>${t('crowRank')}</div><div>${t('crowBrand')}</div><div>${t('crowTimesCited')}</div><div class="cmetric">${t('crowLeads')}</div>`;
   sec.appendChild(hd);
   leaderRows.forEach(({ b, rank }) => {
-    const isYou = b.name.toLowerCase() === youKey; const w = 100 * b.cited / maxCited;
+    const isYou = b.key === youKey; const w = 100 * b.cited / maxCited;
     const row = document.createElement('div'); row.className = 'crow';
     row.innerHTML = `<div class="crank">${rank}</div><div class="cname${isYou ? ' you' : ''}">${b.name}</div><div class="cbar${isYou ? ' you' : ''}"><span style="width:${w.toFixed(1)}%"></span><em>${b.cited} &middot; ${b.sov.toFixed(0)}%</em></div><div class="cmetric"><span class="mv">${b.leader}</span><div class="ml">${t('timesFirst')}</div></div>`;
     sec.appendChild(row);
