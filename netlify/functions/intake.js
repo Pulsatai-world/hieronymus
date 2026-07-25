@@ -57,6 +57,23 @@ export default async (request, context) => {
     }
 
     const key = slugify(company);
+
+    // Once the customer has approved their prompt set, the intake behind it is frozen for them.
+    // The prompts were derived from these answers, so editing them afterwards leaves an approved
+    // prompt set describing a business the form no longer matches — and the audit then runs against
+    // a premise nobody actually approved. Staff requests carry no member credentials (the same
+    // convention isBlockedViewer relies on) and are still allowed through, so corrections remain
+    // possible on our side.
+    if (body.requestingUsername) {
+      const promptsRecord = await getStore('hieronymus-prompts').get(key, { type: 'json' });
+      if (promptsRecord && promptsRecord.approvedAt) {
+        return json({
+          error: 'These answers are locked because the prompts generated from them have already been approved. Contact us if something needs to change.',
+          lockedBy: 'prompts-approved',
+          approvedAt: promptsRecord.approvedAt
+        }, 409);
+      }
+    }
     await store.setJSON(key, { company, intake, savedAt: new Date().toISOString() });
     return json({ status: 'ok', key }, 200);
   }

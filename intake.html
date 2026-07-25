@@ -1656,6 +1656,41 @@ async function restoreSavedProgress() {
   } catch { /* nothing saved yet, or a transient error — form just starts blank */ }
 }
 
+// The prompts are generated from these answers, so once the customer has approved that prompt set
+// the answers behind it are settled. Editing them afterwards would leave an approved set of prompts
+// describing a business the form no longer matches. Enforced server-side too — this only makes the
+// state visible instead of letting someone fill the form out again and hit a rejection on save.
+let intakeFrozen = false;
+async function checkIntakeFrozen() {
+  if (!clientCompany || isStaffBypass) return false;
+  try {
+    const res = await fetch('/api/prompts?company=' + encodeURIComponent(clientCompany));
+    if (!res.ok) return false;
+    const rec = await res.json();
+    return !!(rec && rec.approvedAt);
+  } catch { return false; }
+}
+
+function applyIntakeFrozen() {
+  intakeFrozen = true;
+  document.querySelectorAll('#app-content input, #app-content select, #app-content textarea')
+    .forEach(el => { el.disabled = true; });
+  ['save-progress-btn', 'submit-intake-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  const host = document.getElementById('app-content');
+  if (host && !document.getElementById('intake-frozen-banner')) {
+    const banner = document.createElement('div');
+    banner.id = 'intake-frozen-banner';
+    banner.style.cssText = 'background:var(--violet-100,#f4f2fb);border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:20px;font-size:13px;line-height:1.6;';
+    banner.textContent = lang === 'es'
+      ? 'Tus respuestas están bloqueadas porque ya aprobaste los prompts generados a partir de ellas. Puedes consultarlas, pero no editarlas. Si algo necesita cambiar, escríbenos.'
+      : 'Your answers are locked because you have already approved the prompts generated from them. You can review them, but not edit them. If something needs to change, get in touch.';
+    host.insertBefore(banner, host.firstChild);
+  }
+}
+
 function showApp() {
   document.getElementById('access-gate').style.display = 'none';
   document.getElementById('logout-btn').style.display = '';
@@ -1674,6 +1709,8 @@ function showApp() {
   document.getElementById('app-content').style.display = '';
   const companyInput = document.getElementById('company');
   if (companyInput && !companyInput.value.trim() && clientCompany) companyInput.value = clientCompany;
+  // Runs after the form is visible and populated so the disable pass catches every field.
+  checkIntakeFrozen().then(frozen => { if (frozen) applyIntakeFrozen(); });
 }
 
 // ── Restore previously saved answers for this client, if any exist ──
@@ -1798,6 +1835,7 @@ function populateForm(d) {
 
 // ── SUBMIT — window global ──
 window.submitIntake = async function() {
+  if (intakeFrozen) return;
   const data = collectData();
   const company = data.general.company;
   const statusEl = document.getElementById('submit-status');
@@ -1817,7 +1855,10 @@ window.submitIntake = async function() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ company, intake: data, requestingUsername: isStaffBypass ? '' : clientUsername, requestingPassword: clientPassword })
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'HTTP ' + res.status);
+    }
     if (clientUsername) {
       fetch('/api/intake-codes', {
         method: 'PATCH',
@@ -1839,6 +1880,7 @@ window.submitIntake = async function() {
 
 // ── SAVE PROGRESS — persists to the server, keyed by company, so reopening the same link restores it ──
 window.saveProgress = async function() {
+  if (intakeFrozen) return;
   const data = collectData();
   const company = data.general.company;
   const btn = document.getElementById('save-progress-btn');
