@@ -427,8 +427,16 @@ export default async (request, context) => {
       ? `\n\nGround truth to check each answer against (only assess the fields below that have ground truth given; return null for the rest):\n${truthLines.join('\n')}`
       : '\n\nNo ground truth was provided — return null for services_correct, location_correct, and contact_correct.';
 
+    // total counts prompt×engine units, which on its own can't tell the UI which *prompt* to resume
+    // from. Recording the shape of the run lets the status panel offer an exact resume point instead
+    // of forcing a full re-run (and re-spending the API budget) whenever one stalls.
     const totalUnits = (prompts.length - startIndex) * activeEngines.length;
-    await updateJob(jobsStore, jobKey, { total: totalUnits });
+    await updateJob(jobsStore, jobKey, {
+      total: totalUnits,
+      promptsTotal: prompts.length,
+      engineCount: activeEngines.length,
+      startIndex
+    });
 
     // A fresh diagnostic run REPLACES the previous diagnosis instead of accumulating beside it.
     // Without this, re-running after regenerating prompts changes nothing on screen: the diagnostic

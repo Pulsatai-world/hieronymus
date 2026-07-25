@@ -199,6 +199,10 @@ body { font-family: var(--mono); background: var(--bg); color: var(--text); min-
 .field-hint { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
 .progress-wrap { width: 100%; height: 6px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin-top: 10px; }
 .progress-bar { height: 100%; background: var(--accent); transition: width 0.3s; }
+/* Used while a run has been triggered but hasn't reported progress yet: there is no percentage
+   to show, so the bar sweeps instead of sitting at 0% looking broken. */
+.progress-bar.indeterminate { width: 35% !important; animation: barsweep 1.1s var(--ease-standard) infinite; }
+@keyframes barsweep { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
 table { width: 100%; border-collapse: collapse; }
 th { background: var(--surface2); padding: 8px 12px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-dim); border-bottom: 1px solid var(--border); white-space: nowrap; }
 td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--border); color: var(--text-mid); }
@@ -423,6 +427,21 @@ const T = {
   cancelConfirm: { en: "Cancel this run? If it's genuinely still active this only clears the displayed status — it won't stop already-in-flight API calls.", es: '¿Cancelar esta ejecución? Si realmente sigue activa, esto solo borra el estado mostrado — no detendrá las llamadas API que ya están en curso.' },
   failedToCancel: { en: 'Failed to cancel: ', es: 'Error al cancelar: ' },
   startingBtnLabel: { en: 'Starting...', es: 'Iniciando...' },
+  queuedLabel: { en: 'Starting', es: 'Iniciando' },
+  queuedDetail: { en: (secs) => `Waiting for the run to report in… ${secs}s. Netlify can take up to a minute to start a background run — leaving this page will not stop it.`, es: (secs) => `Esperando que la ejecución reporte… ${secs}s. Netlify puede tardar hasta un minuto en arrancar una ejecución en segundo plano — si sales de esta página no se detiene.` },
+  notStartedLabel: { en: "Hasn't started", es: 'No ha arrancado' },
+  notStartedHint: { en: 'The run was accepted but has not reported any progress. It may still be starting, or it may have failed to launch. Check again, or try running it once more.', es: 'La ejecución fue aceptada pero no ha reportado progreso. Puede seguir arrancando o puede que no haya podido iniciar. Vuelve a verificar o intenta ejecutarla de nuevo.' },
+  checkAgainBtn: { en: 'Check again', es: 'Verificar de nuevo' },
+  auditElapsed: { en: (e) => `${e} elapsed`, es: (e) => `${e} transcurrido` },
+  auditEta: { en: (e) => `~${e} left`, es: (e) => `~${e} restante` },
+  auditUnits: { en: (c, tt) => `${c} of ${tt} answers graded`, es: (c, tt) => `${c} de ${tt} respuestas evaluadas` },
+  auditPrompts: { en: (d, tt) => `prompt ${d} of ${tt}`, es: (d, tt) => `prompt ${d} de ${tt}` },
+  auditCited: { en: (n) => `${n} recommended so far`, es: (n) => `${n} recomendados hasta ahora` },
+  stalledLabel: { en: 'Stalled', es: 'Atascada' },
+  stalledDetail: { en: (m) => `No progress for ${m}. Background runs can be cut off by the platform's execution limit — resume picks up where it stopped instead of paying for the whole run again.`, es: (m) => `Sin avance por ${m}. Las ejecuciones en segundo plano pueden cortarse por el límite de la plataforma — reanudar continúa donde se detuvo en vez de pagar toda la ejecución otra vez.` },
+  resumeBtn: { en: (n) => `Resume from prompt ${n}`, es: (n) => `Reanudar desde el prompt ${n}` },
+  resumeConfirm: { en: (n, c) => `This continues the audit for <b>${c}</b> from prompt ${n}, keeping everything already graded. Enter your password to confirm.`, es: (n, c) => `Esto continúa la auditoría de <b>${c}</b> desde el prompt ${n}, conservando todo lo ya evaluado. Ingresa tu contraseña para confirmar.` },
+  resumeTitle: { en: 'Resume audit', es: 'Reanudar auditoría' },
   genModalTitle: { en: (c) => 'Generate Prompts — ' + c, es: (c) => 'Generar Prompts — ' + c },
   selectLanguageAlert: { en: 'Select at least one language.', es: 'Selecciona al menos un idioma.' },
   selectEngineAlert: { en: 'Select at least one AI engine.', es: 'Selecciona al menos un motor de IA.' },
@@ -671,7 +690,10 @@ async function loadCompany(company) {
 
   `;
 
-  pollJobStatus(company);
+  // A refresh during the start-up window must not come back saying no audit was ever run.
+  const pendingSince = auditPendingSince(company);
+  const stillStarting = pendingSince && (Date.now() - pendingSince) < 3 * 60 * 1000;
+  pollJobStatus(company, stillStarting ? { graceRetriesLeft: 20 } : {});
 }
 
 // The primary member's username is the slug of the company name (intake-codes.js generates it
@@ -745,6 +767,63 @@ async function clearResults() {
   }
 }
 
+// A triggered run is remembered across reloads. Netlify acks a background invocation instantly but
+// may not actually begin executing it for a while, so "the job record doesn't exist yet" is a normal
+// early state, not a failure — and it has to survive a refresh, or the page comes back claiming no
+// audit was ever run while one is spinning up.
+const AUDIT_PENDING_PREFIX = 'geo_audit_pending_';
+function markAuditPending(company) {
+  try { sessionStorage.setItem(AUDIT_PENDING_PREFIX + company, String(Date.now())); } catch (e) { /* private mode */ }
+}
+function clearAuditPending(company) {
+  try { sessionStorage.removeItem(AUDIT_PENDING_PREFIX + company); } catch (e) { /* private mode */ }
+}
+function auditPendingSince(company) {
+  try {
+    const v = parseInt(sessionStorage.getItem(AUDIT_PENDING_PREFIX + company) || '', 10);
+    return Number.isFinite(v) ? v : 0;
+  } catch (e) { return 0; }
+}
+
+// Explicit "we are waiting on the platform" state. Previously nothing was drawn during this window,
+// so the UI looked inert and then snapped back to "no audit yet".
+function renderAuditQueued(block, company) {
+  const since = auditPendingSince(company) || Date.now();
+  const secs = Math.max(0, Math.round((Date.now() - since) / 1000));
+  block.innerHTML = `<span class="badge badge-partial">${t('queuedLabel')}</span> <span class="field-hint">${t('queuedDetail', secs)}</span><div class="progress-wrap"><div class="progress-bar indeterminate"></div></div>`;
+}
+
+function fmtDuration(ms) {
+  const secs = Math.max(0, Math.round(ms / 1000));
+  if (secs < 60) return secs + 's';
+  const m = Math.floor(secs / 60), r = secs % 60;
+  if (m < 60) return r ? `${m}m ${r}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+}
+
+// Stall detection lives on the client because progress is only observable as a changing counter.
+// A background run cut off by the platform's execution limit leaves status:'running' behind forever,
+// which is what made the panel look alive while nothing was happening.
+let progressWatch = { key: '', completed: -1, since: 0 };
+function trackProgress(company, completed) {
+  if (progressWatch.key !== company || progressWatch.completed !== completed) {
+    progressWatch = { key: company, completed, since: Date.now() };
+  }
+  return Date.now() - progressWatch.since;
+}
+const STALL_AFTER_MS = 90 * 1000;
+
+// Exact resume point: units are prompt×engine, so the prompt index is derived from the engine count
+// the run recorded, offset by the index it already started from. Returns null when the job record
+// predates those fields, in which case resume is simply not offered rather than guessed at.
+function resumePromptIndex(data) {
+  const engines = parseInt(data.engineCount, 10);
+  if (!Number.isFinite(engines) || engines < 1) return null;
+  const base = parseInt(data.startIndex, 10) || 0;
+  return base + Math.floor((data.completed || 0) / engines);
+}
+
 async function pollJobStatus(company, opts) {
   opts = opts || {};
   if (jobPollTimer) clearTimeout(jobPollTimer);
@@ -762,24 +841,84 @@ async function pollJobStatus(company, opts) {
     // a genuinely in-progress run look like "no audit yet".
     const inferredRunning = data.status === 'running' || (!data.status && data.total > 0 && (data.completed || 0) < data.total && !data.finishedAt);
     const inferredDone = data.status === 'done' || (!data.status && data.total > 0 && (data.completed || 0) >= data.total);
+
+    // A 'done' or 'error' record that predates the run we just triggered belongs to the PREVIOUS
+    // run. Trusting it is what made a live run look finished — the panel showed "last run: 198 rows,
+    // finished 13:29" while a new one was actually grinding away. Keep waiting until the record is
+    // newer than the trigger, bounded so a genuinely dead trigger doesn't wait forever.
+    const pendingSince = auditPendingSince(company);
+    const recordStartedMs = Date.parse(data.startedAt || '') || 0;
+    const waitingForFreshRecord = !!pendingSince &&
+      (Date.now() - pendingSince) < 3 * 60 * 1000 &&
+      (!recordStartedMs || recordStartedMs < pendingSince - 2000);
     if (inferredRunning) {
-      const pct = data.total ? Math.round((data.completed / data.total) * 100) : 0;
-      const stuck = !data.total && (Date.now() - new Date(data.startedAt).getTime()) > 2 * 60 * 1000;
-      block.innerHTML = `<span class="badge badge-partial">${t('runningLabel')}</span> <span class="field-hint">${t('runningDetail', data.completed || 0, data.total || '?', data.cited || 0)}</span><div class="progress-wrap"><div class="progress-bar" style="width:${pct}%"></div></div>${stuck ? `<div class="field-hint" style="margin-top:6px;">${t('stalledNote')}</div>` : ''}`;
-      if (runBtn) { runBtn.disabled = true; runBtn.textContent = t('runningBtnLabel'); }
+      clearAuditPending(company);
+      const done = data.completed || 0;
+      const total = data.total || 0;
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      const startedMs = data.startedAt ? new Date(data.startedAt).getTime() : 0;
+      const elapsed = startedMs ? Date.now() - startedMs : 0;
+      const idleFor = trackProgress(company, done);
+      const stalled = idleFor > STALL_AFTER_MS;
+
+      // ETA only once there's enough signal to mean anything — a projection off one or two
+      // data points is noise dressed up as information.
+      let eta = '';
+      if (!stalled && done >= 3 && total > done && elapsed > 0) {
+        const perUnit = elapsed / done;
+        eta = t('auditEta', fmtDuration(perUnit * (total - done)));
+      }
+
+      const promptIdx = resumePromptIndex(data);
+      const facts = [
+        total ? t('auditUnits', done, total) : '',
+        (promptIdx !== null && data.promptsTotal) ? t('auditPrompts', Math.min(promptIdx + 1, data.promptsTotal), data.promptsTotal) : '',
+        t('auditCited', data.cited || 0),
+        elapsed ? t('auditElapsed', fmtDuration(elapsed)) : '',
+        eta
+      ].filter(Boolean).join(' · ');
+
+      block.innerHTML =
+        `<div class="row" style="align-items:center;">` +
+          `<span class="badge ${stalled ? 'badge-error' : 'badge-partial'}">${stalled ? t('stalledLabel') : t('runningLabel')}</span>` +
+          `<span class="field-hint">${facts}</span>` +
+          (total ? `<span class="field-hint" style="margin-left:auto;font-weight:700;">${pct}%</span>` : '') +
+        `</div>` +
+        `<div class="progress-wrap"><div class="progress-bar${total ? '' : ' indeterminate'}"${total ? ` style="width:${pct}%"` : ''}></div></div>` +
+        (stalled
+          ? `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('stalledDetail', fmtDuration(idleFor))}</div>` +
+            (promptIdx !== null
+              ? `<div class="row" style="margin-top:10px;"><button class="btn btn-sm" onclick="resumeAudit(${promptIdx})">${t('resumeBtn', promptIdx + 1)}</button></div>`
+              : '')
+          : '');
+
+      // While stalled the run button comes back: the operator may prefer a clean re-run to a resume.
+      if (runBtn) { runBtn.disabled = !stalled; runBtn.textContent = stalled ? t('runAuditBtn') : t('runningBtnLabel'); }
       if (cancelBtn) cancelBtn.style.display = '';
-      jobPollTimer = setTimeout(() => pollJobStatus(company), 3000);
-    } else if (opts.graceRetriesLeft > 0) {
-      // A run was just triggered, but the status store hasn't caught up to 'running' yet —
-      // keep polling briefly instead of settling on a stale pre-trigger status (which otherwise
-      // looks like the progress bar never showed up until the page is reloaded).
-      jobPollTimer = setTimeout(() => pollJobStatus(company, { graceRetriesLeft: opts.graceRetriesLeft - 1 }), 700);
+      jobPollTimer = setTimeout(() => pollJobStatus(company), stalled ? 10000 : 3000);
+    } else if (waitingForFreshRecord || opts.graceRetriesLeft > 0) {
+      // A run was triggered but the job record hasn't reached 'running' yet. This window used to be
+      // ~5s of drawing nothing, which is why a real run looked like a no-op and then reverted: the
+      // platform routinely needs longer than that to start a background function. Now it draws an
+      // explicit waiting state, and waits long enough to actually cover a cold start.
+      renderAuditQueued(block, company);
+      if (runBtn) { runBtn.disabled = true; runBtn.textContent = t('startingBtnLabel'); }
+      jobPollTimer = setTimeout(() => pollJobStatus(company, { graceRetriesLeft: Math.max(opts.graceRetriesLeft - 1, waitingForFreshRecord ? 1 : 0) }), 1500);
     } else if (data.status === 'error') {
+      clearAuditPending(company);
       block.innerHTML = `<span class="badge badge-error">${t('errorLabel')}</span> <span class="field-hint">${esc(data.message)}</span>`;
       if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
       if (cancelBtn) cancelBtn.style.display = 'none';
     } else if (inferredDone) {
+      clearAuditPending(company);
       block.innerHTML = `<span class="badge badge-done">${t('lastRunLabel', data.completed, data.cited || 0)}</span> <span class="field-hint">${t('finishedAt')}${esc((data.finishedAt || '').slice(0, 16).replace('T', ' '))}</span>`;
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
+      if (cancelBtn) cancelBtn.style.display = 'none';
+    } else if (auditPendingSince(company)) {
+      // We know a run was triggered in this session, so this is not "no audit yet" — it is a run
+      // that never reported. Say that, and offer a way to re-check without reloading.
+      block.innerHTML = `<span class="badge badge-error">${t('notStartedLabel')}</span> <span class="field-hint">${t('notStartedHint')}</span>` +
+        `<div class="row" style="margin-top:10px;"><button class="btn btn-ghost btn-sm" onclick="recheckAuditStatus()">${t('checkAgainBtn')}</button></div>`;
       if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
       if (cancelBtn) cancelBtn.style.display = 'none';
     } else {
@@ -800,6 +939,9 @@ async function cancelAudit() {
   if (!confirm(t('cancelConfirm'))) return;
   try {
     await fetch('/api/audit-job?company=' + encodeURIComponent(currentCompany), { method: 'DELETE' });
+    // Deliberately clearing the run means we are no longer waiting on one — without this the status
+    // block would flip to "hasn't started" and offer to re-check a run you just dismissed.
+    clearAuditPending(currentCompany);
     if (jobPollTimer) clearTimeout(jobPollTimer);
     pollJobStatus(currentCompany);
   } catch (err) {
@@ -828,6 +970,11 @@ async function runAudit() {
   const btn = document.getElementById('run-audit-btn');
   btn.disabled = true;
   btn.textContent = t('startingBtnLabel');
+  // Record and draw the waiting state up front. The old code showed nothing until the job record
+  // appeared, so a run that was genuinely starting looked identical to a dead button.
+  markAuditPending(currentCompany);
+  const statusBlock = document.getElementById('job-status-block');
+  if (statusBlock) renderAuditQueued(statusBlock, currentCompany);
   // Netlify acks a Background Function's invocation near-instantly regardless of how long the
   // actual work takes, so this response arrives quickly whether the run was accepted or
   // rejected (already running) — safe to await just far enough to check that, then fall back
@@ -840,6 +987,7 @@ async function runAudit() {
     });
     if (res.status === 409) {
       const data = await res.json().catch(() => ({}));
+      clearAuditPending(currentCompany);
       alert(data.message || t('alreadyRunning'));
       btn.disabled = false;
       btn.textContent = t('runAuditBtn');
@@ -851,18 +999,20 @@ async function runAudit() {
     // a bad redirect) showed the operator absolutely nothing while the button sat on "Starting…".
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
+      clearAuditPending(currentCompany);
       alert(t('failedToStartAudit') + 'HTTP ' + res.status + (detail ? ' — ' + detail.slice(0, 200) : ''));
       btn.disabled = false;
       btn.textContent = t('runAuditBtn');
       return;
     }
   } catch (err) {
+    clearAuditPending(currentCompany);
     alert(t('failedToStartAudit') + err.message);
     btn.disabled = false;
     btn.textContent = t('runAuditBtn');
     return;
   }
-  setTimeout(() => pollJobStatus(currentCompany, { graceRetriesLeft: 6 }), 500);
+  setTimeout(() => pollJobStatus(currentCompany, { graceRetriesLeft: 40 }), 400);
 }
 
 // ── Monitoring settings ──
@@ -898,6 +1048,45 @@ async function saveMonitoring() {
   } catch (err) {
     alert(t('saveMonitoringFailed') + err.message);
   }
+}
+
+// Continues a stalled run from the prompt it reached, rather than discarding graded answers and
+// paying for the whole set again. The backend has always supported this via startIndex; nothing in
+// the UI ever reached it, so a stall meant a reset.
+async function resumeAudit(startIndex) {
+  if (!currentCompany) return;
+  if (!(await confirmWithPassword(t('resumeTitle'), t('resumeConfirm', startIndex + 1, esc(currentCompany))))) return;
+  // The in-flight guard rejects a second run while status is still 'running', so the stale record
+  // is cleared first — the run it describes is already dead.
+  try {
+    await fetch('/api/audit-job?company=' + encodeURIComponent(currentCompany), { method: 'DELETE' });
+  } catch { /* if this fails the POST below will surface the 409 */ }
+  markAuditPending(currentCompany);
+  const statusBlock = document.getElementById('job-status-block');
+  if (statusBlock) renderAuditQueued(statusBlock, currentCompany);
+  try {
+    const res = await fetch('/api/run-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company: currentCompany, startIndex })
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error('HTTP ' + res.status + (detail ? ' — ' + detail.slice(0, 200) : ''));
+    }
+  } catch (err) {
+    clearAuditPending(currentCompany);
+    alert(t('failedToStartAudit') + err.message);
+    return;
+  }
+  setTimeout(() => pollJobStatus(currentCompany, { graceRetriesLeft: 40 }), 400);
+}
+
+// Manual re-check from the "hasn't started" state, with a fresh grace window so a slow cold start
+// still gets picked up instead of instantly reporting failure again.
+function recheckAuditStatus() {
+  if (!currentCompany) return;
+  pollJobStatus(currentCompany, { graceRetriesLeft: 20 });
 }
 
 // Releases (or revokes) one dashboard for this customer. Password-gated like every other action
