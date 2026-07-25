@@ -290,6 +290,22 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
   <div id="main-content"><div class="empty-state" data-t="selectFromDropdown">Select a customer from the dropdown above, or open this page from the Portal.</div></div>
 </main>
 
+<div class="modal-backdrop" id="run-modal">
+  <div class="modal-box">
+    <div class="card-title" id="run-modal-title" data-t="runModalTitle">Run Audit</div>
+    <div class="card-caption" data-t="runModalHint">Choose which engines to ask. Every prompt is sent to each engine you pick, so the number of result rows is prompts x engines.</div>
+    <div class="field" style="margin-bottom:0;">
+      <label data-t="enginesLabel">AI engines to audit with</label>
+      <div id="run-engine-list" style="display:flex; flex-direction:column; gap:10px; padding-top:4px;"></div>
+      <div class="field-hint" id="run-engine-hint"></div>
+    </div>
+    <div class="row" style="margin-top:20px; justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeRunModal()" data-t="cancelBtn">Cancel</button>
+      <button class="btn" id="run-confirm-btn" onclick="confirmRunAudit()" data-t="runAuditBtn">Run Audit</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="gen-modal">
   <div class="modal-box">
     <div class="card-title" id="gen-modal-title" data-t="generatePrompts">Generate Prompts</div>
@@ -316,15 +332,6 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
         <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" class="gen-lang-cb" value="Russian" style="width:auto;"> Russian</label>
       </div>
       <div class="field-hint" data-t="languagesHint">Select as many as you like. Prompts are split evenly across the languages chosen.</div>
-    </div>
-    <div class="field" style="margin-bottom:0;">
-      <label data-t="enginesLabel">AI engines to audit with</label>
-      <div style="display:flex; gap:16px; padding-top:4px;">
-        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" id="gen-engine-claude" checked style="width:auto;"> Claude</label>
-        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" id="gen-engine-chatgpt" checked style="width:auto;"> ChatGPT</label>
-        <label style="display:flex; align-items:center; gap:6px; text-transform:none; font-size:13px; color:var(--text); margin-bottom:0;"><input type="checkbox" id="gen-engine-gemini" checked style="width:auto;"> Gemini</label>
-      </div>
-      <div class="field-hint" data-t="enginesHint">Only engines with an API key configured for this customer (set at customer creation in the Portal) will actually run, even if selected here.</div>
     </div>
 
     <div id="gen-progress-block" style="display:none; margin-top:14px;">
@@ -456,6 +463,11 @@ const T = {
   couldNotLoadStatus: { en: 'Could not load audit status.', es: 'No se pudo cargar el estado de la auditoría.' },
   cancelConfirm: { en: "Cancel this run? If it's genuinely still active this only clears the displayed status — it won't stop already-in-flight API calls.", es: '¿Cancelar esta ejecución? Si realmente sigue activa, esto solo borra el estado mostrado — no detendrá las llamadas API que ya están en curso.' },
   failedToCancel: { en: 'Failed to cancel: ', es: 'Error al cancelar: ' },
+  runModalTitle: { en: (c) => `Run audit for ${c}`, es: (c) => `Ejecutar auditoría para ${c}` },
+  runModalHint: { en: 'Choose which engines to ask. Every prompt is sent to each engine you pick, so the number of result rows is prompts × engines.', es: 'Elige a qué motores preguntar. Cada prompt se envía a cada motor elegido, así que el número de filas es prompts × motores.' },
+  runRowEstimate: { en: (p, e, r) => `${p} prompts × ${e} engine${e === 1 ? '' : 's'} = ${r} result rows`, es: (p, e, r) => `${p} prompts × ${e} motor${e === 1 ? '' : 'es'} = ${r} filas de resultados` },
+  engineNoKey: { en: 'no API key configured — cannot be selected', es: 'sin API key configurada — no se puede seleccionar' },
+  selectEngineAlertRun: { en: 'Select at least one engine to run the audit with.', es: 'Selecciona al menos un motor para ejecutar la auditoría.' },
   startingBtnLabel: { en: 'Starting...', es: 'Iniciando...' },
   queuedLabel: { en: 'Starting', es: 'Iniciando' },
   queuedDetail: { en: (secs) => `Waiting for the run to report in… ${secs}s. Netlify can take up to a minute to start a background run — leaving this page will not stop it.`, es: (secs) => `Esperando que la ejecución reporte… ${secs}s. Netlify puede tardar hasta un minuto en arrancar una ejecución en segundo plano — si sales de esta página no se detiene.` },
@@ -541,6 +553,8 @@ async function populateCompanyPicker(selected) {
 }
 
 let jobPollTimer = null;
+let currentPromptCount = 0;
+let lastRunEngines = null;
 let currentCompany = '';
 let currentRows = [];
 
@@ -646,6 +660,8 @@ async function loadCompany(company) {
     const lines = promptsRes.promptsText
       ? promptsRes.promptsText.split('\n').map(l => l.trim()).filter(Boolean).length
       : (promptsRes.promptCount || 0);
+    // Kept on hand so the Run Audit modal can show prompts x engines before you commit.
+    currentPromptCount = lines;
     const langs = (promptsRes.languages || ['English']).join(', ');
     // Two gates, reported separately: internal release first, then the customer's own approval.
     const pendingInternal = !!promptsRes.internalReviewPending;
@@ -1030,9 +1046,58 @@ function confirmWithPassword(title, message) {
   });
 }
 
+// Engine choice belongs to the audit, not to prompt generation: the same prompt set can be run
+// against different engines on different days, and which engines to ask is a per-run decision.
 async function runAudit() {
   if (!currentCompany) return;
+  document.getElementById('run-modal-title').textContent = t('runModalTitle', currentCompany);
+  const list = document.getElementById('run-engine-list');
+  const hint = document.getElementById('run-engine-hint');
+  list.innerHTML = '';
+  hint.textContent = '';
+
+  // Only offer engines that actually have a key for this customer. /api/customer-keys returns
+  // configured/not-configured booleans only — never the key values themselves.
+  let configured = {};
+  try {
+    const res = await fetch('/api/customer-keys?company=' + encodeURIComponent(currentCompany));
+    if (res.ok) configured = await res.json();
+  } catch { /* fall through: everything renders selectable and the server filters anyway */ }
+
+  const engines = [['claude', 'Claude'], ['chatgpt', 'ChatGPT'], ['gemini', 'Gemini']];
+  list.innerHTML = engines.map(([id, label]) => {
+    const has = configured[id] !== false;
+    return `<label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:13px;color:var(--text);margin-bottom:0;${has ? '' : 'opacity:.55;'}">` +
+      `<input type="checkbox" class="run-engine-cb" value="${id}" ${has ? 'checked' : 'disabled'} style="width:auto;" onchange="updateRunEstimate()"> ${label}` +
+      (has ? '' : ` <span class="field-hint" style="margin:0;">— ${t('engineNoKey')}</span>`) +
+      `</label>`;
+  }).join('');
+
+  document.getElementById('run-modal').classList.add('open');
+  updateRunEstimate();
+}
+
+// Makes prompts × engines concrete before committing, since that product is what the run costs and
+// what the row count will be — the thing that was previously surprising after the fact.
+function updateRunEstimate() {
+  const hint = document.getElementById('run-engine-hint');
+  if (!hint) return;
+  const n = document.querySelectorAll('.run-engine-cb:checked').length;
+  const prompts = currentPromptCount || 0;
+  hint.textContent = prompts && n ? t('runRowEstimate', prompts, n, prompts * n) : '';
+}
+
+function closeRunModal() {
+  document.getElementById('run-modal').classList.remove('open');
+}
+
+async function confirmRunAudit() {
+  if (!currentCompany) return;
+  const engines = Array.from(document.querySelectorAll('.run-engine-cb:checked')).map(cb => cb.value);
+  lastRunEngines = engines;
+  if (!engines.length) { alert(t('selectEngineAlertRun')); return; }
   if (!(await confirmWithPassword(t('pwRunAuditTitle'), t('pwRunAuditMsg', esc(currentCompany))))) return;
+  closeRunModal();
   const btn = document.getElementById('run-audit-btn');
   btn.disabled = true;
   btn.textContent = t('startingBtnLabel');
@@ -1049,7 +1114,7 @@ async function runAudit() {
     const res = await fetch('/api/run-audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company: currentCompany })
+      body: JSON.stringify({ company: currentCompany, engines })
     });
     if (res.status === 409) {
       const data = await res.json().catch(() => ({}));
@@ -1134,7 +1199,7 @@ async function resumeAudit(startIndex) {
     const res = await fetch('/api/run-audit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company: currentCompany, startIndex })
+      body: JSON.stringify({ company: currentCompany, startIndex, engines: lastRunEngines })
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
@@ -1187,9 +1252,6 @@ async function openGenModal() {
   document.getElementById('gen-modal-title').textContent = t('genModalTitle', currentCompany);
   document.getElementById('gen-count').value = '100';
   document.querySelectorAll('.gen-lang-cb').forEach(cb => { cb.checked = cb.value === 'English'; });
-  document.getElementById('gen-engine-claude').checked = true;
-  document.getElementById('gen-engine-chatgpt').checked = true;
-  document.getElementById('gen-engine-gemini').checked = true;
   document.getElementById('gen-confirm-btn').disabled = false;
   document.getElementById('gen-confirm-btn').textContent = t('generateBtn');
   document.getElementById('gen-progress-block').style.display = 'none';
@@ -1218,9 +1280,8 @@ let genPollTimer = null;
 async function confirmGenerate() {
   if (!currentCompany) return;
   const languages = Array.from(document.querySelectorAll('.gen-lang-cb:checked')).map(cb => cb.value);
-  const engines = ['claude', 'chatgpt', 'gemini'].filter(e => document.getElementById('gen-engine-' + e).checked);
+
   if (!languages.length) { alert(t('selectLanguageAlert')); return; }
-  if (!engines.length) { alert(t('selectEngineAlert')); return; }
   const count = parseInt(document.getElementById('gen-count').value) || 100;
   const company = currentCompany;
   if (!(await confirmWithPassword(t('pwGenTitle'), t('pwGenMsg', esc(company))))) return;
@@ -1245,7 +1306,7 @@ async function confirmGenerate() {
   fetch('/api/generate-prompts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ company, count, languages, engines })
+    body: JSON.stringify({ company, count, languages })
   }).catch(() => { /* network-level failure only — polling below will surface anything else */ });
   setTimeout(() => pollGenerateJob(company, { graceRetriesLeft: 6 }), 500);
 }

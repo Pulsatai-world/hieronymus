@@ -420,9 +420,16 @@ export default async (request, context) => {
     // Engines selected at "Generate Prompts" time (if any were stored) further narrow which
     // configured keys actually get used — e.g. a customer might have all 3 keys set but the
     // user only wanted this run to use Claude + ChatGPT.
-    const selectedEngines = Array.isArray(promptsRecord.engines) && promptsRecord.engines.length
+    // Which engines to ask is a per-run decision made when Run Audit is clicked, so the request wins.
+    // The engine list stored with the prompts is only a fallback, for the monthly cron (which sends
+    // none) and for older records generated while that choice still lived in the generate step.
+    const requestedEngines = Array.isArray(body.engines) && body.engines.length
+      ? body.engines.map(e => String(e).toLowerCase())
+      : null;
+    const storedEngines = Array.isArray(promptsRecord.engines) && promptsRecord.engines.length
       ? promptsRecord.engines.map(e => String(e).toLowerCase())
       : null;
+    const selectedEngines = requestedEngines || storedEngines;
 
     const activeEngines = ENGINE_DEFS
       .map(def => ({ def, apiKey: keysRecord && keysRecord[def.name.toLowerCase()] }))
