@@ -995,11 +995,6 @@ async function pollJobStatus(company, opts) {
       block.innerHTML = `<span class="badge badge-error">${t('errorLabel')}</span> <span class="field-hint">${esc(data.message)}</span>`;
       if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
       if (cancelBtn) cancelBtn.style.display = 'none';
-    } else if (inferredDone) {
-      clearAuditPending(company);
-      block.innerHTML = `<span class="badge badge-done">${t('lastRunLabel', data.completed, data.cited || 0)}</span> <span class="field-hint">${t('finishedAt')}${esc((data.finishedAt || '').slice(0, 16).replace('T', ' '))}</span>`;
-      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
-      if (cancelBtn) cancelBtn.style.display = 'none';
     } else if (data.total > 0 && (data.completed || 0) < data.total && (data.finishedAt || data.status === 'done')) {
       // Finished, but short of its own total: the platform cut the run off. This previously matched
       // neither the running nor the done branch and fell through to "hasn't started", which is the
@@ -1017,6 +1012,11 @@ async function pollJobStatus(company, opts) {
         (promptIdx !== null
           ? `<div class="row" style="margin-top:10px;"><button class="btn btn-sm" onclick="resumeAudit(${promptIdx})">${t('resumeBtn', promptIdx + 1)}</button></div>`
           : '');
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
+      if (cancelBtn) cancelBtn.style.display = 'none';
+    } else if (inferredDone) {
+      clearAuditPending(company);
+      block.innerHTML = `<span class="badge badge-done">${t('lastRunLabel', data.completed, data.cited || 0)}</span> <span class="field-hint">${t('finishedAt')}${esc((data.finishedAt || '').slice(0, 16).replace('T', ' '))}</span>`;
       if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
       if (cancelBtn) cancelBtn.style.display = 'none';
     } else if (auditPendingSince(company)) {
