@@ -29,6 +29,25 @@ async function isBlockedViewer(requestingUsername, requestingPassword) {
   return false;
 }
 
+// The intake questionnaire is the most sensitive record in the system — competitors, personas, client
+// names, pricing context, the lot. GET was unauthenticated, so any caller could read any customer's
+// answers by naming their company. These mirror the checks results.js uses.
+async function memberOfCompany(company, username, password) {
+  if (!company || !username || !password) return false;
+  const group = await getStore('hieronymus-intake-codes').get(slugify(company), { type: 'json' });
+  if (!group) return false;
+  const member = (group.members || []).find(m => m.username === String(username).toLowerCase());
+  if (!member) return false;
+  return verifyPassword(password, member.passwordHash);
+}
+
+async function isStaff(username, password) {
+  if (!username || !password) return false;
+  const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
+  if (!record) return false;
+  return verifyPassword(password, record.passwordHash);
+}
+
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
     status,
@@ -80,12 +99,20 @@ export default async (request, context) => {
 
   if (request.method === 'GET') {
     const companyParam = url.searchParams.get('company');
+    const staff = await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'));
 
     if (companyParam) {
+      // A customer may read only their own answers, proven against the company they asked for, so
+      // renaming the parameter yields 403 rather than someone else's questionnaire.
+      const member = await memberOfCompany(companyParam, url.searchParams.get('username'), url.searchParams.get('password'));
+      if (!staff && !member) return json({ error: 'Not authorised to read this intake' }, 403);
       const data = await store.get(slugify(companyParam), { type: 'json' });
       if (!data) return json({ error: 'Not found' }, 404);
       return json(data, 200);
     }
+
+    // The full list names every customer, so it is staff-only.
+    if (!staff) return json({ error: 'Listing intakes requires staff credentials' }, 403);
 
     const { blobs } = await store.list();
     const items = await Promise.all(blobs.map(async b => {

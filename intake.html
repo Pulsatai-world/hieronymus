@@ -796,6 +796,8 @@ select {
 }
 
 </style>
+<script src="/js/confirm-gate.js"></script>
+<script src="/js/results-auth.js"></script>
 </head>
 <body>
 
@@ -1648,7 +1650,7 @@ async function validateGateCode(username, password) {
 async function restoreSavedProgress() {
   if (!clientCompany) return;
   try {
-    const res = await fetch('/api/intake?company=' + encodeURIComponent(clientCompany));
+    const res = await fetch(await window.intakeQuery(clientCompany));
     if (res.ok) {
       const saved = await res.json();
       if (saved && saved.intake) populateForm(saved.intake);

@@ -157,6 +157,8 @@ body { font-family: var(--mono); background: var(--bg); color: var(--text); min-
 @media (max-width: 640px) { .kv { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .header { padding: 14px 16px; } .logo-sub, .logo-divider { display: none; } }
 </style>
+<script src="/js/confirm-gate.js"></script>
+<script src="/js/results-auth.js"></script>
 </head>
 <body>
 
@@ -196,7 +198,7 @@ async function load() {
 
   let record;
   try {
-    const res = await fetch('/api/intake?company=' + encodeURIComponent(company));
+    const res = await fetch(await window.intakeQuery(company));
     if (res.status === 404) {
       main.innerHTML = `<div class="page-title">${esc(company)}</div><div class="empty-state">No intake submitted yet for this client.</div>`;
       return;

@@ -47,4 +47,11 @@
     }
     return '/api/results?' + params.toString();
   };
+
+  // Same credential resolution, for the intake endpoint. Kept alongside resultsQuery rather than
+  // duplicated per page: both endpoints are scoped the same way and answer to the same sessions.
+  window.intakeQuery = async function (company) {
+    const url = await window.resultsQuery(company);
+    return url.replace('/api/results?', '/api/intake?');
+  };
 })();
