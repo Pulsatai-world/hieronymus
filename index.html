@@ -378,6 +378,10 @@ const T = {
   reviewAndReleaseBtn: { en: 'Review & release →', es: 'Revisar y liberar →' },
   openInternalReviewBtn: { en: 'Open review page →', es: 'Abrir página de revisión →' },
   clientComments: { en: 'Client comments: ', es: 'Comentarios del cliente: ' },
+  engineFailuresTitle: { en: 'Failed rows in the last run', es: 'Filas con error en la última ejecución' },
+  engineFailureLine: { en: (eng, n, tot) => `${eng}: ${n} of ${tot} rows failed`, es: (eng, n, tot) => `${eng}: ${n} de ${tot} filas fallaron` },
+  engineFailureAll: { en: (eng) => `${eng}: every row failed — this is a configuration problem, not a transient one`, es: (eng) => `${eng}: todas las filas fallaron — esto es un problema de configuración, no algo pasajero` },
+  promptsShortfall: { en: (kept, asked) => `${kept} of the ${asked} requested — the rest could not be produced`, es: (kept, asked) => `${kept} de los ${asked} solicitados — el resto no se pudo producir` },
   promptsCountLine: { en: (n, langs, date) => `${n} prompts · ${langs} · generated ${date}`, es: (n, langs, date) => `${n} prompts · ${langs} · generado ${date}` },
   regeneratePrompts: { en: 'Regenerate Prompts', es: 'Regenerar Prompts' },
   copyReviewLink: { en: 'Copy Review Link', es: 'Copiar Enlace de Revisión' },
@@ -607,6 +611,35 @@ async function loadCompany(company) {
 
   // `promptsText` is present only for a verified staff request or an already-released set; the
   // withheld response still carries promptCount, so the card works either way.
+  // Error rows carry their cause in answer_excerpt. It was only ever visible by exporting the CSV,
+  // which meant "ChatGPT failed" looked like a mystery instead of a message the run already recorded.
+  // Surfacing the count and the actual text per engine is the difference between guessing and knowing.
+  const latestDate = runDates[0] || '';
+  const latestRows = rows.filter(r => r.snapshot_date === latestDate);
+  const failuresByEngine = {};
+  latestRows.forEach(r => {
+    const eng = r.engine || '?';
+    failuresByEngine[eng] = failuresByEngine[eng] || { total: 0, failed: 0, reason: '' };
+    failuresByEngine[eng].total++;
+    if (r.sentiment === 'error') {
+      failuresByEngine[eng].failed++;
+      if (!failuresByEngine[eng].reason) failuresByEngine[eng].reason = r.answer_excerpt || '';
+    }
+  });
+  const failedEngines = Object.keys(failuresByEngine).filter(e => failuresByEngine[e].failed > 0);
+  const failureBlock = failedEngines.length ? `
+    <div class="card">
+      <div class="card-title">${t('engineFailuresTitle')}</div>
+      ${failedEngines.map(eng => {
+        const f = failuresByEngine[eng];
+        const total = f.failed === f.total;
+        return `<div class="field-hint" style="margin-top:8px;color:var(--warning);">` +
+          (total ? t('engineFailureAll', esc(eng)) : t('engineFailureLine', esc(eng), f.failed, f.total)) +
+          (f.reason ? `<div style="margin-top:4px;font-family:var(--mono, monospace);font-size:11px;color:var(--text-dim);word-break:break-word;">${esc(f.reason.slice(0, 300))}</div>` : '') +
+          `</div>`;
+      }).join('')}
+    </div>` : '';
+
   const hasPrompts = !!(promptsRes && (promptsRes.promptsText || promptsRes.promptCount));
   let promptsBlock;
   if (hasPrompts) {
@@ -627,6 +660,7 @@ async function loadCompany(company) {
     const comments = promptsRes.comments ? `<div class="field-hint" style="margin-top:8px;">${t('clientComments')}${esc(promptsRes.comments)}</div>` : '';
     promptsBlock = `
       <div class="row" style="margin-bottom:8px;">${internalStatus}${reviewStatus}<span class="field-hint">${t('promptsCountLine', lines, esc(langs), esc((promptsRes.generatedAt || '').slice(0, 10)))}</span></div>
+      ${promptsRes.stats && promptsRes.stats.short > 0 ? `<div class="field-hint" style="margin-top:6px;color:var(--warning);">${t('promptsShortfall', promptsRes.stats.kept, promptsRes.stats.requested)}</div>` : ''}
       ${pendingInternal ? `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('internalReviewHint')}</div>` : ''}
       ${comments}
       <div class="row" style="margin-top:12px;">
@@ -687,6 +721,7 @@ async function loadCompany(company) {
       ` : `<div class="empty-state">${t('noResultsYet')}</div>`}
     </div>
 
+    ${failureBlock}
     ${monitoringBlock}
 
     <div class="card">

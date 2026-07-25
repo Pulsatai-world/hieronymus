@@ -549,11 +549,12 @@ export default async (request, context) => {
     const languages = Array.isArray(body.languages) && body.languages.length ? body.languages : ['English'];
     const engines = Array.isArray(body.engines) && body.engines.length ? body.engines : ['claude', 'chatgpt', 'gemini'];
     const perCategory = Math.max(1, Math.round(count / CATEGORIES.length));
-    // Generate a real surplus, because the cold-validation pass below is expected to reject a
-    // meaningful share. Whatever survives is what ships: the count is NOT padded back up to the
-    // requested number. A short set of prompts that force an engine to name companies is worth
-    // more than a full set where a third of the rows come back with no brands in them.
+    // Generate a surplus, because the cold-validation pass rejects a meaningful share. The requested
+    // count is a commitment, not a target: if validation leaves a category short, more are generated
+    // to fill the gap rather than shipping fewer than asked for. Quality is enforced by the validator
+    // on every candidate including top-ups, so filling the gap does not mean lowering the bar.
     const requestPerCategory = Math.ceil(perCategory * 1.6) + 2;
+    const MAX_TOPUP_ROUNDS = 3;
 
     const intakeStore = getStore('hieronymus-intake');
     const intakeRecord = await intakeStore.get(jobKey, { type: 'json' });
@@ -580,52 +581,101 @@ export default async (request, context) => {
     // Stages 2 and 3 — generate then cold-validate, one chain per category, all five chains run
     // concurrently. Sequential Opus calls across eleven steps risked running long inside the
     // background function's window.
-    const catMaxTokens = Math.min(16000, 4000 + requestPerCategory * 70);
     let completed = 1;
-    const perCategoryResults = await Promise.all(CATEGORIES.map(async (cat) => {
+    async function produceCategory(cat, want) {
+      const maxTokens = Math.min(16000, 4000 + want * 70);
       const raw = await callClaude(apiKey, {
-        prompt: buildCategoryPrompt(cat, company, brief, requestPerCategory, languages),
-        maxTokens: catMaxTokens,
+        prompt: buildCategoryPrompt(cat, company, brief, want, languages),
+        maxTokens,
         effort: 'medium'
       });
       completed += 1;
       await bumpProgress(jobsStore, jobKey, completed);
 
-      // Parse with a generous cap — the validator, not this step, decides the final count.
-      const candidates = parseCategoryOutput(raw, cat.key, requestPerCategory, new Set())
+      // Parse with a generous cap — the validator, not this step, decides what survives.
+      const candidates = parseCategoryOutput(raw, cat.key, want, new Set())
         .map(l => l.replace(new RegExp('^' + cat.key + ':\\s*'), ''));
       const result = await validateCategory(apiKey, cat.key, candidates, company);
       completed += 1;
       await bumpProgress(jobsStore, jobKey, completed);
       return { cat, generated: candidates.length, ...result };
-    }));
+    }
+
+    const perCategoryResults = await Promise.all(CATEGORIES.map(cat => produceCategory(cat, requestPerCategory)));
 
     // De-duplication is shared across categories so the same query can't appear twice under two
     // labels. Each category contributes at most perCategory prompts, but contributes fewer without
     // complaint when validation rejected that many.
     const seen = new Set();
-    const lines = [];
-    const stats = { requested: count, generated: 0, dropped: 0, rewritten: 0, validatorFailures: [], perCategory: {} };
-    perCategoryResults.forEach(({ cat, generated, kept, dropped, rewritten, validatorFailed }) => {
-      stats.generated += generated;
-      stats.dropped += dropped;
-      stats.rewritten += rewritten;
-      if (validatorFailed) stats.validatorFailures.push(cat.key);
-      let taken = 0;
+    const byCat = {};
+    CATEGORIES.forEach(cat => { byCat[cat.key] = []; });
+    const stats = { requested: count, generated: 0, dropped: 0, rewritten: 0, topUpRounds: 0, validatorFailures: [], perCategory: {} };
+
+    // Adds surviving prompts to a category up to its quota, skipping anything already used by an
+    // earlier category so the same query can't appear twice under two labels.
+    // Anything validated but over a category's quota is kept aside rather than thrown away: the
+    // number the operator asked for is a total, so a surplus in one category can legitimately cover
+    // a shortfall in another. Everything here has already passed the validator.
+    const spare = {};
+    CATEGORIES.forEach(cat => { spare[cat.key] = []; });
+    function absorb(cat, kept) {
       for (const text of kept) {
-        if (taken >= perCategory) break;
         const key = dedupeKey(text);
         if (!key || seen.has(key)) continue;
         seen.add(key);
-        lines.push(cat.key + ': ' + text);
-        taken++;
+        if (byCat[cat.key].length < perCategory) byCat[cat.key].push(cat.key + ': ' + text);
+        else spare[cat.key].push(cat.key + ': ' + text);
       }
-      // A category can legitimately come back empty — everything it produced failed validation, or
-      // collided with an earlier category. That's recorded, not fatal: discarding eleven calls of
-      // work because one of five categories came up short would be worse than shipping four.
-      stats.perCategory[cat.key] = taken;
+    }
+
+    function tally(r) {
+      stats.generated += r.generated;
+      stats.dropped += r.dropped;
+      stats.rewritten += r.rewritten;
+      if (r.validatorFailed && !stats.validatorFailures.includes(r.cat.key)) stats.validatorFailures.push(r.cat.key);
+    }
+
+    perCategoryResults.forEach(r => { tally(r); absorb(r.cat, r.kept); });
+
+    // Top up anything validation left short, rather than delivering fewer prompts than asked for.
+    // Each round asks for double the gap, since some of what comes back will be rejected again.
+    for (let round = 0; round < MAX_TOPUP_ROUNDS; round++) {
+      const short = CATEGORIES.filter(cat => byCat[cat.key].length < perCategory);
+      if (!short.length) break;
+      stats.topUpRounds = round + 1;
+      // Each top-up is two more Claude calls per short category; keep the progress total honest.
+      const job = (await jobsStore.get(jobKey, { type: 'json' })) || {};
+      await updateJob(jobsStore, jobKey, { total: (job.total || totalSteps) + short.length * 2 });
+      const extra = await Promise.all(short.map(cat =>
+        produceCategory(cat, (perCategory - byCat[cat.key].length) * 2 + 2)
+      ));
+      extra.forEach(r => { tally(r); absorb(r.cat, r.kept); });
+    }
+
+    // Final fill: if the per-category quotas still leave the total under what was asked for, draw on
+    // the validated surplus, round-robin so the mix stays balanced rather than loading one category.
+    let totalNow = CATEGORIES.reduce((n, cat) => n + byCat[cat.key].length, 0);
+    let drained = true;
+    while (totalNow < count && drained) {
+      drained = false;
+      for (const cat of CATEGORIES) {
+        if (totalNow >= count) break;
+        const next = spare[cat.key].shift();
+        if (!next) continue;
+        byCat[cat.key].push(next);
+        totalNow++;
+        drained = true;
+      }
+    }
+
+    const lines = [];
+    CATEGORIES.forEach(cat => {
+      stats.perCategory[cat.key] = byCat[cat.key].length;
+      lines.push(...byCat[cat.key]);
     });
     stats.kept = lines.length;
+    stats.short = Math.max(0, count - stats.kept);
+    stats.spareUnused = CATEGORIES.reduce((n, cat) => n + spare[cat.key].length, 0);
     if (!lines.length) throw new Error('No prompts survived validation — nothing usable was generated.');
 
     const promptsText = lines.join('\n');
