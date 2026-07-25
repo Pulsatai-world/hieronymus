@@ -244,6 +244,7 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
 .lang-btn { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-mid); background: var(--surface); border: none; padding: 6px 12px; cursor: pointer; }
 .lang-btn.active { background: var(--accent); color: #fff; }
 </style>
+<script src="/js/results-auth.js"></script>
 </head>
 <body>
 
@@ -659,7 +660,7 @@ async function loadAll() {
     const [codesRes, promptsRes, resultsRes] = await Promise.all([
       fetch('/api/intake-codes'),
       fetch('/api/prompts'),
-      fetch('/api/results')
+      fetch(await window.resultsQuery(''))
     ]);
     const codesData = await codesRes.json();
     const promptsData = await promptsRes.json().catch(() => ({ items: [] }));

@@ -181,7 +181,9 @@
     /* Trend charts get more vertical room once they lose horizontal room. */
     .trend-plot svg{height:200px}
   }
-</style></head><body>
+</style><script src="/js/confirm-gate.js"></script>
+<script src="/js/results-auth.js"></script>
+</head><body>
 <div class="head">
   <div class="headnav">
     <a href="/portal.html" id="link-back" data-t="backNav">&larr; Back</a>
@@ -225,6 +227,7 @@ const T = {
   sub: { en: 'How your AI visibility has moved, run over run. The stats and prompt list reflect the latest run; the charts show the full history.', es: 'Cómo ha evolucionado tu visibilidad en IA, ejecución tras ejecución. Las estadísticas y la lista de prompts reflejan la ejecución más reciente; las gráficas muestran el historial completo.' },
   companyLabel: { en: 'Company', es: 'Empresa' },
   noCompanyParam: { en: 'This dashboard needs to be opened from your portal — no customer was specified in the link.', es: 'Este tablero debe abrirse desde tu portal — el enlace no especifica ningún cliente.' },
+  resultsForbidden: { en: 'Please open this dashboard from your portal — this session is not signed in for this customer.', es: 'Abre este tablero desde tu portal — esta sesión no tiene acceso a este cliente.' },
   engineLabel: { en: 'Engine', es: 'Motor' },
   questionTypeLabel: { en: 'Question type', es: 'Tipo de pregunta' },
   questionTypeHint: { en: 'What the user is trying to get from the AI', es: 'Lo que el usuario busca obtener de la IA' },
@@ -438,7 +441,15 @@ function normalizeRow(r) {
 }
 
 async function loadData() {
-  const res = await fetch('/api/results');
+  const res = await fetch(await window.resultsQuery(new URLSearchParams(location.search).get('company') || ''));
+  // Results are scoped server-side now, so a refusal means the visitor is not signed in as this
+  // customer (or as staff). Say that, rather than parsing an error body as CSV and rendering an
+  // empty dashboard that looks like "you have no data".
+  if (!res.ok) {
+    document.body.insertAdjacentHTML('beforeend',
+      `<div class="empty" style="padding:60px 20px;text-align:center;">${t('resultsForbidden')}</div>`);
+    return;
+  }
   const text = await res.text();
   allRows = parseCSV(text).map(normalizeRow);
   const byKey = new Map();

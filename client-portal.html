@@ -116,6 +116,8 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--i
 @media (max-width: 640px) { .kv { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .app-header { padding: 0 16px; } .logo-sub, .logo-divider { display: none; } }
 </style>
+<script src="/js/confirm-gate.js"></script>
+<script src="/js/results-auth.js"></script>
 </head>
 <body>
 
@@ -546,7 +548,8 @@ async function showApp() {
 
   let hasRuns = false, promptsExist = false, promptsApprovedAt = '';
   try {
-    const res = await fetch('/api/results');
+    const res = await fetch(await window.resultsQuery(clientCompany));
+    if (!res.ok) throw new Error('results not authorised');
     const rows = parseCSV(await res.text());
     hasRuns = rows.some(r => r.brand === clientCompany);
   } catch { /* fall back to "not ready" below */ }

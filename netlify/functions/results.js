@@ -20,6 +20,34 @@ async function requireAdmin(username, password) {
 // now run multiple prompts/engines in parallel server-side) — every write goes to a distinct
 // key, so concurrent POSTs can never clobber each other. GET reconstructs the CSV by listing
 // and reading back every row.
+// Reading results is scoped from here on. Previously GET returned every customer's rows to anyone
+// who asked, and the dashboards filtered in the browser — so one customer's dashboard downloaded
+// every other customer's data, and swapping ?company= in the URL showed a competitor's audit. A
+// client-side filter is not an access control.
+//
+// The write path (POST) stays open: run-audit-background.js calls it server-to-server with no
+// credentials to save each row, and gating it would break every audit.
+async function memberOfCompany(company, username, password) {
+  if (!company || !username || !password) return false;
+  const codesStore = getStore('hieronymus-intake-codes');
+  const group = await codesStore.get(slugify(company), { type: 'json' });
+  if (!group) return false;
+  const member = (group.members || []).find(m => m.username === String(username).toLowerCase());
+  if (!member) return false;
+  return verifyPassword(password, member.passwordHash);
+}
+
+async function isStaff(username, password) {
+  if (!username || !password) return false;
+  const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
+  if (!record) return false;
+  return verifyPassword(password, record.passwordHash);
+}
+
+function slugify(name) {
+  return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+}
+
 const CSV_COLUMNS = [
   'run_id', 'run_type', 'snapshot_date', 'engine', 'prompt_id', 'prompt_text', 'query_intent', 'topic_cluster',
   'brand', 'brand_mentioned', 'brand_cited', 'brand_citation_rank', 'total_brands_cited',
@@ -70,9 +98,31 @@ export default async (request, context) => {
   }
 
   if (request.method === 'GET') {
+    const url2 = new URL(request.url);
+    const company = (url2.searchParams.get('company') || '').trim();
+    const staff = await isStaff(url2.searchParams.get('staffUsername'), url2.searchParams.get('staffPassword'));
+    const member = company
+      ? await memberOfCompany(company, url2.searchParams.get('username'), url2.searchParams.get('password'))
+      : false;
+
+    // Staff may read one customer or everything. A customer may read only their own, and only by
+    // proving membership of the company they asked for — so editing ?company= gets a 403 rather
+    // than someone else's data.
+    if (!staff && !member) {
+      return new Response(JSON.stringify({
+        error: company
+          ? 'Not authorised to read results for this customer'
+          : 'Reading all results requires staff credentials'
+      }), { status: 403, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+    }
+
     const { blobs } = await store.list();
-    const rows = await Promise.all(blobs.map(b => store.get(b.key, { type: 'json' })));
-    const csv = CSV_HEADER + rows.filter(Boolean).map(rowToCsvLine).join('');
+    let rows = (await Promise.all(blobs.map(b => store.get(b.key, { type: 'json' })))).filter(Boolean);
+    if (company) {
+      const want = company.toLowerCase();
+      rows = rows.filter(r => String(r.brand || '').toLowerCase() === want);
+    }
+    const csv = CSV_HEADER + rows.map(rowToCsvLine).join('');
     return new Response(csv, {
       status: 200,
       headers: {

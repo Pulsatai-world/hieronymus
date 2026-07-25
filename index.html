@@ -262,6 +262,7 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
   .modal-box { padding: 20px 16px; max-height: 88vh; overflow-y: auto; }
 }
 </style>
+<script src="/js/results-auth.js"></script>
 </head>
 <body>
 
@@ -577,7 +578,7 @@ async function loadCompany(company) {
   const [intakeRes, promptsRes, resultsText, codeRec] = await Promise.all([
     fetch('/api/intake?company=' + encodeURIComponent(company)).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(promptsQuery).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch('/api/results').then(r => r.ok ? r.text() : '').catch(() => ''),
+    fetch(await window.resultsQuery(company)).then(r => r.ok ? r.text() : '').catch(() => ''),
     fetch('/api/intake-codes?company=' + encodeURIComponent(company)).then(r => r.ok ? r.json() : null).catch(() => null)
   ]);
 
