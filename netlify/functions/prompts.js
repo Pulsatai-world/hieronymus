@@ -44,6 +44,17 @@ async function isStaff(username, password) {
   return verifyPassword(password, record.passwordHash);
 }
 
+// A customer may read their own prompt set. Previously any caller could read any customer's
+// released prompts by naming their company, and the parameterless list named every customer.
+async function memberOfCompany(company, username, password) {
+  if (!company || !username || !password) return false;
+  const group = await getStore('hieronymus-intake-codes').get(slugify(company), { type: 'json' });
+  if (!group) return false;
+  const member = (group.members || []).find(m => m.username === String(username).toLowerCase());
+  if (!member) return false;
+  return verifyPassword(password, member.passwordHash);
+}
+
 // The brief is internal working material from the generator (competitor lists, the
 // "facts a searcher could not know" exclusion list) — it is never part of a client response.
 function withoutInternals(data) {
@@ -86,6 +97,8 @@ export default async (request, context) => {
       if (!data) return json({ error: 'Not found' }, 404);
 
       const staff = await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'));
+      const member = await memberOfCompany(companyParam, url.searchParams.get('username'), url.searchParams.get('password'));
+      if (!staff && !member) return json({ error: 'Not authorised to read prompts for this customer' }, 403);
       // Records the customer already approved predate this gate — they have demonstrably seen the
       // prompts, so treating them as unreleased would lock a live customer out of their own
       // review page for no benefit. Grandfather them in.
@@ -101,6 +114,9 @@ export default async (request, context) => {
         return json({ ...rest, internalReviewPending: true, promptCount: String(promptsText || '').split('\n').filter(l => l.trim()).length }, 200);
       }
       return json({ ...withoutInternals(data), internalReviewPending: false }, 200);
+    }
+    if (!await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'))) {
+      return json({ error: 'Listing prompt sets requires staff credentials' }, 403);
     }
     const { blobs } = await store.list();
     const items = await Promise.all(blobs.map(async b => {

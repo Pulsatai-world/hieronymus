@@ -1666,7 +1666,7 @@ let intakeFrozen = false;
 async function checkIntakeFrozen() {
   if (!clientCompany || isStaffBypass) return false;
   try {
-    const res = await fetch('/api/prompts?company=' + encodeURIComponent(clientCompany));
+    const res = await fetch(await window.apiQuery('/api/prompts', { company: clientCompany }));
     if (!res.ok) return false;
     const rec = await res.json();
     return !!(rec && rec.approvedAt);

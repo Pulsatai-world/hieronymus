@@ -554,7 +554,7 @@ async function showApp() {
     hasRuns = rows.some(r => r.brand === clientCompany);
   } catch { /* fall back to "not ready" below */ }
   try {
-    const pr = await fetch('/api/prompts?company=' + encodeURIComponent(clientCompany));
+    const pr = await fetch(await window.apiQuery('/api/prompts', { company: clientCompany }));
     if (pr.ok) { const pd = await pr.json(); promptsExist = !!(pd && pd.promptsText); promptsApprovedAt = (pd && pd.approvedAt) || ''; }
   } catch { /* treat as not-generated */ }
 

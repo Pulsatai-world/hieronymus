@@ -659,7 +659,7 @@ async function loadAll() {
   try {
     const [codesRes, promptsRes, resultsRes] = await Promise.all([
       fetch('/api/intake-codes'),
-      fetch('/api/prompts'),
+      fetch(await window.apiQuery('/api/prompts', {})),
       fetch(await window.resultsQuery(''))
     ]);
     const codesData = await codesRes.json();

@@ -474,6 +474,8 @@ const T = {
   queuedDetail: { en: (secs) => `Waiting for the run to report in… ${secs}s. Netlify can take up to a minute to start a background run — leaving this page will not stop it.`, es: (secs) => `Esperando que la ejecución reporte… ${secs}s. Netlify puede tardar hasta un minuto en arrancar una ejecución en segundo plano — si sales de esta página no se detiene.` },
   notStartedLabel: { en: "Hasn't started", es: 'No ha arrancado' },
   notStartedHint: { en: 'The run was accepted but has not reported any progress. It may still be starting, or it may have failed to launch. Check again, or try running it once more.', es: 'La ejecución fue aceptada pero no ha reportado progreso. Puede seguir arrancando o puede que no haya podido iniciar. Vuelve a verificar o intenta ejecutarla de nuevo.' },
+  queuedStuckHint: { en: 'This has been waiting a long time. The run may have been cut off by the platform before it reported in. You can continue it from where it stopped, or start over.', es: 'Lleva mucho tiempo esperando. Puede que la plataforma haya cortado la ejecución antes de que reportara. Puedes continuarla desde donde se detuvo, o empezar de nuevo.' },
+  giveUpWaitingBtn: { en: 'Stop waiting', es: 'Dejar de esperar' },
   checkAgainBtn: { en: 'Check again', es: 'Verificar de nuevo' },
   auditElapsed: { en: (e) => `${e} elapsed`, es: (e) => `${e} transcurrido` },
   auditEta: { en: (e) => `~${e} left`, es: (e) => `~${e} restante` },
@@ -573,9 +575,7 @@ async function loadCompany(company) {
   // already cached — it never prompts here, because loadCompany() runs on every page view and a
   // password dialog on load would be hostile. Without it the card falls back to showing status
   // only, and the count comes from `promptCount`.
-  const cachedStaffPw = sessionStorage.getItem('geo_staff_password') || '';
-  const promptsQuery = '/api/prompts?company=' + encodeURIComponent(company) +
-    (cachedStaffPw ? '&staffUsername=' + encodeURIComponent(localStorage.getItem(USER_KEY) || '') + '&staffPassword=' + encodeURIComponent(cachedStaffPw) : '');
+  const promptsQuery = await window.apiQuery('/api/prompts', { company });
 
   const [intakeRes, promptsRes, resultsText, codeRec] = await Promise.all([
     fetch(await window.intakeQuery(company)).then(r => r.ok ? r.json() : null).catch(() => null),
@@ -871,10 +871,48 @@ function auditPendingSince(company) {
 
 // Explicit "we are waiting on the platform" state. Previously nothing was drawn during this window,
 // so the UI looked inert and then snapped back to "no audit yet".
-function renderAuditQueued(block, company) {
+function renderAuditQueued(block, company, data) {
   const since = auditPendingSince(company) || Date.now();
   const secs = Math.max(0, Math.round((Date.now() - since) / 1000));
-  block.innerHTML = `<span class="badge badge-partial">${t('queuedLabel')}</span> <span class="field-hint">${t('queuedDetail', secs)}</span><div class="progress-wrap"><div class="progress-bar indeterminate"></div></div>`;
+  // Waiting had no way out: if a run was cut off before it ever reported, this state persisted with
+  // a disabled button and no action. After a minute, offer the same continue-from-where-it-stopped
+  // action the stalled state has, plus a way to stop waiting — never leave the operator with nothing
+  // to click.
+  const stuck = secs > 60;
+  const promptIdx = data ? resumePromptIndex(data) : null;
+  block.innerHTML =
+    `<span class="badge badge-partial">${t('queuedLabel')}</span> <span class="field-hint">${t('queuedDetail', secs)}</span>` +
+    `<div class="progress-wrap"><div class="progress-bar indeterminate"></div></div>` +
+    (stuck
+      ? `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('queuedStuckHint')}</div>` +
+        `<div class="row" style="margin-top:10px;">` +
+          (promptIdx !== null && promptIdx > 0
+            ? `<button class="btn btn-sm" onclick="resumeAudit(${promptIdx})">${t('resumeBtn', promptIdx + 1)}</button>`
+            : `<button class="btn btn-sm" onclick="resumeAuditFromResults()">${t('checkAgainBtn')}</button>`) +
+          `<button class="btn btn-ghost btn-sm" onclick="stopWaitingForAudit()">${t('giveUpWaitingBtn')}</button>` +
+        `</div>`
+      : '');
+}
+
+// Derives the resume point from the rows already stored when the job record never got far enough to
+// carry one — the results are the ground truth for what actually completed.
+async function resumeAuditFromResults() {
+  if (!currentCompany) return;
+  const engines = new Set(currentRows.map(r => r.engine)).size || 1;
+  const done = new Set(currentRows.map(r => r.prompt_id)).size;
+  await resumeAudit(done);
+}
+
+// Abandons the wait without touching any stored results, so the panel stops claiming a run is
+// starting and the button becomes usable again.
+async function stopWaitingForAudit() {
+  if (!currentCompany) return;
+  clearAuditPending(currentCompany);
+  try {
+    await fetch(await window.apiQuery('/api/audit-job', { company: currentCompany }), { method: 'DELETE' });
+  } catch { /* clearing the display is best-effort */ }
+  if (jobPollTimer) clearTimeout(jobPollTimer);
+  await loadCompany(currentCompany);
 }
 
 function fmtDuration(ms) {
@@ -991,7 +1029,7 @@ async function pollJobStatus(company, opts) {
       // ~5s of drawing nothing, which is why a real run looked like a no-op and then reverted: the
       // platform routinely needs longer than that to start a background function. Now it draws an
       // explicit waiting state, and waits long enough to actually cover a cold start.
-      renderAuditQueued(block, company);
+      renderAuditQueued(block, company, data);
       if (runBtn) { runBtn.disabled = true; runBtn.textContent = t('startingBtnLabel'); }
       jobPollTimer = setTimeout(() => pollJobStatus(company, { graceRetriesLeft: Math.max(opts.graceRetriesLeft - 1, waitingForFreshRecord ? 1 : 0) }), 1500);
     } else if (data.status === 'error') {
@@ -1132,7 +1170,7 @@ async function confirmRunAudit() {
   // appeared, so a run that was genuinely starting looked identical to a dead button.
   markAuditPending(currentCompany);
   const statusBlock = document.getElementById('job-status-block');
-  if (statusBlock) renderAuditQueued(statusBlock, currentCompany);
+  if (statusBlock) renderAuditQueued(statusBlock, currentCompany, null);
   // Netlify acks a Background Function's invocation near-instantly regardless of how long the
   // actual work takes, so this response arrives quickly whether the run was accepted or
   // rejected (already running) — safe to await just far enough to check that, then fall back
@@ -1221,7 +1259,7 @@ async function resumeAudit(startIndex) {
   } catch { /* if this fails the POST below will surface the 409 */ }
   markAuditPending(currentCompany);
   const statusBlock = document.getElementById('job-status-block');
-  if (statusBlock) renderAuditQueued(statusBlock, currentCompany);
+  if (statusBlock) renderAuditQueued(statusBlock, currentCompany, null);
   try {
     const res = await fetch('/api/run-audit', {
       method: 'POST',

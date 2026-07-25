@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="/styles/akore-tokens.css">
 <!-- Shared staff password gate — used here only for the internal review/release step. -->
 <script src="/js/confirm-gate.js"></script>
+<script src="/js/results-auth.js"></script>
 <title>GEO Audit — Review Prompts | Akore Labs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -319,11 +320,11 @@ async function loadPrompts() {
 
   // Staff credentials are what unlock not-yet-released prompts; without them this request gets
   // the same withheld response a customer would.
-  let query = '/api/prompts?company=' + encodeURIComponent(clientCompany);
-  if (isStaffReviewer && staffUsername) {
-    const pw = await ensureStaffPassword();
-    if (pw) query += '&staffUsername=' + encodeURIComponent(staffUsername) + '&staffPassword=' + encodeURIComponent(pw);
-  }
+  // Staff credentials unlock a set still in internal review; a customer's own credentials get their
+  // released set. The shared helper resolves whichever this visitor has, and asks for a staff password
+  // just in time if a persistent login outlived the cached one.
+  if (isStaffReviewer && staffUsername) await ensureStaffPassword();
+  const query = await window.apiQuery('/api/prompts', { company: clientCompany });
 
   let record;
   try {
