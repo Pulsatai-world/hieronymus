@@ -207,7 +207,6 @@
   <div class="sub" data-t="sub">Where your AI visibility stood on day one, before any work began. This is the fixed reference point every future run gets measured against &mdash; it won't change as new audits come in.</div>
   <div class="stats" id="stats"></div></div>
 <div class="controls">
- <div class="ctl"><label data-t="companyLabel">Company</label><select id="company-select" onchange="onCompanyChange()"></select></div>
  <div class="ctl"><label data-t="engineLabel">Engine</label><div class="ms" id="ms-engine"></div></div>
  <div class="ctl"><label data-t="questionTypeLabel">Question type</label><div class="ms" id="ms-intent"></div><span class="hint" data-t="questionTypeHint">What the user is trying to get from the AI</span></div>
  <div class="ctl" style="min-width:300px"><label data-t="specificPromptLabel">Specific prompt</label><div class="ms" id="ms-prompt"></div><span class="hint" data-t="specificPromptHint">The questions we put to the AI</span></div>
@@ -233,6 +232,7 @@ const T = {
   h1: { en: 'Diagnostic · Starting point', es: 'Diagnóstico · Punto de partida' },
   sub: { en: "Where your AI visibility stood on day one, before any work began. This is the fixed reference point every future run gets measured against — it won't change as new audits come in.", es: 'Tu nivel inicial de visibilidad en IA, antes de ejecutar la estrategia de GEO. Esta será la línea base con la que se medirán todas las ejecuciones futuras y permanecerá fija, sin importar cuántas auditorías se realicen después.' },
   companyLabel: { en: 'Company', es: 'Empresa' },
+  noCompanyParam: { en: 'This dashboard needs to be opened from your portal — no customer was specified in the link.', es: 'Este tablero debe abrirse desde tu portal — el enlace no especifica ningún cliente.' },
   engineLabel: { en: 'Engine', es: 'Motor' },
   questionTypeLabel: { en: 'Question type', es: 'Tipo de pregunta' },
   questionTypeHint: { en: 'What the user is trying to get from the AI', es: 'Lo que el usuario busca obtener de la IA' },
@@ -458,18 +458,16 @@ async function loadData() {
   const byKey = new Map();
   allRows.forEach(r => { if (r.brand && !byKey.has(r.brand.toLowerCase())) byKey.set(r.brand.toLowerCase(), properCase(r.brand)); });
   const companies = [...byKey.values()].sort();
-  const select = document.getElementById('company-select');
-  select.innerHTML = companies.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-  // Deep link from the Portal (dashboard-diagnostic.html?company=X) pre-selects that customer
+  // A dashboard is always about one customer, so there is no picker: the company comes from the
+  // link and nothing in the page can switch it. Falling back to "the first company in the data"
+  // (the old behaviour) meant an unparameterised link silently opened somebody else's dashboard.
   const requested = new URLSearchParams(location.search).get('company');
-  const requestedDisplay = requested ? byKey.get(requested.toLowerCase()) : null;
-  company = requestedDisplay || companies[0] || '';
-  select.value = company;
-  buildForCompany();
-}
-
-function onCompanyChange() {
-  company = document.getElementById('company-select').value;
+  company = requested ? (byKey.get(requested.toLowerCase()) || requested) : '';
+  if (!company) {
+    document.body.insertAdjacentHTML('beforeend',
+      `<div class="empty" style="padding:60px 20px;text-align:center;">${t('noCompanyParam')}</div>`);
+    return;
+  }
   buildForCompany();
 }
 
@@ -672,7 +670,20 @@ function buildForCompany() {
   makeMulti('ms-engine', engines.map(e => ({ value: e, label: e })), t('msEnginePlaceholder'), v => { selEngine = v; render(); });
   makeMulti('ms-intent', intents.map(i => ({ value: i, label: intentLabel(i) })), t('msTypePlaceholder'), v => { selIntent = v; render(); });
   makeMulti('ms-prompt', prompts.map(p => ({ value: p, code: p, label: promptMap[p] })), t('msPromptPlaceholder'), v => { selPrompt = v; render(); });
-  makeMulti('ms-lang', [{ value: 'en', label: t('langEnglish') }, { value: 'es', label: t('langSpanish') }], t('msLangPlaceholder'), v => { selLang = v; render(); });
+  // The filter used to offer English and Spanish unconditionally, so a Spanish-only prompt set
+  // showed an English option that could only ever select nothing. Offer what was actually run,
+  // and hide the control entirely when there is only one language to choose from.
+  const presentLangs = new Set(Object.values(promptLangMap));
+  const langOpts = [{ value: 'en', label: t('langEnglish') }, { value: 'es', label: t('langSpanish') }]
+    .filter(o => presentLangs.has(o.value));
+  const langCtl = document.getElementById('ms-lang').closest('.ctl');
+  if (langOpts.length < 2) {
+    if (langCtl) langCtl.style.display = 'none';
+    selLang = [];
+  } else {
+    if (langCtl) langCtl.style.display = '';
+    makeMulti('ms-lang', langOpts, t('msLangPlaceholder'), v => { selLang = v; render(); });
+  }
   render();
 }
 

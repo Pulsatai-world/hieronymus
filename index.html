@@ -479,6 +479,8 @@ const T = {
   auditUnits: { en: (c, tt) => `${c} of ${tt} answers graded`, es: (c, tt) => `${c} de ${tt} respuestas evaluadas` },
   auditPrompts: { en: (d, tt) => `prompt ${d} of ${tt}`, es: (d, tt) => `prompt ${d} de ${tt}` },
   auditCited: { en: (n) => `${n} recommended so far`, es: (n) => `${n} recomendados hasta ahora` },
+  endedIncompleteLabel: { en: 'Ended incomplete', es: 'Terminó incompleta' },
+  endedIncompleteDetail: { en: (d, tt) => `The run stopped after ${d} of ${tt} answers. Background runs are cut off at roughly 15 minutes, and a large prompt set across several engines can exceed that. Resuming continues from where it stopped instead of paying for the whole set again.`, es: (d, tt) => `La ejecución se detuvo tras ${d} de ${tt} respuestas. Las ejecuciones en segundo plano se cortan alrededor de los 15 minutos, y un conjunto grande de prompts en varios motores puede pasarse. Reanudar continúa donde se detuvo en vez de pagar todo el conjunto otra vez.` },
   stalledLabel: { en: 'No progress', es: 'Sin avance' },
   stalledDetail: { en: (m) => `Still shown as running, but the counter hasn't moved in ${m}. It may simply be slow — engine calls are batched, so quiet stretches are normal. If it stays like this, the platform's execution limit may have cut the run off, in which case resuming continues from where it stopped instead of paying for the whole set again.`, es: (m) => `Sigue marcada como en proceso, pero el contador no avanza desde hace ${m}. Puede que solo vaya lenta — las llamadas a los motores van por lotes, así que los periodos sin avance son normales. Si se queda así, puede que el límite de ejecución de la plataforma haya cortado la ejecución; en ese caso reanudar continúa donde se detuvo en vez de pagar todo el conjunto otra vez.` },
   resumeBtn: { en: (n) => `Resume from prompt ${n}`, es: (n) => `Reanudar desde el prompt ${n}` },
@@ -994,6 +996,25 @@ async function pollJobStatus(company, opts) {
     } else if (inferredDone) {
       clearAuditPending(company);
       block.innerHTML = `<span class="badge badge-done">${t('lastRunLabel', data.completed, data.cited || 0)}</span> <span class="field-hint">${t('finishedAt')}${esc((data.finishedAt || '').slice(0, 16).replace('T', ' '))}</span>`;
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
+      if (cancelBtn) cancelBtn.style.display = 'none';
+    } else if (data.total > 0 && (data.completed || 0) < data.total && (data.finishedAt || data.status === 'done')) {
+      // Finished, but short of its own total: the platform cut the run off. This previously matched
+      // neither the running nor the done branch and fell through to "hasn't started", which is the
+      // opposite of what happened — the run did start, did work, and then died partway.
+      clearAuditPending(company);
+      const promptIdx = resumePromptIndex(data);
+      block.innerHTML =
+        `<div class="row" style="align-items:center;">` +
+          `<span class="badge badge-error">${t('endedIncompleteLabel')}</span>` +
+          `<span class="field-hint">${t('auditUnits', data.completed || 0, data.total)}</span>` +
+          `<span class="field-hint progress-pct">${Math.round((data.completed / data.total) * 100)}%</span>` +
+        `</div>` +
+        `<div class="progress-wrap"><div class="progress-bar stalled" style="width:${Math.round((data.completed / data.total) * 100)}%"></div></div>` +
+        `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('endedIncompleteDetail', data.completed || 0, data.total)}</div>` +
+        (promptIdx !== null
+          ? `<div class="row" style="margin-top:10px;"><button class="btn btn-sm" onclick="resumeAudit(${promptIdx})">${t('resumeBtn', promptIdx + 1)}</button></div>`
+          : '');
       if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
       if (cancelBtn) cancelBtn.style.display = 'none';
     } else if (auditPendingSince(company)) {

@@ -195,7 +195,6 @@
   <div class="sub" data-t="sub">How your AI visibility has moved, run over run. The stats and prompt list reflect the latest run; the charts show the full history.</div>
   <div class="stats" id="stats"></div></div>
 <div class="controls">
- <div class="ctl"><label data-t="companyLabel">Company</label><select id="company-select" onchange="onCompanyChange()"></select></div>
  <div class="ctl"><label data-t="engineLabel">Engine</label><div class="ms" id="ms-engine"></div></div>
  <div class="ctl"><label data-t="questionTypeLabel">Question type</label><div class="ms" id="ms-intent"></div><span class="hint" data-t="questionTypeHint">What the user is trying to get from the AI</span></div>
  <div class="ctl" style="min-width:300px"><label data-t="specificPromptLabel">Specific prompt</label><div class="ms" id="ms-prompt"></div><span class="hint" data-t="specificPromptHint">The questions we put to the AI</span></div>
@@ -225,6 +224,7 @@ const T = {
   h1: { en: 'Monitoring Dashboard', es: 'Panel de monitoreo' },
   sub: { en: 'How your AI visibility has moved, run over run. The stats and prompt list reflect the latest run; the charts show the full history.', es: 'Cómo ha evolucionado tu visibilidad en IA, ejecución tras ejecución. Las estadísticas y la lista de prompts reflejan la ejecución más reciente; las gráficas muestran el historial completo.' },
   companyLabel: { en: 'Company', es: 'Empresa' },
+  noCompanyParam: { en: 'This dashboard needs to be opened from your portal — no customer was specified in the link.', es: 'Este tablero debe abrirse desde tu portal — el enlace no especifica ningún cliente.' },
   engineLabel: { en: 'Engine', es: 'Motor' },
   questionTypeLabel: { en: 'Question type', es: 'Tipo de pregunta' },
   questionTypeHint: { en: 'What the user is trying to get from the AI', es: 'Lo que el usuario busca obtener de la IA' },
@@ -444,20 +444,19 @@ async function loadData() {
   const byKey = new Map();
   allRows.forEach(r => { if (r.brand && !byKey.has(r.brand.toLowerCase())) byKey.set(r.brand.toLowerCase(), properCase(r.brand)); });
   const companies = [...byKey.values()].sort();
-  const select = document.getElementById('company-select');
-  select.innerHTML = companies.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-  // Deep link from the Portal (dashboard-monitoring.html?company=X) pre-selects that customer
+  // A dashboard is always about one customer, so there is no picker: the company comes from the
+  // link and nothing in the page can switch it. Falling back to "the first company in the data"
+  // (the old behaviour) meant an unparameterised link silently opened somebody else's dashboard.
   const requested = new URLSearchParams(location.search).get('company');
-  const requestedDisplay = requested ? byKey.get(requested.toLowerCase()) : null;
-  company = requestedDisplay || companies[0] || '';
-  select.value = company;
+  company = requested ? (byKey.get(requested.toLowerCase()) || requested) : '';
+  if (!company) {
+    document.body.insertAdjacentHTML('beforeend',
+      `<div class="empty" style="padding:60px 20px;text-align:center;">${t('noCompanyParam')}</div>`);
+    return;
+  }
   buildForCompany();
 }
 
-function onCompanyChange() {
-  company = document.getElementById('company-select').value;
-  buildForCompany();
-}
 
 // ── KPI DEFINITIONS (per geo_data_dictionary.md; target/lower drive the dashed line + delta direction) ──
 const CATS = [
