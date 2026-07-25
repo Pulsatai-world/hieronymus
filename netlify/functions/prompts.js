@@ -161,6 +161,13 @@ export default async (request, context) => {
       return json({ error: 'These prompts are still in internal review and cannot be approved yet' }, 409);
     }
 
+    // Approval is one-way for the customer. Staff requests carry no member credentials (the same
+    // convention isBlockedViewer relies on) and are still allowed through, so staff can revise and
+    // re-approve on a customer's behalf.
+    if (data.approvedAt && body.requestingUsername) {
+      return json({ error: 'These prompts have already been approved and cannot be approved again' }, 409);
+    }
+
     if (typeof body.promptsText === 'string' && body.promptsText.trim()) {
       data.promptsText = body.promptsText.trim();
       data.editedAt = new Date().toISOString();

@@ -177,6 +177,10 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--i
 <script>
 let clientCompany = '';
 let clientMonitoring = false;
+// Having audit data is not the same as being cleared to show it. Staff release each dashboard
+// explicitly from the customer's page in the platform; until then the client sees a "being
+// prepared" state instead of a link.
+let clientDiagnosisReleased = false, clientMonitoringReleased = false;
 let clientPassword = '';
 let clientDefaultLanguage = '';
 let clientSubmittedAt = '';
@@ -231,6 +235,7 @@ const T = {
   wfDashTitle: { en: 'Step 3 · Your dashboard', es: 'Paso 3 · Tu tablero' },
   wfDashLocked: { en: 'Your dashboard appears here after your first audit runs.', es: 'Tu tablero aparecerá aquí después de tu primera auditoría.' },
   wfDashReady: { en: 'Your results are ready.', es: 'Tus resultados están listos.' },
+  wfDashPreparing: { en: 'Your audit has run — we’re reviewing the results and will share your dashboard shortly.', es: 'Tu auditoría ya se ejecutó — estamos revisando los resultados y te compartiremos tu tablero en breve.' },
   wfOpenDashboard: { en: 'Open dashboard', es: 'Abrir tablero' },
   logoutBtn: { en: 'Log out', es: 'Cerrar sesión' },
   settingsTitle: { en: 'Settings', es: 'Ajustes' },
@@ -377,6 +382,8 @@ async function submitGate() {
     const data = await res.json();
     clientCompany = data.company || '';
     clientMonitoring = !!data.monitoringEnabled;
+    clientDiagnosisReleased = !!data.diagnosisReleased;
+    clientMonitoringReleased = !!data.monitoringReleased;
     clientPassword = password;
     clientDefaultLanguage = data.defaultLanguage || '';
     clientSubmittedAt = data.submittedAt || '';
@@ -586,16 +593,20 @@ async function showApp() {
       </div>
     </div>`;
 
+  // Step 3 — Dashboard. A run has to exist AND staff has to have released it; monitoring is
+  // released independently, so a client can have one dashboard and not the other.
+  const diagShown = hasRuns && clientDiagnosisReleased;
+  const monShown = clientMonitoringReleased;
   // Step 3 — Dashboard
   const step3 = `
-    <div class="${cls(hasRuns, !hasRuns, 3)}">
-      <div class="wf-num">${hasRuns ? '✓' : '3'}</div>
+    <div class="${cls(diagShown, !diagShown, 3)}">
+      <div class="wf-num">${diagShown ? '✓' : '3'}</div>
       <div class="wf-body">
         <div class="card-title">${t('wfDashTitle')}</div>
-        <div class="card-desc">${hasRuns ? t('wfDashReady') : t('wfDashLocked')}</div>
-        ${hasRuns ? `<div class="wf-action">
-          <a class="btn-accent" href="/dashboard-diagnostic.html?company=${encodeURIComponent(clientCompany)}">${t('wfOpenDashboard')}</a>
-          ${clientMonitoring ? `<a class="card-link" href="/dashboard-monitoring.html?company=${encodeURIComponent(clientCompany)}" style="margin-left:14px;">${t('monTitle')}</a>` : ''}
+        <div class="card-desc">${diagShown ? t('wfDashReady') : (hasRuns ? t('wfDashPreparing') : t('wfDashLocked'))}</div>
+        ${diagShown || monShown ? `<div class="wf-action">
+          ${diagShown ? `<a class="btn-accent" href="/dashboard-diagnostic.html?company=${encodeURIComponent(clientCompany)}">${t('wfOpenDashboard')}</a>` : ''}
+          ${monShown ? `<a class="card-link" href="/dashboard-monitoring.html?company=${encodeURIComponent(clientCompany)}" style="${diagShown ? 'margin-left:14px;' : ''}">${t('monTitle')}</a>` : ''}
         </div>` : ''}
       </div>
     </div>`;
@@ -624,6 +635,8 @@ applyStaticLang();
       if (group && member) {
         clientCompany = group.company || '';
         clientMonitoring = !!group.monitoringEnabled;
+        clientDiagnosisReleased = !!group.diagnosisReleased;
+        clientMonitoringReleased = !!group.monitoringReleased;
         clientDefaultLanguage = member.defaultLanguage || '';
         clientSubmittedAt = group.submittedAt || '';
         clientUsername = usernameFromUrl;

@@ -381,6 +381,19 @@ const T = {
   showingRecent: { en: (n) => `Showing the 5 most recent of ${n} rows — see the dashboards below for the full picture.`, es: (n) => `Se muestran las 5 filas más recientes de ${n} — consulta los tableros de abajo para ver el panorama completo.` },
   noResultsYet: { en: 'No audit results yet for this customer.', es: 'Aún no hay resultados de auditoría para este cliente.' },
   dashboardsTitle: { en: 'Dashboards', es: 'Tableros' },
+  clientAccessTitle: { en: 'Client dashboard access', es: 'Acceso del cliente a los tableros' },
+  clientAccessHint: { en: 'Controls what this customer can open from their portal. Releasing is what makes a dashboard visible to them — having audit data is not enough on its own.', es: 'Controla lo que este cliente puede abrir desde su portal. Liberar es lo que hace visible un tablero para ellos — tener datos de auditoría no basta por sí solo.' },
+  diagReleaseLabel: { en: 'Diagnosis dashboard', es: 'Tablero de diagnóstico' },
+  monReleaseLabel: { en: 'Monitoring dashboard', es: 'Tablero de monitoreo' },
+  releasedBadge: { en: (d, who) => `Released ${d}${who ? ' · ' + who : ''}`, es: (d, who) => `Liberado ${d}${who ? ' · ' + who : ''}` },
+  notReleasedBadge: { en: 'Not released', es: 'No liberado' },
+  releaseBtn: { en: 'Release to customer', es: 'Liberar al cliente' },
+  unreleaseBtn: { en: 'Revoke access', es: 'Revocar acceso' },
+  releaseNoRunsHint: { en: 'No audit has run yet — the customer will still see a waiting state until one has.', es: 'Aún no se ha ejecutado ninguna auditoría — el cliente verá un estado de espera hasta que exista una.' },
+  releaseMonOffHint: { en: 'Monitoring is switched off for this customer, so this dashboard would be empty.', es: 'El monitoreo está desactivado para este cliente, así que este tablero estaría vacío.' },
+  pwReleaseTitle: { en: 'Change client dashboard access', es: 'Cambiar acceso del cliente a los tableros' },
+  pwReleaseMsg: { en: (what, c) => `This changes whether <b>${c}</b> can open the ${what} from their portal. Enter your password to confirm.`, es: (what, c) => `Esto cambia si <b>${c}</b> puede abrir el ${what} desde su portal. Ingresa tu contraseña para confirmar.` },
+  releaseFailed: { en: 'Failed to change dashboard access: ', es: 'Error al cambiar el acceso a los tableros: ' },
   diagnosticDashboard: { en: 'Diagnostic Dashboard →', es: 'Tablero de Diagnóstico →' },
   monitoringDashboard: { en: 'Monitoring Dashboard →', es: 'Tablero de Monitoreo →' },
   monitoringSettingsTitle: { en: 'Monitoring', es: 'Monitoreo' },
@@ -510,6 +523,8 @@ async function loadCompany(company) {
   // ── Monitoring settings card ──
   const mon = codeRec || {};
   const monEnabled = !!mon.monitoringEnabled;
+  const diagReleased = !!mon.diagnosisReleased;
+  const monReleased = !!mon.monitoringReleased;
   const monCadence = mon.monitoringCadence || 'monthly';
   const monStart = mon.monitoringStartDate || new Date().toISOString().slice(0, 10);
   const monNext = mon.nextRunAt ? mon.nextRunAt.slice(0, 10) : '';
@@ -635,6 +650,23 @@ async function loadCompany(company) {
         <a class="btn btn-ghost btn-sm" href="/dashboard-diagnostic.html?company=${encodeURIComponent(company)}">${t('diagnosticDashboard')}</a>
         <a class="btn btn-ghost btn-sm" href="/dashboard-monitoring.html?company=${encodeURIComponent(company)}">${t('monitoringDashboard')}</a>
       </div>
+      <div class="card-caption" style="margin-top:18px;">${t('clientAccessHint')}</div>
+      <div class="row" style="margin-top:4px;align-items:center;">
+        <span style="min-width:170px;font-weight:600;">${t('diagReleaseLabel')}</span>
+        ${diagReleased
+          ? `<span class="badge badge-done">${t('releasedBadge', esc((mon.diagnosisReleasedAt || '').slice(0, 10)), esc(mon.diagnosisReleasedBy || ''))}</span>`
+          : `<span class="badge badge-pending">${t('notReleasedBadge')}</span>`}
+        <button class="btn btn-sm ${diagReleased ? 'btn-ghost' : ''}" onclick="setDashboardRelease('diagnosis', ${!diagReleased})">${diagReleased ? t('unreleaseBtn') : t('releaseBtn')}</button>
+      </div>
+      ${!diagReleased && !runDates.length ? `<div class="field-hint" style="margin-top:6px;color:var(--warning);">${t('releaseNoRunsHint')}</div>` : ''}
+      <div class="row" style="margin-top:10px;align-items:center;">
+        <span style="min-width:170px;font-weight:600;">${t('monReleaseLabel')}</span>
+        ${monReleased
+          ? `<span class="badge badge-done">${t('releasedBadge', esc((mon.monitoringReleasedAt || '').slice(0, 10)), esc(mon.monitoringReleasedBy || ''))}</span>`
+          : `<span class="badge badge-pending">${t('notReleasedBadge')}</span>`}
+        <button class="btn btn-sm ${monReleased ? 'btn-ghost' : ''}" onclick="setDashboardRelease('monitoring', ${!monReleased})">${monReleased ? t('unreleaseBtn') : t('releaseBtn')}</button>
+      </div>
+      ${!monReleased && !monEnabled ? `<div class="field-hint" style="margin-top:6px;color:var(--warning);">${t('releaseMonOffHint')}</div>` : ''}
     </div>
 
   `;
@@ -752,6 +784,10 @@ async function pollJobStatus(company, opts) {
       if (cancelBtn) cancelBtn.style.display = 'none';
     } else {
       block.innerHTML = `<span class="badge badge-pending">${t('noAuditYet')}</span>`;
+      // The run button has to be restored here too. Reaching this branch right after a trigger
+      // means the run never registered, and leaving the button disabled on "Starting…" stranded
+      // the operator with no way to retry short of reloading the page.
+      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
       if (cancelBtn) cancelBtn.style.display = 'none';
     }
   } catch {
@@ -809,7 +845,23 @@ async function runAudit() {
       btn.textContent = t('runAuditBtn');
       return;
     }
-  } catch { /* network-level failure only — polling below will surface anything else */ }
+    // Anything else that isn't a success has to be surfaced. This previously fell through to
+    // polling on the assumption polling would report it, but /api/audit-job just answers
+    // {status:'none'} when the run never started — so a 404 or 502 here (an undeployed function,
+    // a bad redirect) showed the operator absolutely nothing while the button sat on "Starting…".
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      alert(t('failedToStartAudit') + 'HTTP ' + res.status + (detail ? ' — ' + detail.slice(0, 200) : ''));
+      btn.disabled = false;
+      btn.textContent = t('runAuditBtn');
+      return;
+    }
+  } catch (err) {
+    alert(t('failedToStartAudit') + err.message);
+    btn.disabled = false;
+    btn.textContent = t('runAuditBtn');
+    return;
+  }
   setTimeout(() => pollJobStatus(currentCompany, { graceRetriesLeft: 6 }), 500);
 }
 
@@ -845,6 +897,32 @@ async function saveMonitoring() {
     await loadCompany(currentCompany);
   } catch (err) {
     alert(t('saveMonitoringFailed') + err.message);
+  }
+}
+
+// Releases (or revokes) one dashboard for this customer. Password-gated like every other action
+// that changes what a client can see.
+async function setDashboardRelease(which, release) {
+  if (!currentCompany) return;
+  const label = which === 'diagnosis' ? t('diagReleaseLabel') : t('monReleaseLabel');
+  if (!(await confirmWithPassword(t('pwReleaseTitle'), t('pwReleaseMsg', esc(label), esc(currentCompany))))) return;
+  try {
+    const body = {
+      company: currentCompany,
+      requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
+      requestingStaffPassword: getStaffPassword()
+    };
+    body[which === 'diagnosis' ? 'diagnosisReleased' : 'monitoringReleased'] = release;
+    const res = await fetch('/api/intake-codes', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    await loadCompany(currentCompany);
+  } catch (err) {
+    alert(t('releaseFailed') + err.message);
   }
 }
 

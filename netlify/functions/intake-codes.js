@@ -202,6 +202,36 @@ export default async (request, context) => {
       return json({ status: 'ok', nextRunAt: record.nextRunAt, monitoringEnabled: enabled }, 200);
     }
 
+    // Releasing a dashboard to the customer is a staff decision, gated exactly like the monitoring
+    // schedule above. Two independent switches on purpose: a customer usually gets their diagnosis
+    // well before monitoring is set up, and having a run in the database is not the same thing as
+    // being ready to show it to them.
+    if (body.company && (typeof body.diagnosisReleased === 'boolean' || typeof body.monitoringReleased === 'boolean')) {
+      const ok = await requireStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword);
+      if (!ok) return json({ error: 'Only a staff admin can release a dashboard' }, 403);
+      const groupKey = slugify(body.company);
+      const record = await loadGroup(store, groupKey);
+      if (!record) return json({ error: 'Unknown company' }, 404);
+      const who = String(body.requestingStaffUsername || '').trim().toLowerCase();
+      const now = new Date().toISOString();
+      if (typeof body.diagnosisReleased === 'boolean') {
+        record.diagnosisReleased = body.diagnosisReleased;
+        record.diagnosisReleasedAt = body.diagnosisReleased ? now : null;
+        record.diagnosisReleasedBy = body.diagnosisReleased ? who : null;
+      }
+      if (typeof body.monitoringReleased === 'boolean') {
+        record.monitoringReleased = body.monitoringReleased;
+        record.monitoringReleasedAt = body.monitoringReleased ? now : null;
+        record.monitoringReleasedBy = body.monitoringReleased ? who : null;
+      }
+      await store.setJSON(groupKey, record);
+      return json({
+        status: 'ok',
+        diagnosisReleased: !!record.diagnosisReleased,
+        monitoringReleased: !!record.monitoringReleased
+      }, 200);
+    }
+
     const username = (body.username || '').trim().toLowerCase();
     if (!username) return json({ error: 'Missing username' }, 400);
     const { blobs } = await store.list();

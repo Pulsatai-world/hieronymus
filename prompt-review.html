@@ -183,6 +183,8 @@ const T = {
   pwWrong: { en: 'Incorrect password.', es: 'Contraseña incorrecta.' },
   backToCustomer: { en: (c) => `← Back to ${c}`, es: (c) => `← Volver a ${c}` },
   backToDashboards: { en: '← My dashboards', es: '← Mis paneles' },
+  backToPortalBtn: { en: 'Back to my portal', es: 'Volver a mi portal' },
+  approvedRedirect: { en: 'Thanks — your prompts are approved. Taking you back to your portal.', es: 'Gracias — tus prompts quedaron aprobados. Te llevamos de vuelta a tu portal.' },
   reviewNotReady: { en: "Your prompts are being prepared — we're reviewing them now and you'll be able to see them shortly.", es: 'Estamos preparando tus prompts — los estamos revisando y podrás verlos en breve.' }
 };
 let lang = localStorage.getItem('hieronymus_lang') || 'es';
@@ -355,6 +357,10 @@ async function loadPrompts() {
   // the text from everyone else, and the waiting state above catches that case.
   const pendingInternal = !!record.internalReviewPending;
   const releasedWhen = record.internalApprovedAt || record.approvedAt;
+  // Approval is one-way for the client: once they've signed off, the prompts go read-only and the
+  // approve button is gone, so there's nothing to click twice. Staff keep the ability to edit and
+  // re-approve on the customer's behalf, which is the whole point of the staff bypass.
+  const locked = !!record.approvedAt && !isStaffReviewer;
   const internalBanner = !isStaffReviewer ? '' : (pendingInternal
     ? `<div class="status-banner status-pending"><strong>${t('internalPendingTitle')}</strong><br>${t('internalPendingBody')}</div>`
     : `<div class="status-banner status-approved">${t('internalReleasedBy', esc(record.internalApprovedBy || '—'), esc(releasedWhen ? new Date(releasedWhen).toLocaleDateString() : '—'))}</div>`);
@@ -369,7 +375,7 @@ async function loadPrompts() {
       ${Object.keys(groups).map(label => `
         <div class="cat-group">
           <div class="cat-label">${esc(label)}</div>
-          ${groups[label].map(p => `<div class="prompt-line"><textarea class="prompt-input" rows="1" data-idx="${p.idx}" oninput="autoGrowPromptInput(this)" ${viewer ? 'disabled' : ''}>${esc(p.text)}</textarea></div>`).join('')}
+          ${groups[label].map(p => `<div class="prompt-line"><textarea class="prompt-input" rows="1" data-idx="${p.idx}" oninput="autoGrowPromptInput(this)" ${viewer || locked ? 'disabled' : ''}>${esc(p.text)}</textarea></div>`).join('')}
         </div>
       `).join('')}
     </div>
@@ -379,7 +385,15 @@ async function loadPrompts() {
         <button class="btn-accent" style="width:auto;" id="release-btn" onclick="releasePrompts()">${t('releaseBtn')}</button>
       </div>
     </div>
-    ` : (viewer ? '' : `
+    ` : (viewer || locked ? (locked ? `
+    <div class="card">
+      <div class="card-title" style="margin-bottom:8px;">${t('commentsTitle')}</div>
+      <div class="page-sub" style="margin:0;">${record.comments ? esc(record.comments) : '—'}</div>
+      <div style="margin-top:16px;">
+        <a class="btn-accent" style="width:auto;display:inline-block;" href="/client-portal.html?username=${encodeURIComponent(clientUsername)}">${t('backToPortalBtn')}</a>
+      </div>
+    </div>
+    ` : '') : `
     <div class="card">
       <div class="card-title" style="margin-bottom:12px;">${t('commentsTitle')}</div>
       <textarea id="comments-input" placeholder="${t('commentsPlaceholder')}">${esc(record.comments || '')}</textarea>
@@ -458,6 +472,13 @@ async function approvePrompts() {
       body: JSON.stringify({ company: clientCompany, comments, promptsText, requestingUsername: clientUsername, requestingPassword: clientPassword })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
+    // Staff stay put (they may keep editing); a client is done here, so hand them back to their
+    // portal instead of leaving them on a page whose only action they just used up.
+    if (!isStaffReviewer && clientUsername) {
+      alert(t('approvedRedirect'));
+      location.href = '/client-portal.html?username=' + encodeURIComponent(clientUsername);
+      return;
+    }
     await loadPrompts();
   } catch (err) {
     alert(t('failedToSave') + err.message);
