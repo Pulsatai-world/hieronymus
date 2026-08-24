@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Informe GEO — Akore Labs</title>
+<link rel="stylesheet" href="/styles/akore-tokens.css">
+<style>
+  body { margin: 0; font-family: "Manrope","Helvetica Neue",Arial,sans-serif; background: #f4f6f8; color: #2a313d; }
+  .msg { max-width: 640px; margin: 80px auto; padding: 28px 32px; background: #fff; border: 1px solid #e3e6ea;
+         border-radius: 14px; box-shadow: 0 6px 24px rgba(16,19,25,.07); line-height: 1.6; font-size: 14px; }
+  .msg h1 { font-family: "Montserrat","Helvetica Neue",Arial,sans-serif; font-size: 19px; margin: 0 0 10px; color: #08090c; }
+  .msg a { color: #6d4fe0; }
+</style>
+<script src="/js/results-auth.js"></script>
+</head>
+<body>
+<div class="msg" id="msg"><h1>Cargando informe…</h1><p>Un momento.</p></div>
+
+<script>
+// A shareable link to a stored scan.
+//
+// The report endpoint needs staff credentials, but a URL is something people paste into chat and
+// email — so the credentials must never be in it. This page takes only ?company= (and optionally
+// ?run=), resolves the reader's own session through apiQuery, fetches the report and writes it
+// into the document. Anyone on the team who is logged in opens the same link and sees the report;
+// anyone who is not gets sent to log in first, and the link still works afterwards.
+
+const SESSION_KEY = 'hieronymus_internal_auth';
+const params = new URLSearchParams(location.search);
+const company = params.get('company');
+const run = params.get('run');
+const lang = params.get('lang') === 'en' ? 'en' : 'es';
+
+const COPY = {
+  es: {
+    noCompany: ['Falta el cliente', 'Este enlace no indica de qué cliente es el informe.'],
+    needLogin: ['Necesitas iniciar sesión', 'Te llevamos al portal. Vuelve a abrir este enlace después de entrar.'],
+    notFound: ['Todavía no hay informe', 'No hay ningún análisis guardado para este cliente. Ejecuta uno desde su ficha.'],
+    denied: ['Sin permiso', 'Tu sesión no tiene acceso a este informe. Vuelve a iniciar sesión e inténtalo otra vez.'],
+    failed: ['No se ha podido cargar el informe', '']
+  },
+  en: {
+    noCompany: ['Missing customer', 'This link does not say which customer the report is for.'],
+    needLogin: ['You need to log in', 'Taking you to the portal. Open this link again once you are in.'],
+    notFound: ['No report yet', 'No scan is stored for this customer. Run one from their page.'],
+    denied: ['Not permitted', 'Your session does not have access to this report. Log in again and retry.'],
+    failed: ['The report could not be loaded', '']
+  }
+};
+const C = COPY[lang];
+
+function show(pair, extra) {
+  document.getElementById('msg').innerHTML =
+    '<h1>' + pair[0] + '</h1><p>' + (pair[1] || '') + (extra ? ' ' + extra : '') + '</p>';
+}
+
+(async () => {
+  if (!company) return show(C.noCompany);
+
+  if (localStorage.getItem(SESSION_KEY) !== 'true') {
+    show(C.needLogin);
+    // Come back here after logging in rather than dumping the reader on the portal.
+    setTimeout(() => { location.href = '/portal.html?next=' + encodeURIComponent(location.pathname + location.search); }, 1200);
+    return;
+  }
+
+  try {
+    const q = await window.apiQuery('/api/geo-report', run ? { company, lang, run } : { company, lang });
+    const res = await fetch(q);
+    if (res.status === 403) return show(C.denied);
+    if (res.status === 404) return show(C.notFound);
+    if (!res.ok) return show(C.failed, 'HTTP ' + res.status);
+
+    const html = await res.text();
+    // Replace the whole document so the report's own styles and print rules apply cleanly —
+    // Ctrl+P from here produces the same PDF as the standalone tool.
+    document.open();
+    document.write(html);
+    document.close();
+  } catch (err) {
+    show(C.failed, err.message);
+  }
+})();
+</script>
+</body>
+</html>

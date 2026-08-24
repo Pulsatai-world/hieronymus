@@ -888,24 +888,8 @@ function renderCustomerTable() {
                 <div class="field-hint" style="margin-bottom:12px;">${t('usernameRowLabel')} <code>${owner.username}</code> &middot; ${t('usersCountLabel', members.length)}</div>
                 <div class="job-status" data-job-status></div>
                 <div class="progress-wrap" data-job-progress style="display:none;"><div class="progress-bar" style="width:0%"></div></div>
-                <div class="geo-panel" data-geo-panel data-company="${companyAttr}">
-                  <div class="geo-head">
-                    <span class="geo-title">${t('geoTitle')}</span>
-                    <span class="geo-note" data-geo-status></span>
-                  </div>
-                  <div class="geo-row">
-                    <input type="url" data-geo-url placeholder="${t('geoUrlPlaceholder')}" value="">
-                    <button class="btn btn-sm" data-action="geo-run" data-company="${companyAttr}">${t('geoRunBtn')}</button>
-                  </div>
-                  <div data-geo-result></div>
-                  <div class="geo-row" data-geo-actions style="display:none; margin-top:10px;">
-                    <a class="btn btn-ghost btn-sm" data-geo-report target="_blank" rel="noopener" href="#">${t('geoOpenReport')}</a>
-                  </div>
-                  <div class="geo-note">${t('geoHint')}</div>
-                </div>
-
                 <div class="action-list">
-                  <a class="btn btn-sm" href="/index.html?company=${encodeURIComponent(i.company)}">${t('openHieronymus')}</a>
+                  <a class="btn btn-sm" href="/index-dev.html?company=${encodeURIComponent(i.company)}">${t('openHieronymus')}</a>
                   <button class="btn btn-ghost btn-sm" data-action="customer-settings" data-company="${companyAttr}" style="width:100%;">${t('customerSettingsBtn')}</button>
                   <div style="display:flex; gap:6px; width:100%;">
                     <button class="btn btn-ghost btn-sm" data-action="copy-portal-link" data-username="${owner.username}" style="width:auto; flex-grow:1;">${t('copyClientLink')}</button>
