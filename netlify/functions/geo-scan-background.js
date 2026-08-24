@@ -56,13 +56,21 @@ export default async (request) => {
 
   let body;
   try { body = await request.json(); } catch { return new Response('Bad request', { status: 400 }); }
-  const { company, url, staffUsername, staffPassword, maxPages } = body || {};
+  const { company, url, maxPages } = body || {};
   if (!company || !url) return new Response('Missing company or url', { status: 400 });
+
+  // Credentials may arrive in the query string (apiQuery puts them there, as it does for every
+  // other staff-scoped call) or in the body. Accepting both means neither caller shape is
+  // silently wrong.
+  const qs = new URL(request.url).searchParams;
+  const staffUsername = (body && body.staffUsername) || qs.get('staffUsername');
+  const staffPassword = (body && body.staffPassword) || qs.get('staffPassword');
   if (!await isStaff(staffUsername, staffPassword)) return new Response('Staff credentials required', { status: 403 });
 
   const key = slugify(company);
   const jobs = getStore('hieronymus-geo-jobs');
   const history = getStore('hieronymus-geo-scans');
+  const full = getStore('hieronymus-geo-full');
 
   // The job record is written before the scan starts so the panel can show "running" immediately
   // rather than appearing to do nothing for a minute and a half.
@@ -76,7 +84,13 @@ export default async (request) => {
     // previous one rather than overwriting it.
     const stamp = snap.scannedAt.replace(/[:.]/g, '-');
     await history.setJSON(`${key}/${stamp}`, snap);
-    await jobs.setJSON(key, { status: 'done', url, finishedAt: new Date().toISOString(), latest: snap });
+
+    // The full result is stored separately from the snapshot. The snapshot is deliberately small
+    // because every comparison reads it; the full payload carries the finding text and per-check
+    // detail, without which there is no report to show — only scores. Keeping them apart means a
+    // delta stays cheap while the report stays complete.
+    await full.setJSON(`${key}/${stamp}`, result);
+    await jobs.setJSON(key, { status: 'done', url, finishedAt: new Date().toISOString(), latest: snap, stamp });
   } catch (err) {
     await jobs.setJSON(key, { status: 'error', url, finishedAt: new Date().toISOString(), error: err.message });
   }

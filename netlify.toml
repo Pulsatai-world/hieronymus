@@ -60,3 +60,8 @@
   from = "/api/geo-scan-job"
   to = "/.netlify/functions/geo-scan-job"
   status = 200
+
+[[redirects]]
+  from = "/api/geo-report"
+  to = "/.netlify/functions/geo-report"
+  status = 200

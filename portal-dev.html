@@ -736,7 +736,7 @@ async function geoLoad(company) {
   if (!panel) return;
   try {
     const res = await fetch(await window.apiQuery('/api/geo-scan-job', { company }));
-    if (!res.ok) throw new Error('load failed');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     geoRender(panel, company, data);
     // Poll only while a run is actually in flight, and stop as soon as it is not.
@@ -747,7 +747,8 @@ async function geoLoad(company) {
     }
   } catch (err) {
     const st = panel.querySelector('[data-geo-status]');
-    if (st) st.textContent = '';
+    if (st) st.textContent = t('geoFailed') + ' — ' + err.message;
+    if (geoPolls[company]) { clearInterval(geoPolls[company]); delete geoPolls[company]; }
   }
 }
 
@@ -766,6 +767,17 @@ function geoRender(panel, company, data) {
   else if (data.status === 'error') { status.textContent = t('geoFailed'); }
   else if (!latest) { status.textContent = t('geoNever'); }
   else { status.textContent = t('geoScannedOn') + ' ' + latest.scannedAt.slice(0, 10) + (data.runCount > 1 ? ' · ' + data.runCount + ' ' + (lang === 'en' ? 'runs' : 'ejecuciones') : ''); }
+
+  const actions = panel.querySelector('[data-geo-actions]');
+  const reportLink = panel.querySelector('[data-geo-report]');
+  if (latest && actions && reportLink) {
+    // Built through apiQuery so the report endpoint receives the same staff credentials as every
+    // other scoped call; the link opens a printable page rather than downloading anything.
+    window.apiQuery('/api/geo-report', { company, lang }).then(href => { reportLink.href = href; });
+    actions.style.display = 'flex';
+  } else if (actions) {
+    actions.style.display = 'none';
+  }
 
   if (!latest) { out.innerHTML = ''; return; }
 
@@ -808,20 +820,24 @@ async function geoRun(company) {
 
   status.textContent = t('geoRunning');
   try {
+    // apiQuery appends whatever credentials this session holds, and prompts for the password if
+    // sessionStorage has lost it — which is exactly what happens in a newly opened tab.
     const q = await window.apiQuery('/api/geo-scan', {});
-    const sep = q.includes('?') ? '&' : '?';
-    // Credentials ride in the query the same way every other staff-scoped call here does, so the
-    // background function can verify them before doing any work.
-    await fetch(q, {
+    const res = await fetch(q, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        company, url,
-        staffUsername: localStorage.getItem(USER_KEY),
-        staffPassword: sessionStorage.getItem('geo_staff_password')
-      })
+      body: JSON.stringify({ company, url })
     });
-  } catch (err) { /* the poll below reports the real outcome */ }
+    if (!res.ok && res.status !== 202) {
+      status.textContent = t('geoFailed') + ' (HTTP ' + res.status + ')';
+      return;
+    }
+  } catch (err) {
+    // Never swallow this. A silent failure looks identical to a scan that ran and found nothing,
+    // which is the worst possible thing for a tool whose job is to report honestly.
+    status.textContent = t('geoFailed') + ' — ' + err.message;
+    return;
+  }
   setTimeout(() => geoLoad(company), 1500);
 }
 
@@ -882,6 +898,9 @@ function renderCustomerTable() {
                     <button class="btn btn-sm" data-action="geo-run" data-company="${companyAttr}">${t('geoRunBtn')}</button>
                   </div>
                   <div data-geo-result></div>
+                  <div class="geo-row" data-geo-actions style="display:none; margin-top:10px;">
+                    <a class="btn btn-ghost btn-sm" data-geo-report target="_blank" rel="noopener" href="#">${t('geoOpenReport')}</a>
+                  </div>
                   <div class="geo-note">${t('geoHint')}</div>
                 </div>
 
