@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akore Labs — Centro de Operaciones</title>
+<link rel="stylesheet" href="/styles/akore-tokens.css">
+<style>
+/* --- shared layout ---
+   Every Hieronymus page inlines its own copy of this block; hub.html uses the same one verbatim
+   so it cannot drift visually from the portal. Extracting it to a shared file would be better,
+   but that would mean editing pages already deployed and working. */
+:root {
+  --navy: #6d4fe0;
+  --emerald-700: #0f7d5b;
+  --bg: #f4f6f8;
+  --surface: #FFFFFF;
+  --surface2: #f4f2fb;
+  --border: #e3e6ea;
+  --text: #08090c;
+  --text-dim: #757f8f;
+  --text-mid: #3d4653;
+  --accent: #6d4fe0;
+  --accent-glow: rgba(109,79,224,0.18);
+  --accent-dim: rgba(109,79,224,0.10);
+  --green: #0f7d5b;
+  --green-dim: #eefaf4;
+  --yellow: #8a6a12;
+  --yellow-dim: #fbf1de;
+  --red: #b03a3a;
+  --red-dim: #fce9e9;
+  --radius-xs: 4px;
+  --shadow-xs: 0 1px 2px rgba(16,19,25,0.06);
+  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --fs-h1: 2.5rem;
+  --fs-h2: 1.5rem;
+  --fs-h3: 1.125rem;
+  --fs-eyebrow: 0.6875rem;
+  --mono: "Manrope","Helvetica Neue",Arial,sans-serif;
+  --display: "Montserrat","Helvetica Neue",Arial,sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--mono); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 13px; line-height: 1.6; }
+.header {
+  border-bottom: 1px solid var(--border); padding: 20px 40px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+  position: sticky; top: 0; background: rgba(255,255,255,0.92); backdrop-filter: blur(20px); z-index: 100;
+}
+.logo { display: flex; align-items: center; gap: 14px; }
+.logo-lockup { height: 38px; width: auto; display: block; image-rendering: -webkit-optimize-contrast; }
+.logo-icon { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; }
+.logo-icon img { width: 100%; height: 100%; object-fit: contain; }
+.logo-name { font-family: var(--display); font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+.logo-sub { display: flex; align-items: center; gap: 10px; font-family: var(--display); font-size: var(--fs-eyebrow); font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.16em; }
+.logo-sub::before { content: ""; width: 22px; height: 2px; border-radius: 2px; background: var(--accent); flex-shrink: 0; }
+.logo-divider { width: 1px; height: 18px; background: var(--border-bright); }
+.nav-link { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text-mid); text-decoration: none; border: 1px solid var(--border-bright); border-radius: var(--radius-pill); padding: 8px 16px; transition: all var(--dur-base) var(--ease-standard); white-space: nowrap; }
+.nav-link:hover { background: var(--surface2); color: var(--text); }
+@media (max-width: 720px) {
+  .header { padding: 14px 16px; }
+  .header-right { flex-wrap: wrap; row-gap: 8px; justify-content: flex-end; }
+  .main { padding: 24px 16px 60px; }
+}
+.main { max-width: 1100px; margin: 0 auto; padding: 48px 24px 80px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow-sm); transition: box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard); }
+.card-title { font-family: var(--display); font-size: var(--fs-h3); font-weight: 700; color: var(--text); margin-bottom: 4px; letter-spacing: -0.01em; }
+.card-caption { font-size: 12px; color: var(--text-dim); margin-bottom: 16px; line-height: 1.5; }
+.two-col { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; align-items: end; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 7px; font-weight: 600; }
+.field input, .field select { width: 100%; font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--radius-md); padding: 11px 14px; outline: none; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
+.field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
+.field-hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; line-height: 1.5; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--mono); font-weight: 600; font-size: 13px; letter-spacing: 0.01em; padding: 11px 20px; min-height: 40px; border-radius: var(--radius-pill); border: none; cursor: pointer; background: var(--navy); color: white; box-shadow: var(--shadow-sm); transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-fast) var(--ease-standard); white-space: nowrap; }
+.btn:hover { background: var(--violet-700); box-shadow: var(--shadow-brand); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; transform: none; }
+.btn-ghost { background: transparent; color: var(--navy); border: 1px solid var(--border-bright); box-shadow: none; }
+.btn-ghost:hover { background: var(--violet-50); box-shadow: none; }
+.btn-sm { padding: 8px 16px; font-size: 11px; min-height: 34px; }
+.result-box { background: var(--green-dim); border: 1px solid rgba(18,97,126,0.25); border-radius: var(--radius-md); padding: 16px; margin-top: 16px; display: none; }
+.result-box .link-row { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.result-box input { flex: 1; font-family: var(--mono); font-size: 12px; background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--radius-sm); padding: 8px 12px; color: var(--text); }
+.error-box { background: var(--red-dim); color: var(--red); border: 1px solid rgba(142,51,44,0.25); border-radius: var(--radius-md); padding: 12px 16px; margin-top: 16px; font-size: 12px; display: none; }
+table { width: 100%; border-collapse: collapse; }
+th { background: var(--surface2); padding: 10px 14px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); border-bottom: 1px solid var(--border); white-space: nowrap; font-weight: 600; }
+td { padding: 12px 14px; font-size: 12px; border-bottom: 1px solid var(--border); color: var(--text-mid); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tbody tr { transition: background var(--dur-base) var(--ease-standard); }
+tbody tr:hover { background: var(--bg); }
+.company-name { font-weight: 700; color: var(--text); font-size: 13px; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: var(--radius-pill); letter-spacing: 0.02em; white-space: nowrap; }
+.badge-submitted, .badge-done { background: var(--emerald-100); color: var(--emerald-700); }
+.badge-pending { background: var(--surface2); color: var(--text-dim); }
+.badge-partial { background: var(--yellow-dim); color: var(--yellow); }
+.action-list { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; min-width: 160px; }
+.action-list a, .action-list button { width: 100%; justify-content: center; text-decoration: none; }
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-dim); font-size: 13px; }
+code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: 3px; }
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+@media (max-width: 720px) {
+  table, thead, tbody, tr, td { display: block; width: 100%; }
+  thead { display: none; }
+  table { border: none; }
+  tr { border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 14px; padding: 10px 12px; overflow: hidden; }
+  td { border-bottom: 1px solid var(--surface2); padding: 10px 0; }
+  td:last-child { border-bottom: none; }
+  td[data-label]:before { content: attr(data-label); display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-dim); font-weight: 700; margin-bottom: 6px; }
+  .action-list { min-width: 0; }
+}
+.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(27,39,51,0.5); align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+.modal-backdrop.open { display: flex; }
+.modal-box { background: var(--surface); border-radius: var(--radius); padding: 28px; width: 100%; max-width: 440px; box-shadow: var(--shadow-lg); }
+.progress-wrap { width: 100%; height: 6px; background: var(--surface2); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+.progress-bar { height: 100%; background: var(--accent); transition: width 0.3s; }
+.job-status { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.lang-toggle { display: flex; border: 1px solid var(--border-bright); border-radius: var(--radius-pill); overflow: hidden; }
+.lang-btn { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-mid); background: var(--surface); border: none; padding: 6px 12px; cursor: pointer; }
+.lang-btn.active { background: var(--accent); color: #fff; }
+
+/* --- hub-specific --- */
+  /* ── Needs-attention strip ──
+     A hub that is only a grid of tools is a menu: you still have to go hunting. This strip is
+     computed from the same customer data the portal already loads, so the landing page opens on
+     what is actually waiting rather than on a list of places you could go. */
+  .attention { display: flex; flex-wrap: wrap; gap: 10px; }
+  .att-item { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: var(--radius-pill, 999px);
+              font-size: 13px; font-weight: 600; border: 1px solid var(--border); background: var(--surface2); color: var(--text);
+              text-decoration: none; transition: border-color .12s, transform .12s; }
+  .att-item:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .att-n { font-family: var(--display); font-weight: 800; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .att-clear { font-size: 13px; color: var(--text-mid); padding: 9px 2px; }
+
+  /* ── Operation cards ── */
+  .ops { display: grid; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); gap: 16px; }
+  .op { display: flex; flex-direction: column; gap: 8px; padding: 20px; border: 1px solid var(--border); border-radius: var(--radius);
+        background: var(--surface); box-shadow: var(--shadow-sm); text-decoration: none; color: inherit;
+        transition: border-color .14s, box-shadow .14s, transform .14s; position: relative; overflow: hidden; }
+  .op:hover { border-color: var(--accent); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .op-step { font-family: var(--mono, monospace); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-mid); font-weight: 700; }
+  .op-title { font-family: var(--display); font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: -.01em; }
+  .op-desc { font-size: 13px; line-height: 1.5; color: var(--text-mid); flex: 1; }
+  .op-meta { display: flex; align-items: baseline; gap: 7px; margin-top: 4px; }
+  .op-count { font-family: var(--display); font-size: 22px; font-weight: 800; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+  .op-count-l { font-size: 12px; color: var(--text-mid); }
+  .op.soon { opacity: .62; pointer-events: none; }
+  .op-badge { position: absolute; top: 14px; right: 14px; font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+              padding: 3px 8px; border-radius: 999px; background: var(--surface2); color: var(--text-mid); border: 1px solid var(--border); }
+
+  .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+  .sec-title { font-family: var(--display); font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-mid); }
+  .hub-lede { font-size: 13.5px; color: var(--text-mid); margin-top: 2px; }
+  .lang-toggle { display: inline-flex; border: 1px solid var(--border-bright); border-radius: 999px; overflow: hidden; }
+  .lang-btn { font-family: inherit; font-size: 11.5px; font-weight: 700; padding: 6px 13px; border: none; background: transparent; color: var(--text-mid); cursor: pointer; }
+  .lang-btn.active { background: var(--accent); color: #fff; }
+</style>
+<script src="/js/confirm-gate.js"></script>
+<script src="/js/results-auth.js"></script>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo" onclick="location.href='/hub.html'" style="cursor:pointer;" title="Akore Labs">
+    <img class="logo-lockup" src="/brand/logo-horizontal-light.png" alt="Akore Labs">
+    <span class="logo-divider"></span>
+    <div class="logo-sub" data-t="logoSub">Centro de Operaciones</div>
+  </div>
+  <div class="header-right">
+    <div class="lang-toggle">
+      <button class="lang-btn" id="lang-btn-es" onclick="setLang('es')">ES</button>
+      <button class="lang-btn" id="lang-btn-en" onclick="setLang('en')">EN</button>
+    </div>
+    <button class="nav-link" onclick="staffLogout()" style="cursor:pointer;" data-t="logoutBtn">Cerrar sesión</button>
+  </div>
+</header>
+
+<main class="main">
+  <div class="card">
+    <div class="sec-head">
+      <div>
+        <div class="card-title" style="margin-bottom:0;" data-t="attentionTitle">Requiere atención</div>
+        <div class="hub-lede" data-t="attentionLede">Lo que está esperando ahora mismo, en todos los clientes.</div>
+      </div>
+    </div>
+    <div class="attention" id="attention"><span class="att-clear" data-t="loading">Cargando…</span></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-head">
+      <div>
+        <div class="card-title" style="margin-bottom:0;" data-t="opsTitle">Operaciones</div>
+        <div class="hub-lede" data-t="opsLede">El flujo completo, en orden. Cada tarjeta abre la herramienta correspondiente.</div>
+      </div>
+    </div>
+    <div class="ops" id="ops"></div>
+  </div>
+</main>
+
+<footer class="footer" data-t="footer">Akore Labs — Solo Uso Interno</footer>
+
+<script>
+const SESSION_KEY = 'hieronymus_internal_auth';
+const ROLE_KEY = 'hieronymus_internal_role';
+const USER_KEY = 'hieronymus_internal_user';
+
+// The hub carries no login gate of its own. portal.html already owns that flow, and a second
+// copy would be a second thing to keep in step with it — so an unauthenticated visitor is simply
+// sent there, logs in once, and comes back.
+if (localStorage.getItem(SESSION_KEY) !== 'true') location.replace('/portal.html');
+
+let LANG = localStorage.getItem('hieronymus_lang') || 'es';
+
+const T = {
+  logoSub:       { es: 'Centro de Operaciones', en: 'Operations Hub' },
+  logoutBtn:     { es: 'Cerrar sesión', en: 'Log out' },
+  attentionTitle:{ es: 'Requiere atención', en: 'Needs attention' },
+  attentionLede: { es: 'Lo que está esperando ahora mismo, en todos los clientes.', en: 'What is waiting right now, across every client.' },
+  opsTitle:      { es: 'Operaciones', en: 'Operations' },
+  opsLede:       { es: 'El flujo completo, en orden. Cada tarjeta abre la herramienta correspondiente.', en: 'The full workflow, in order. Each card opens the tool for that step.' },
+  loading:       { es: 'Cargando…', en: 'Loading…' },
+  allClear:      { es: 'Nada pendiente. Todo al día.', en: 'Nothing pending — all clear.' },
+  loadFailed:    { es: 'No se han podido cargar los datos de clientes.', en: 'Could not load customer data.' },
+  footer:        { es: 'Akore Labs — Solo Uso Interno', en: 'Akore Labs — Internal Use Only' },
+
+  attIntake:     { es: 'esperando el formulario del cliente', en: 'awaiting client intake' },
+  attPrompts:    { es: 'prompts pendientes de revisión', en: 'prompt sets awaiting review' },
+  attAudit:      { es: 'sin auditoría todavía', en: 'with no audit yet' },
+  attScan:       { es: 'sin análisis técnico del sitio', en: 'with no site scan' },
+
+  opCustomers:   { es: 'Clientes', en: 'Customers' },
+  opCustomersD:  { es: 'Alta de clientes, credenciales, enlaces de acceso y estado de cada uno en el flujo.', en: 'Create customers, manage credentials and access links, and see where each one stands.' },
+  opCustomersC:  { es: 'clientes', en: 'customers' },
+
+  opScan:        { es: 'Preparación del sitio', en: 'Site Readiness' },
+  opScanD:       { es: '35 comprobaciones técnicas en página, en tres capas. Se ejecuta antes de la auditoría: si el sitio no es legible, los resultados de visibilidad no significan nada.', en: '35 on-page technical checks across three layers. Runs before the audit — if the site cannot be read, visibility results mean nothing.' },
+
+  opPrompts:     { es: 'Prompts', en: 'Prompts' },
+  opPromptsD:    { es: 'Generación, revisión interna y aprobación del conjunto de prompts de cada cliente.', en: 'Generate, review internally, and approve each customer’s prompt set.' },
+  opPromptsC:    { es: 'conjuntos', en: 'sets' },
+
+  opAudits:      { es: 'Auditorías', en: 'Audits' },
+  opAuditsD:     { es: 'Ejecución de los prompts contra Claude, ChatGPT y Gemini, y lectura de los resultados.', en: 'Run the prompts against Claude, ChatGPT and Gemini, and read the results.' },
+  opAuditsC:     { es: 'con resultados', en: 'with results' },
+
+  opDiagnostic:  { es: 'Diagnóstico', en: 'Diagnostic' },
+  opDiagnosticD: { es: 'La foto inicial de visibilidad: dónde aparece la marca hoy y frente a quién.', en: 'The opening visibility snapshot: where the brand appears today, and against whom.' },
+
+  opMonitoring:  { es: 'Monitorización', en: 'Monitoring' },
+  opMonitoringD:{ es: 'Evolución entre auditorías. Es lo que convierte el trabajo en algo demostrable.', en: 'Change between audits. This is what makes the work demonstrable.' },
+
+  opSettings:    { es: 'Configuración', en: 'Settings' },
+  opSettingsD:   { es: 'Cuentas de personal, claves de API y ajustes por cliente.', en: 'Staff accounts, API keys, and per-customer settings.' },
+
+  soon:          { es: 'Próximamente', en: 'Soon' },
+  step:          { es: 'Paso', en: 'Step' }
+};
+function t(k) { return (T[k] && T[k][LANG]) || (T[k] && T[k].es) || k; }
+
+function applyT() {
+  document.documentElement.setAttribute('lang', LANG);
+  document.querySelectorAll('[data-t]').forEach(el => { el.textContent = t(el.getAttribute('data-t')); });
+  ['es', 'en'].forEach(l => {
+    const b = document.getElementById('lang-btn-' + l);
+    if (b) b.classList.toggle('active', LANG === l);
+  });
+}
+function setLang(l) {
+  LANG = l;
+  localStorage.setItem('hieronymus_lang', l);
+  applyT();
+  render();
+}
+function staffLogout() {
+  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(ROLE_KEY);
+  sessionStorage.removeItem('geo_staff_password');
+  location.href = '/portal.html';
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+let STATE = { customers: [], promptsBySlug: {}, runsByCompany: {}, loaded: false, failed: false };
+
+function slugify(s) { return String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+
+// Same three sources the portal reads, so the hub can never disagree with the customer list.
+async function loadAll() {
+  try {
+    const [codesRes, promptsRes, resultsRes] = await Promise.all([
+      fetch(await window.apiQuery('/api/intake-codes', {})),
+      fetch(await window.apiQuery('/api/prompts', {})),
+      fetch(await window.resultsQuery(''))
+    ]);
+    const codesData = await codesRes.json();
+    const promptsData = await promptsRes.json().catch(() => ({ items: [] }));
+    const resultsText = await resultsRes.text().catch(() => '');
+
+    STATE.customers = codesData.items || [];
+    STATE.promptsBySlug = {};
+    (promptsData.items || []).forEach(p => { STATE.promptsBySlug[p.key] = p; });
+
+    STATE.runsByCompany = {};
+    resultsText.split(/\r?\n/).slice(1).forEach(line => {
+      if (!line.trim()) return;
+      const cols = line.split(',');
+      const brand = (cols[1] || '').replace(/^"|"$/g, '');
+      if (brand) STATE.runsByCompany[brand] = true;
+    });
+    STATE.loaded = true;
+  } catch (err) {
+    STATE.failed = true;
+  }
+  render();
+}
+
+function counts() {
+  const c = { total: STATE.customers.length, awaitingIntake: 0, promptsPending: 0, noAudit: 0, promptSets: 0, withResults: 0 };
+  STATE.customers.forEach(i => {
+    const owner = (i.members || [])[0] || { username: slugify(i.company) };
+    const prompts = STATE.promptsBySlug[owner.username];
+    const hasRuns = !!STATE.runsByCompany[i.company];
+    if (!i.submittedAt) c.awaitingIntake++;
+    if (prompts && !prompts.approvedAt) c.promptsPending++;
+    if (prompts) c.promptSets++;
+    if (hasRuns) c.withResults++; else c.noAudit++;
+  });
+  return c;
+}
+
+function renderAttention(c) {
+  const el = document.getElementById('attention');
+  if (STATE.failed) { el.innerHTML = `<span class="att-clear">${esc(t('loadFailed'))}</span>`; return; }
+  if (!STATE.loaded) { el.innerHTML = `<span class="att-clear">${esc(t('loading'))}</span>`; return; }
+
+  const items = [
+    c.awaitingIntake ? { n: c.awaitingIntake, label: t('attIntake'), href: '/portal.html' } : null,
+    c.promptsPending ? { n: c.promptsPending, label: t('attPrompts'), href: '/portal.html' } : null,
+    c.noAudit ? { n: c.noAudit, label: t('attAudit'), href: '/portal.html' } : null
+  ].filter(Boolean);
+
+  el.innerHTML = items.length
+    ? items.map(i => `<a class="att-item" href="${i.href}"><span class="att-n">${i.n}</span> ${esc(i.label)}</a>`).join('')
+    : `<span class="att-clear">${esc(t('allClear'))}</span>`;
+}
+
+function renderOps(c) {
+  // Ordered by the workflow, not alphabetically: the numbering is the sequence a client actually
+  // moves through, which is also the order in which a step becomes meaningful.
+  const ops = [
+    { step: 1, title: t('opCustomers'), desc: t('opCustomersD'), href: '/portal.html', count: c.total, countLabel: t('opCustomersC') },
+    { step: 2, title: t('opScan'), desc: t('opScanD'), href: 'https://geo-scanning-tool.netlify.app', external: true },
+    { step: 3, title: t('opPrompts'), desc: t('opPromptsD'), href: '/portal.html', count: c.promptSets, countLabel: t('opPromptsC') },
+    { step: 4, title: t('opAudits'), desc: t('opAuditsD'), href: '/portal.html', count: c.withResults, countLabel: t('opAuditsC') },
+    { step: 5, title: t('opDiagnostic'), desc: t('opDiagnosticD'), href: '/dashboard-diagnostic.html' },
+    { step: 6, title: t('opMonitoring'), desc: t('opMonitoringD'), href: '/dashboard-monitoring.html' },
+    { step: null, title: t('opSettings'), desc: t('opSettingsD'), href: '/portal.html' }
+  ];
+
+  document.getElementById('ops').innerHTML = ops.map(o => `
+    <a class="op" href="${o.href}"${o.external ? ' target="_blank" rel="noopener"' : ''}>
+      <div class="op-step">${o.step ? esc(t('step')) + ' ' + o.step : '&nbsp;'}</div>
+      <div class="op-title">${esc(o.title)}</div>
+      <div class="op-desc">${esc(o.desc)}</div>
+      ${typeof o.count === 'number' ? `<div class="op-meta"><span class="op-count">${o.count}</span><span class="op-count-l">${esc(o.countLabel)}</span></div>` : ''}
+    </a>`).join('');
+}
+
+function render() {
+  const c = counts();
+  renderAttention(c);
+  renderOps(c);
+}
+
+applyT();
+render();
+loadAll();
+</script>
+</body>
+</html>

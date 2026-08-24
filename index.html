@@ -116,7 +116,7 @@ async function tryAuth() {
     if (new URLSearchParams(location.search).get('company')) {
       location.reload();
     } else {
-      location.href = '/portal.html';
+      location.href = '/hub.html';
     }
   } catch (err) {
     passInput.classList.add('error');
