@@ -50,3 +50,13 @@
   from = "/api/staff-users"
   to = "/.netlify/functions/staff-users"
   status = 200
+
+[[redirects]]
+  from = "/api/geo-scan"
+  to = "/.netlify/functions/geo-scan-background"
+  status = 200
+
+[[redirects]]
+  from = "/api/geo-scan-job"
+  to = "/.netlify/functions/geo-scan-job"
+  status = 200

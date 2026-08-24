@@ -3,6 +3,8 @@
   "private": true,
   "version": "1.0.0",
   "dependencies": {
-    "@netlify/blobs": "^10.7.9"
+    "@netlify/blobs": "^10.7.9",
+    "cheerio": "^1.2.0",
+    "robots-parser": "^3.0.1"
   }
 }
