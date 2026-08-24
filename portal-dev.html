@@ -19,21 +19,12 @@
   .dev-flag { font-family: var(--display); font-size: 9.5px; font-weight: 800; letter-spacing: .12em; padding: 3px 8px; border-radius: 999px; background: var(--yellow-dim); color: var(--yellow); border: 1px solid rgba(138,106,18,.3); margin-left: 10px; }
 
   /* ── GEO scan panel (per customer) ── */
-  .geo-panel { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface2); }
-  .geo-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
-  .geo-title { font-family: var(--display); font-size: 13px; font-weight: 700; color: var(--text); }
-  .geo-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .geo-row input { flex: 1; min-width: 190px; font-family: var(--mono); font-size: 12px; padding: 9px 12px; border: 1px solid var(--border-bright); border-radius: var(--radius-md); background: var(--surface); color: var(--text); }
-  .geo-scores { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; }
-  .geo-score { display: flex; flex-direction: column; gap: 2px; }
   .geo-score .n { font-family: var(--display); font-size: 20px; font-weight: 800; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
   .geo-score .l { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); font-weight: 700; }
   .geo-score.muted .n { color: var(--text-dim); }
-  .geo-delta { font-size: 11px; font-weight: 700; margin-left: 6px; }
   .geo-delta.up { color: var(--green); }
   .geo-delta.down { color: var(--red); }
-  .geo-meta { font-size: 11px; color: var(--text-dim); margin-top: 8px; line-height: 1.5; }
-  .geo-note { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
 
   .cust-card-body { display: none; padding: 4px 18px 18px; border-top: 1px solid var(--border); }
   .cust-card.open .cust-card-body { display: block; }
@@ -511,24 +502,6 @@ const T = {
   failedAddMember: { en: 'Failed to add user: ', es: 'Error al agregar usuario: ' },
   failedRemoveMember: { en: 'Failed to remove user: ', es: 'Error al quitar usuario: ' },
   fillUserPassword: { en: 'Enter a username and password.', es: 'Ingresa un usuario y una contraseña.' },
-  geoTitle: { en: 'Site readiness (GEO)', es: 'Preparación del sitio (GEO)' },
-  geoUrlPlaceholder: { en: 'https://client-site.com', es: 'https://sitio-del-cliente.com' },
-  geoRunBtn: { en: 'Run scan', es: 'Analizar sitio' },
-  geoHint: { en: 'Technical on-page checks in three layers. Run this before the audit — if the site cannot be read, visibility results say nothing about it.', es: 'Comprobaciones técnicas en página, en tres capas. Conviene ejecutarlo antes de la auditoría: si el sitio no se puede leer, los resultados de visibilidad no dicen nada sobre él.' },
-  geoRunning: { en: 'Scanning… this takes 20-100 seconds.', es: 'Analizando… tarda entre 20 y 100 segundos.' },
-  geoNever: { en: 'Not scanned yet.', es: 'Todavía sin analizar.' },
-  geoFailed: { en: 'The scan did not complete.', es: 'El análisis no se ha completado.' },
-  geoNeedUrl: { en: 'Enter the site address first.', es: 'Introduce primero la dirección del sitio.' },
-  geoUnreachable: { en: 'Site not reachable from the scanner — no score. This is not a finding about the site.', es: 'El escáner no ha podido acceder al sitio, así que no hay puntuación. Esto no es un hallazgo sobre el sitio.' },
-  geoOverall: { en: 'Overall', es: 'Global' },
-  geoAccess: { en: 'Access', es: 'Acceso' },
-  geoRead: { en: 'Readability', es: 'Legibilidad' },
-  geoSubstance: { en: 'Substance', es: 'Sustancia' },
-  geoPages: { en: 'pages', es: 'páginas' },
-  geoScannedOn: { en: 'Scanned', es: 'Analizado' },
-  geoSince: { en: 'since', es: 'desde' },
-  geoRubricChanged: { en: 'Not compared — the previous run used a different scoring version.', es: 'Sin comparar: la ejecución anterior usó otra versión de puntuación.' },
-  geoOpenReport: { en: 'Full report ↗', es: 'Informe completo ↗' },
   manageStaffNav: { en: 'Admin Settings', es: 'Configuración' },
   manageStaffTitle: { en: 'Admin Settings', es: 'Configuración de administrador' },
   staffUsersLabel: { en: 'Staff users', es: 'Usuarios del equipo' },
@@ -726,121 +699,6 @@ async function loadAll() {
   }
 }
 
-// ── GEO scan panel ──
-// Kept alongside the customer row rather than on a page of its own: the scan belongs to a
-// customer, and the panel is only useful next to that customer's other state.
-const geoPolls = {};
-
-async function geoLoad(company) {
-  const panel = document.querySelector('[data-geo-panel][data-company="' + cssEscape(company) + '"]');
-  if (!panel) return;
-  try {
-    const res = await fetch(await window.apiQuery('/api/geo-scan-job', { company }));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    geoRender(panel, company, data);
-    // Poll only while a run is actually in flight, and stop as soon as it is not.
-    if (data.status === 'running' && !geoPolls[company]) {
-      geoPolls[company] = setInterval(() => geoLoad(company), 6000);
-    } else if (data.status !== 'running' && geoPolls[company]) {
-      clearInterval(geoPolls[company]); delete geoPolls[company];
-    }
-  } catch (err) {
-    const st = panel.querySelector('[data-geo-status]');
-    if (st) st.textContent = t('geoFailed') + ' — ' + err.message;
-    if (geoPolls[company]) { clearInterval(geoPolls[company]); delete geoPolls[company]; }
-  }
-}
-
-function cssEscape(v) { return String(v).replace(/["\\]/g, '\\function renderCustomerTable() {'); }
-
-function geoRender(panel, company, data) {
-  const status = panel.querySelector('[data-geo-status]');
-  const out = panel.querySelector('[data-geo-result]');
-  const input = panel.querySelector('[data-geo-url]');
-  const latest = data.latest;
-
-  if (data.job && data.job.url && input && !input.value) input.value = data.job.url;
-  else if (latest && latest.url && input && !input.value) input.value = latest.url;
-
-  if (data.status === 'running') { status.textContent = t('geoRunning'); }
-  else if (data.status === 'error') { status.textContent = t('geoFailed'); }
-  else if (!latest) { status.textContent = t('geoNever'); }
-  else { status.textContent = t('geoScannedOn') + ' ' + latest.scannedAt.slice(0, 10) + (data.runCount > 1 ? ' · ' + data.runCount + ' ' + (lang === 'en' ? 'runs' : 'ejecuciones') : ''); }
-
-  const actions = panel.querySelector('[data-geo-actions]');
-  const reportLink = panel.querySelector('[data-geo-report]');
-  if (latest && actions && reportLink) {
-    // Built through apiQuery so the report endpoint receives the same staff credentials as every
-    // other scoped call; the link opens a printable page rather than downloading anything.
-    window.apiQuery('/api/geo-report', { company, lang }).then(href => { reportLink.href = href; });
-    actions.style.display = 'flex';
-  } else if (actions) {
-    actions.style.display = 'none';
-  }
-
-  if (!latest) { out.innerHTML = ''; return; }
-
-  if (!latest.reachable || latest.overall === null) {
-    out.innerHTML = '<div class="geo-meta">' + escapeHtml(t('geoUnreachable')) + '</div>';
-    return;
-  }
-
-  const d = data.delta && data.delta.comparable ? data.delta : null;
-  const layer = id => (latest.layers || []).find(l => l.id === id) || {};
-  const delta = n => (n === null || n === undefined || n === 0) ? '' :
-    '<span class="geo-delta ' + (n > 0 ? 'up' : 'down') + '">' + (n > 0 ? '+' : '') + n + '</span>';
-  const layerDelta = id => {
-    if (!d) return '';
-    const l = (d.layers || []).find(x => x.id === id);
-    return l ? delta(l.delta) : '';
-  };
-
-  out.innerHTML =
-    '<div class="geo-scores">' +
-      '<div class="geo-score"><span class="n">' + latest.overall + delta(d ? d.overall.delta : null) + '</span><span class="l">' + escapeHtml(t('geoOverall')) + '</span></div>' +
-      '<div class="geo-score muted"><span class="n">' + (layer('access').score ?? '—') + layerDelta('access') + '</span><span class="l">' + escapeHtml(t('geoAccess')) + '</span></div>' +
-      '<div class="geo-score"><span class="n">' + (layer('readability').score ?? '—') + layerDelta('readability') + '</span><span class="l">' + escapeHtml(t('geoRead')) + '</span></div>' +
-      '<div class="geo-score"><span class="n">' + (layer('substance').score ?? '—') + layerDelta('substance') + '</span><span class="l">' + escapeHtml(t('geoSubstance')) + '</span></div>' +
-    '</div>' +
-    '<div class="geo-meta">' + latest.pagesAnalyzed + ' ' + escapeHtml(t('geoPages')) +
-      (latest.blockers ? ' · ' + latest.blockers + ' ' + (lang === 'en' ? 'blockers' : 'bloqueos') : '') +
-      (latest.unverified ? ' · ' + latest.unverified + ' ' + (lang === 'en' ? 'unverified' : 'sin verificar') : '') +
-      (data.delta && data.delta.comparable === false ? '<br>' + escapeHtml(t('geoRubricChanged')) : '') +
-    '</div>';
-}
-
-async function geoRun(company) {
-  const panel = document.querySelector('[data-geo-panel][data-company="' + cssEscape(company) + '"]');
-  if (!panel) return;
-  const input = panel.querySelector('[data-geo-url]');
-  const status = panel.querySelector('[data-geo-status]');
-  const url = (input.value || '').trim();
-  if (!url) { status.textContent = t('geoNeedUrl'); input.focus(); return; }
-
-  status.textContent = t('geoRunning');
-  try {
-    // apiQuery appends whatever credentials this session holds, and prompts for the password if
-    // sessionStorage has lost it — which is exactly what happens in a newly opened tab.
-    const q = await window.apiQuery('/api/geo-scan', {});
-    const res = await fetch(q, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company, url })
-    });
-    if (!res.ok && res.status !== 202) {
-      status.textContent = t('geoFailed') + ' (HTTP ' + res.status + ')';
-      return;
-    }
-  } catch (err) {
-    // Never swallow this. A silent failure looks identical to a scan that ran and found nothing,
-    // which is the worst possible thing for a tool whose job is to report honestly.
-    status.textContent = t('geoFailed') + ' — ' + err.message;
-    return;
-  }
-  setTimeout(() => geoLoad(company), 1500);
-}
-
 function renderCustomerTable() {
   const container = document.getElementById('customers-list');
   const searchInput = document.getElementById('customer-search');
@@ -915,19 +773,6 @@ document.getElementById('customers-list').addEventListener('click', async (e) =>
   if (btn.dataset.action === 'toggle-card') {
     const card = btn.closest('.cust-card');
     card.classList.toggle('open');
-    // The scan record is only fetched when a customer is actually opened, so a portal with
-    // twenty customers does not fire twenty extra requests on load.
-    if (card.classList.contains('open')) {
-      const panel = card.querySelector('[data-geo-panel]');
-      if (panel && !panel.dataset.geoLoaded) {
-        panel.dataset.geoLoaded = '1';
-        geoLoad(panel.dataset.company);
-      }
-    }
-    return;
-  }
-  if (btn.dataset.action === 'geo-run') {
-    await geoRun(btn.dataset.company);
     return;
   }
   if (btn.dataset.action === 'copy-link') {
