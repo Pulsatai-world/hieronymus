@@ -35,14 +35,18 @@ const lang = params.get('lang') === 'en' ? 'en' : 'es';
 const COPY = {
   es: {
     noCompany: ['Falta el cliente', 'Este enlace no indica de qué cliente es el informe.'],
-    needLogin: ['Necesitas iniciar sesión', 'Te llevamos al portal. Vuelve a abrir este enlace después de entrar.'],
+    needLogin: ['Necesitas iniciar sesión', 'Abre el portal en otra pestaña, inicia sesión y vuelve aquí. Este enlace se queda abierto.'],
+    loginBtn: 'Abrir el portal',
+    retryBtn: 'Ya inicié sesión',
     notFound: ['Todavía no hay informe', 'No hay ningún análisis guardado para este cliente. Ejecuta uno desde su ficha.'],
     denied: ['Sin permiso', 'Tu sesión no tiene acceso a este informe. Vuelve a iniciar sesión e inténtalo otra vez.'],
     failed: ['No se ha podido cargar el informe', '']
   },
   en: {
     noCompany: ['Missing customer', 'This link does not say which customer the report is for.'],
-    needLogin: ['You need to log in', 'Taking you to the portal. Open this link again once you are in.'],
+    needLogin: ['You need to log in', 'Open the portal in another tab, log in, and come back here. This link stays put.'],
+    loginBtn: 'Open the portal',
+    retryBtn: 'I have logged in',
     notFound: ['No report yet', 'No scan is stored for this customer. Run one from their page.'],
     denied: ['Not permitted', 'Your session does not have access to this report. Log in again and retry.'],
     failed: ['The report could not be loaded', '']
@@ -59,9 +63,16 @@ function show(pair, extra) {
   if (!company) return show(C.noCompany);
 
   if (localStorage.getItem(SESSION_KEY) !== 'true') {
-    show(C.needLogin);
-    // Come back here after logging in rather than dumping the reader on the portal.
-    setTimeout(() => { location.href = '/portal.html?next=' + encodeURIComponent(location.pathname + location.search); }, 1200);
+    // The portal has no return-to-URL handling, so redirecting there would strand the reader on
+    // the customer list with the report link lost. Instead the portal opens in a new tab and this
+    // one stays put: log in there, come back here, reload.
+    document.getElementById('msg').innerHTML =
+      '<h1>' + C.needLogin[0] + '</h1>'
+      + '<p>' + C.needLogin[1] + '</p>'
+      + '<p style="margin-top:16px;">'
+      + '<a href="/portal.html" target="_blank" rel="noopener" style="display:inline-block;padding:9px 18px;border-radius:999px;background:#6d4fe0;color:#fff;text-decoration:none;font-weight:600;">' + C.loginBtn + '</a>'
+      + ' <button onclick="location.reload()" style="margin-left:8px;padding:9px 18px;border-radius:999px;border:1px solid #c3c8d0;background:#fff;color:#2a313d;font-family:inherit;font-weight:600;cursor:pointer;">' + C.retryBtn + '</button>'
+      + '</p>';
     return;
   }
 
