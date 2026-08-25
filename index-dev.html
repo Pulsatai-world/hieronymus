@@ -19,11 +19,14 @@ function checkAuth() {
 function isAdmin() {
   return localStorage.getItem(ROLE_KEY) === 'admin';
 }
-function staffLogout() {
+async function staffLogout() {
   localStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(ROLE_KEY);
   sessionStorage.removeItem('geo_staff_password');
+  // Revokes the session token server-side as well; clearing the local flags alone would sign
+  // someone out of the interface while leaving the session valid for the API.
+  if (typeof window.staffSignOut === 'function') await window.staffSignOut();
   location.href = '/portal.html';
 }
 
