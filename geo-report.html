@@ -12,6 +12,7 @@
   .msg h1 { font-family: "Montserrat","Helvetica Neue",Arial,sans-serif; font-size: 19px; margin: 0 0 10px; color: #08090c; }
   .msg a { color: #6d4fe0; }
 </style>
+<script src="/js/confirm-gate.js"></script>
 <script src="/js/results-auth.js"></script>
 </head>
 <body>
@@ -39,7 +40,7 @@ const COPY = {
     loginBtn: 'Abrir el portal',
     retryBtn: 'Ya inicié sesión',
     notFound: ['Todavía no hay informe', 'No hay ningún análisis guardado para este cliente. Ejecuta uno desde su ficha.'],
-    denied: ['Sin permiso', 'Tu sesión no tiene acceso a este informe. Vuelve a iniciar sesión e inténtalo otra vez.'],
+    denied: ['Hace falta confirmar tu contraseña', 'Tu sesión sigue activa, pero este navegador ya no tiene guardada tu contraseña. Confírmala para ver el informe.'],
     failed: ['No se ha podido cargar el informe', '']
   },
   en: {
@@ -48,7 +49,7 @@ const COPY = {
     loginBtn: 'Open the portal',
     retryBtn: 'I have logged in',
     notFound: ['No report yet', 'No scan is stored for this customer. Run one from their page.'],
-    denied: ['Not permitted', 'Your session does not have access to this report. Log in again and retry.'],
+    denied: ['Password confirmation needed', 'Your session is still active, but this browser no longer has your password cached. Confirm it to view the report.'],
     failed: ['The report could not be loaded', '']
   }
 };
@@ -79,7 +80,12 @@ function show(pair, extra) {
   try {
     const q = await window.apiQuery('/api/geo-report', run ? { company, lang, run } : { company, lang });
     const res = await fetch(q);
-    if (res.status === 403) return show(C.denied);
+    if (res.status === 403) {
+      document.getElementById('msg').innerHTML =
+        '<h1>' + C.denied[0] + '</h1><p>' + C.denied[1] + '</p>'
+        + '<p style="margin-top:16px;"><button onclick="location.reload()" style="padding:9px 18px;border-radius:999px;border:none;background:#6d4fe0;color:#fff;font-family:inherit;font-weight:600;cursor:pointer;">' + C.retryBtn + '</button></p>';
+      return;
+    }
     if (res.status === 404) return show(C.notFound);
     if (!res.ok) return show(C.failed, 'HTTP ' + res.status);
 
