@@ -119,9 +119,11 @@
     const p = new URLSearchParams(params || {});
     const base = await window.resultsQuery('');
     const creds = new URLSearchParams(base.split('?')[1] || '');
-    ['staffUsername', 'staffPassword', 'username', 'password'].forEach(k => {
-      if (creds.get(k)) p.set(k, creds.get(k));
-    });
+    // Copy every credential resultsQuery produced. This used to be an allow-list of four names,
+    // which silently dropped the staffToken when tokens were introduced and sent a username with
+    // no credential behind it. resultsQuery returns credentials and the company only, and company
+    // is passed empty here, so there is nothing to filter out.
+    creds.forEach((value, key) => { if (value) p.set(key, value); });
     return endpoint + (p.toString() ? '?' + p.toString() : '');
   };
 
