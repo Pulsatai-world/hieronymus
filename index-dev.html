@@ -432,6 +432,7 @@ const T = {
   geoSlot1Hint: { en: 'Stays as it is once it has run.', es: 'Queda fijo una vez ejecutado.' },
   geoSlot2Hint: { en: 'Run this once the site has been optimised.', es: 'Ejecútalo cuando ya se haya optimizado el sitio web.' },
   geoSlot2Locked: { en: 'Available once the first scan has run.', es: 'Disponible en cuanto se haya corrido el primer análisis.' },
+  geoNoReport: { en: 'No stored report for this scan — it predates the saved reports. Run a new one to get it.', es: 'Este análisis no tiene informe guardado: se corrió antes de que se guardaran. Corre uno nuevo para tenerlo.' },
   geoOpenReport: { en: 'Open full report ↗', es: 'Abrir informe completo ↗' },
   geoCopyLink: { en: 'Copy report link', es: 'Copiar enlace del informe' },
   geoLinkCopied: { en: 'Report link copied. It only opens for logged-in Akore staff — not for customers.', es: 'Enlace del informe copiado. Solo se abre para el personal de Akore con sesión iniciada, no para clientes.' },
@@ -667,14 +668,21 @@ function geoRenderSlot(n, snap, opts) {
   if (opts.running) statusEl.textContent = t('geoRunning');
   else if (opts.error) statusEl.textContent = t('geoFailed') + (opts.error === true ? '' : ' — ' + opts.error);
   else if (!snap) statusEl.textContent = t('geoNever');
-  else statusEl.textContent = t('geoScannedOn') + ' ' + snap.scannedAt.slice(0, 10);
+  else statusEl.textContent = t('geoScannedOn') + ' ' + snap.scannedAt.slice(0, 10)
+    + (snap.hasReport === false ? ' · ' + t('geoNoReport') : '');
 
   if (!snap) { out.innerHTML = ''; if (actions) actions.style.display = 'none'; return; }
 
+  // Only offer the report when one was actually stored. Older runs kept a score snapshot without
+  // the full result behind it, and linking to those produced a page that read as simply empty.
   if (actions) {
-    const link = document.getElementById('geo-report-link-' + n);
-    if (link) link.href = geoReportHref(snap.stamp);
-    actions.style.display = 'flex';
+    if (snap.hasReport === false) {
+      actions.style.display = 'none';
+    } else {
+      const link = document.getElementById('geo-report-link-' + n);
+      if (link) link.href = geoReportHref(snap.stamp);
+      actions.style.display = 'flex';
+    }
   }
 
   if (!snap.reachable || snap.overall === null) {

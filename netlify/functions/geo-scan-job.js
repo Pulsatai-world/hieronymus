@@ -93,10 +93,16 @@ export default async (request) => {
     // the ends of the list are read, so this costs the same whether a customer has two runs or
     // twenty. The stamp travels with each snapshot so each slot links to its own full report.
     const wanted = [...new Set([keys[0], keys[keys.length - 1], keys[keys.length - 2]].filter(Boolean))];
+
+    // Which runs actually have a full report behind them. One listing, so a slot can hide a link
+    // that would only lead to an error page.
+    const fullListed = await getStore('hieronymus-geo-full').list({ prefix: `${key}/` }).catch(() => ({ blobs: [] }));
+    const fullKeys = new Set((fullListed.blobs || []).map(b => b.key));
+
     const loaded = {};
     await Promise.all(wanted.map(async k => {
       const snap = await history.get(k, { type: 'json' }).catch(() => null);
-      if (snap) { snap.stamp = k.split('/').pop(); loaded[k] = snap; }
+      if (snap) { snap.stamp = k.split('/').pop(); snap.hasReport = fullKeys.has(k); loaded[k] = snap; }
     }));
 
     const first = keys.length ? loaded[keys[0]] || null : null;

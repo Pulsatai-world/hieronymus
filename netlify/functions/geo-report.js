@@ -66,7 +66,21 @@ export default async (request) => {
   }
 
   const result = await full.get(`${key}/${stamp}`, { type: 'json' }).catch(() => null);
-  if (!result) return page(`<p>${lang === 'en' ? 'That scan could not be found.' : 'No se ha encontrado ese análisis.'}</p>`, 404);
+  if (!result) {
+    // A requested run with no stored report is a different thing from a customer who has never
+    // been scanned, and saying the wrong one sends people looking in the wrong place.
+    return page(`<p data-reason="run-missing">${lang === 'en'
+      ? 'No full report was stored for that scan. It ran before the tool began keeping them — run a new scan to get one.'
+      : 'Ese análisis no tiene informe guardado. Se corrió antes de que la herramienta empezara a guardarlos: corre uno nuevo para tenerlo.'}</p>`, 404);
+  }
+
+  // An older stored result can be missing the sections the report is built from. Better to say so
+  // than to return a page that renders blank.
+  if (!result.section1 || !result.section2 || !result.prioritizedFindings) {
+    return page(`<p data-reason="run-stale">${lang === 'en'
+      ? 'That scan was stored by an earlier version of the scanner and cannot be rendered. Run a new scan.'
+      : 'Ese análisis lo guardó una versión anterior del escáner y no se puede mostrar. Corre uno nuevo.'}</p>`, 409);
+  }
 
   return page(buildReportHtml(result, lang), 200);
 };
