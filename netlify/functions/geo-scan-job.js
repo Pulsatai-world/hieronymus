@@ -89,9 +89,9 @@ export default async (request) => {
     const listed = await history.list({ prefix: `${key}/` }).catch(() => ({ blobs: [] }));
     const keys = (listed.blobs || []).map(b => b.key).sort();
 
-    // The panel shows two fixed slots: the first scan ever taken, and the most recent one. Only
-    // the ends of the list are read, so this costs the same whether a customer has two runs or
-    // twenty. The stamp travels with each snapshot so each slot links to its own full report.
+    // The panel shows the last two runs. Only the tail of the list is read, so this costs the
+    // same whether a customer has two runs or twenty. The stamp travels with each snapshot so
+    // each slot links to its own full report.
     const wanted = [...new Set([keys[0], keys[keys.length - 1], keys[keys.length - 2]].filter(Boolean))];
 
     // Which runs actually have a full report behind them. One listing, so a slot can hide a link
@@ -105,11 +105,13 @@ export default async (request) => {
       if (snap) { snap.stamp = k.split('/').pop(); snap.hasReport = fullKeys.has(k); loaded[k] = snap; }
     }));
 
-    const first = keys.length ? loaded[keys[0]] || null : null;
     const latest = keys.length ? loaded[keys[keys.length - 1]] || null : null;
     const previous = keys.length > 1 ? loaded[keys[keys.length - 2]] || null : null;
-    // The second slot stays empty until a genuinely separate run exists. With one run on record
-    // the first slot already holds it, and repeating it below would read as two scans agreeing.
+
+    // Slot 1 is the scan before, slot 2 the scan after. With a single run on record there is no
+    // "before" yet, so it sits in slot 1 and slot 2 waits for the next one — which is also what
+    // makes a fresh customer start at the top and work down.
+    const first = keys.length > 1 ? previous : latest;
     const second = keys.length > 1 ? latest : null;
 
     return json({

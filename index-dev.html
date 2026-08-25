@@ -427,11 +427,11 @@ const T = {
   geoBlockers: { en: 'blockers', es: 'bloqueos' },
   geoUnverified: { en: 'unverified', es: 'sin verificar' },
   geoScannedOn: { en: 'Scanned', es: 'Analizado' },
-  geoSlot1: { en: 'Scan 1', es: 'Análisis 1' },
-  geoSlot2: { en: 'Scan 2', es: 'Análisis 2' },
-  geoSlot1Hint: { en: 'Stays as it is once it has run.', es: 'Queda fijo una vez ejecutado.' },
-  geoSlot2Hint: { en: 'Run this once the site has been optimised.', es: 'Ejecútalo cuando ya se haya optimizado el sitio web.' },
-  geoSlot2Locked: { en: 'Available once the first scan has run.', es: 'Disponible en cuanto se haya corrido el primer análisis.' },
+  geoSlot1: { en: 'Previous scan', es: 'Análisis anterior' },
+  geoSlot2: { en: 'Latest scan', es: 'Análisis más reciente' },
+  geoSlot1Hint: { en: 'How the site stood before.', es: 'Cómo estaba el sitio web antes.' },
+  geoSlot2Hint: { en: 'Run a new one and compare the two.', es: 'Corre uno nuevo y compara los dos.' },
+  geoSlot2Locked: { en: 'Appears as soon as a second scan is run.', es: 'Aparece en cuanto corras un segundo análisis.' },
   geoNoReport: { en: 'No stored report for this scan — it predates the saved reports. Run a new one to get it.', es: 'Este análisis no tiene informe guardado: se corrió antes de que se guardaran. Corre uno nuevo para tenerlo.' },
   geoOpenReport: { en: 'Open full report ↗', es: 'Abrir informe completo ↗' },
   geoCopyLink: { en: 'Copy report link', es: 'Copiar enlace del informe' },
@@ -661,7 +661,7 @@ function geoRenderSlot(n, snap, opts) {
 
   if (slotEl) slotEl.classList.toggle('is-locked', !!opts.locked);
   if (form) form.style.display = opts.canRun ? 'flex' : 'none';
-  if (btn) btn.textContent = snap ? t('geoRerunBtn') : t('geoRunBtn');
+  if (btn) btn.textContent = (snap && n === 1) ? t('geoRerunBtn') : t('geoRunBtn');
   if (input && !input.value && opts.suggestUrl) input.value = opts.suggestUrl;
 
   if (opts.locked) { statusEl.textContent = t('geoSlot2Locked'); out.innerHTML = ''; if (actions) actions.style.display = 'none'; return; }
