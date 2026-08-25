@@ -50,7 +50,13 @@ function showPasswordGate() {
       .gate-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
       .gate-input.error { border-color: var(--red); animation: shake 0.3s; }
       @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
-    </style>
+    .geo-slot{border:1px solid var(--border);border-radius:var(--radius-md);padding:15px 16px;margin-top:14px;background:var(--surface-2,transparent)}
+.geo-slot-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:11px}
+.geo-slot-name{font-family:var(--display);font-size:13px;font-weight:800;letter-spacing:.02em;color:var(--text)}
+.geo-slot-note{font-size:11.5px;color:var(--text-dim)}
+.geo-slot.is-locked{opacity:.55}
+.geo-input{flex:1;min-width:220px;font-family:inherit;font-size:13px;padding:10px 13px;border:1px solid var(--border-bright);border-radius:var(--radius-md);background:var(--surface);color:var(--text)}
+</style>
     <div class="card" style="width:100%; max-width:380px; box-shadow:0 8px 32px rgba(27,39,51,0.10); margin-bottom:0;">
       <div style="display:flex; justify-content:flex-end; margin-bottom:20px;">
         <div class="lang-toggle">
@@ -416,8 +422,11 @@ const T = {
   geoBlockers: { en: 'blockers', es: 'bloqueos' },
   geoUnverified: { en: 'unverified', es: 'sin verificar' },
   geoScannedOn: { en: 'Scanned', es: 'Analizado' },
-  geoRuns: { en: 'runs', es: 'ejecuciones' },
-  geoRubricChanged: { en: 'Not compared — the previous run used a different scoring version.', es: 'Sin comparar: la ejecución anterior usó otra versión de criterios.' },
+  geoSlot1: { en: 'Scan 1', es: 'Análisis 1' },
+  geoSlot2: { en: 'Scan 2', es: 'Análisis 2' },
+  geoSlot1Hint: { en: 'Stays as it is once it has run.', es: 'Queda fijo una vez ejecutado.' },
+  geoSlot2Hint: { en: 'Run this once the site has been optimised.', es: 'Ejecútalo cuando ya se haya optimizado el sitio web.' },
+  geoSlot2Locked: { en: 'Available once the first scan has run.', es: 'Disponible en cuanto se haya corrido el primer análisis.' },
   geoOpenReport: { en: 'Open full report ↗', es: 'Abrir informe completo ↗' },
   geoCopyLink: { en: 'Copy report link', es: 'Copiar enlace del informe' },
   geoLinkCopied: { en: 'Report link copied. It only opens for logged-in Akore staff — not for customers.', es: 'Enlace del informe copiado. Solo se abre para el personal de Akore con sesión iniciada, no para clientes.' },
@@ -594,14 +603,17 @@ let currentRows = [];
 // If the site cannot be read, the visibility results say nothing about it.
 let geoPoll = null;
 
-function geoReportHref() {
+function geoReportHref(stamp) {
   // A link with no credentials in it. geo-report.html resolves the reader's own staff session, so
   // it is safe to paste into chat — and it opens for Akore staff only, never for a customer.
-  return location.origin + '/geo-report.html?company=' + encodeURIComponent(currentCompany) + '&lang=' + lang;
+  // The stamp pins the link to one particular run, so slot 1 keeps pointing at slot 1's report
+  // even after a later scan has been taken.
+  return location.origin + '/geo-report.html?company=' + encodeURIComponent(currentCompany)
+    + '&lang=' + lang + (stamp ? '&run=' + encodeURIComponent(stamp) : '');
 }
 
 async function geoLoad() {
-  const statusEl = document.getElementById('geo-status');
+  const statusEl = document.getElementById('geo-status-1');
   if (!statusEl) return;
   try {
     const res = await fetch(await window.apiQuery('/api/geo-scan-job', { company: currentCompany }));
@@ -627,66 +639,88 @@ function geoScoreBlock(value, label, extra, muted) {
     + '</div>';
 }
 
-function geoRender(data) {
-  const statusEl = document.getElementById('geo-status');
-  const out = document.getElementById('geo-result');
-  const actions = document.getElementById('geo-actions');
-  const input = document.getElementById('geo-url');
-  const btn = document.getElementById('geo-run-btn');
+// Renders one slot. The two slots are identical rectangles that never refer to each other:
+// slot 1 holds the first scan taken and is frozen once it has one, slot 2 holds the most recent.
+// Nothing is subtracted or coloured green and red — the two sets of numbers sit there and the
+// reader draws their own conclusion.
+function geoRenderSlot(n, snap, opts) {
+  const statusEl = document.getElementById('geo-status-' + n);
+  const out = document.getElementById('geo-result-' + n);
+  const actions = document.getElementById('geo-actions-' + n);
+  const form = document.getElementById('geo-form-' + n);
+  const slotEl = document.getElementById('geo-slot-' + n);
+  const input = document.getElementById('geo-url-' + n);
+  const btn = document.getElementById('geo-run-btn-' + n);
   if (!statusEl || !out) return;
-  const latest = data.latest;
 
-  if (input && !input.value) input.value = (data.job && data.job.url) || (latest && latest.url) || '';
-  if (btn) btn.textContent = latest ? t('geoRerunBtn') : t('geoRunBtn');
+  if (slotEl) slotEl.classList.toggle('is-locked', !!opts.locked);
+  if (form) form.style.display = opts.canRun ? 'flex' : 'none';
+  if (btn) btn.textContent = snap ? t('geoRerunBtn') : t('geoRunBtn');
+  if (input && !input.value && opts.suggestUrl) input.value = opts.suggestUrl;
 
-  if (data.status === 'running') statusEl.textContent = t('geoRunning');
-  else if (data.status === 'error') statusEl.textContent = t('geoFailed') + (data.job && data.job.error ? ' — ' + data.job.error : '');
-  else if (!latest) statusEl.textContent = t('geoNever');
-  else statusEl.textContent = t('geoScannedOn') + ' ' + latest.scannedAt.slice(0, 10) + (data.runCount > 1 ? ' · ' + data.runCount + ' ' + t('geoRuns') : '');
+  if (opts.locked) { statusEl.textContent = t('geoSlot2Locked'); out.innerHTML = ''; if (actions) actions.style.display = 'none'; return; }
+  if (opts.running) statusEl.textContent = t('geoRunning');
+  else if (opts.error) statusEl.textContent = t('geoFailed') + (opts.error === true ? '' : ' — ' + opts.error);
+  else if (!snap) statusEl.textContent = t('geoNever');
+  else statusEl.textContent = t('geoScannedOn') + ' ' + snap.scannedAt.slice(0, 10);
 
-  if (!latest) { out.innerHTML = ''; if (actions) actions.style.display = 'none'; return; }
+  if (!snap) { out.innerHTML = ''; if (actions) actions.style.display = 'none'; return; }
 
   if (actions) {
-    const link = document.getElementById('geo-report-link');
-    if (link) link.href = geoReportHref();
+    const link = document.getElementById('geo-report-link-' + n);
+    if (link) link.href = geoReportHref(snap.stamp);
     actions.style.display = 'flex';
   }
 
-  if (!latest.reachable || latest.overall === null) {
+  if (!snap.reachable || snap.overall === null) {
     out.innerHTML = '<div class="field-hint" style="margin-top:10px;">' + esc(t('geoUnreachable')) + '</div>';
     return;
   }
 
-  const d = (data.delta && data.delta.comparable) ? data.delta : null;
-  const layer = function (id) { return (latest.layers || []).find(function (l) { return l.id === id; }) || {}; };
-  const delta = function (n) {
-    if (n === null || n === undefined || n === 0) return '';
-    const c = n > 0 ? 'var(--green)' : 'var(--red)';
-    return '<span style="font-size:11px;font-weight:700;margin-left:5px;color:' + c + ';">' + (n > 0 ? '+' : '') + n + '</span>';
-  };
-  const layerDelta = function (id) {
-    if (!d) return '';
-    const l = (d.layers || []).find(function (x) { return x.id === id; });
-    return l ? delta(l.delta) : '';
-  };
-
+  const layer = function (id) { return (snap.layers || []).find(function (l) { return l.id === id; }) || {}; };
   out.innerHTML =
     '<div style="display:flex;gap:22px;flex-wrap:wrap;margin-top:14px;">'
-      + geoScoreBlock(latest.overall, t('geoOverall'), delta(d ? d.overall.delta : null), false)
-      + geoScoreBlock(layer('access').score, t('geoAccess'), layerDelta('access'), true)
-      + geoScoreBlock(layer('readability').score, t('geoRead'), layerDelta('readability'), false)
-      + geoScoreBlock(layer('substance').score, t('geoSubstance'), layerDelta('substance'), false)
+      + geoScoreBlock(snap.overall, t('geoOverall'), '', false)
+      + geoScoreBlock(layer('access').score, t('geoAccess'), '', true)
+      + geoScoreBlock(layer('readability').score, t('geoRead'), '', false)
+      + geoScoreBlock(layer('substance').score, t('geoSubstance'), '', false)
     + '</div>'
-    + '<div class="field-hint" style="margin-top:10px;">' + latest.pagesAnalyzed + ' ' + esc(t('geoPages'))
-      + (latest.blockers ? ' · ' + latest.blockers + ' ' + esc(t('geoBlockers')) : '')
-      + (latest.unverified ? ' · ' + latest.unverified + ' ' + esc(t('geoUnverified')) : '')
-      + ((data.delta && data.delta.comparable === false) ? '<br>' + esc(t('geoRubricChanged')) : '')
+    + '<div class="field-hint" style="margin-top:10px;">' + snap.pagesAnalyzed + ' ' + esc(t('geoPages'))
+      + (snap.blockers ? ' · ' + snap.blockers + ' ' + esc(t('geoBlockers')) : '')
+      + (snap.unverified ? ' · ' + snap.unverified + ' ' + esc(t('geoUnverified')) : '')
     + '</div>';
 }
 
-async function geoRun() {
-  const input = document.getElementById('geo-url');
-  const statusEl = document.getElementById('geo-status');
+function geoRender(data) {
+  const first = data.first || null;
+  const second = data.second || null;
+  const running = data.status === 'running';
+  const error = data.status === 'error' ? ((data.job && data.job.error) || true) : null;
+  const url = (data.job && data.job.url) || (first && first.url) || '';
+
+  // A run in flight belongs to whichever slot is next in line: slot 1 while nothing has been
+  // scanned yet, slot 2 from then on.
+  const inflight = first ? 2 : 1;
+
+  geoRenderSlot(1, first, {
+    canRun: !first,
+    running: running && inflight === 1,
+    error: inflight === 1 ? error : null,
+    suggestUrl: url
+  });
+
+  geoRenderSlot(2, second, {
+    canRun: !!first,
+    locked: !first,
+    running: running && inflight === 2,
+    error: inflight === 2 ? error : null,
+    suggestUrl: url
+  });
+}
+
+async function geoRun(slot) {
+  const input = document.getElementById('geo-url-' + slot);
+  const statusEl = document.getElementById('geo-status-' + slot);
   const url = (input.value || '').trim();
   if (!url) { statusEl.textContent = t('geoNeedUrl'); input.focus(); return; }
 
@@ -708,8 +742,9 @@ async function geoRun() {
   setTimeout(geoLoad, 1500);
 }
 
-function geoCopyLink() {
-  navigator.clipboard.writeText(geoReportHref()).then(function () { alert(t('geoLinkCopied')); });
+function geoCopyLink(slot) {
+  const link = document.getElementById('geo-report-link-' + slot);
+  navigator.clipboard.writeText((link && link.href) || geoReportHref()).then(function () { alert(t('geoLinkCopied')); });
 }
 
 async function loadCompany(company) {
@@ -861,15 +896,37 @@ async function loadCompany(company) {
     <div class="card" id="geo-card">
       <div class="card-title">${t('geoTitle')}</div>
       <div class="card-caption">${t('geoHint')}</div>
-      <div class="row" style="gap:8px; flex-wrap:wrap;">
-        <input type="url" id="geo-url" placeholder="${t('geoUrlPlaceholder')}" style="flex:1; min-width:220px; font-family:inherit; font-size:13px; padding:10px 13px; border:1px solid var(--border-bright); border-radius:var(--radius-md); background:var(--surface); color:var(--text);">
-        <button class="btn" id="geo-run-btn" onclick="geoRun()">${t('geoRunBtn')}</button>
+      <div class="geo-slot" id="geo-slot-1">
+        <div class="geo-slot-head">
+          <span class="geo-slot-name">${t('geoSlot1')}</span>
+          <span class="geo-slot-note">${t('geoSlot1Hint')}</span>
+        </div>
+        <div class="row" id="geo-form-1" style="gap:8px; flex-wrap:wrap;">
+          <input type="url" id="geo-url-1" class="geo-input" placeholder="${t('geoUrlPlaceholder')}">
+          <button class="btn" id="geo-run-btn-1" onclick="geoRun(1)">${t('geoRunBtn')}</button>
+        </div>
+        <div id="geo-status-1" class="field-hint" style="margin-top:10px;"></div>
+        <div id="geo-result-1"></div>
+        <div class="row" id="geo-actions-1" style="display:none; gap:8px; margin-top:14px;">
+          <a class="btn btn-ghost btn-sm" id="geo-report-link-1" target="_blank" rel="noopener" href="#">${t('geoOpenReport')}</a>
+          <button class="btn btn-ghost btn-sm" onclick="geoCopyLink(1)">${t('geoCopyLink')}</button>
+        </div>
       </div>
-      <div id="geo-status" class="field-hint" style="margin-top:10px;"></div>
-      <div id="geo-result"></div>
-      <div class="row" id="geo-actions" style="display:none; gap:8px; margin-top:14px;">
-        <a class="btn btn-ghost btn-sm" id="geo-report-link" target="_blank" rel="noopener" href="#">${t('geoOpenReport')}</a>
-        <button class="btn btn-ghost btn-sm" onclick="geoCopyLink()">${t('geoCopyLink')}</button>
+      <div class="geo-slot" id="geo-slot-2">
+        <div class="geo-slot-head">
+          <span class="geo-slot-name">${t('geoSlot2')}</span>
+          <span class="geo-slot-note">${t('geoSlot2Hint')}</span>
+        </div>
+        <div class="row" id="geo-form-2" style="gap:8px; flex-wrap:wrap;">
+          <input type="url" id="geo-url-2" class="geo-input" placeholder="${t('geoUrlPlaceholder')}">
+          <button class="btn" id="geo-run-btn-2" onclick="geoRun(2)">${t('geoRunBtn')}</button>
+        </div>
+        <div id="geo-status-2" class="field-hint" style="margin-top:10px;"></div>
+        <div id="geo-result-2"></div>
+        <div class="row" id="geo-actions-2" style="display:none; gap:8px; margin-top:14px;">
+          <a class="btn btn-ghost btn-sm" id="geo-report-link-2" target="_blank" rel="noopener" href="#">${t('geoOpenReport')}</a>
+          <button class="btn btn-ghost btn-sm" onclick="geoCopyLink(2)">${t('geoCopyLink')}</button>
+        </div>
       </div>
     </div>
 

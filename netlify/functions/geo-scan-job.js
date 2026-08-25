@@ -77,18 +77,29 @@ export default async (request) => {
     const listed = await history.list({ prefix: `${key}/` }).catch(() => ({ blobs: [] }));
     const keys = (listed.blobs || []).map(b => b.key).sort();
 
-    // Only the two most recent runs are read: the panel shows the latest result and the change
-    // since the one before it, and reading the whole history to render two numbers would get
-    // slower with every audit.
-    const recent = keys.slice(-2);
-    const snaps = await Promise.all(recent.map(k => history.get(k, { type: 'json' }).catch(() => null)));
-    const latest = snaps[snaps.length - 1] || null;
-    const previous = snaps.length > 1 ? snaps[0] : null;
+    // The panel shows two fixed slots: the first scan ever taken, and the most recent one. Only
+    // the ends of the list are read, so this costs the same whether a customer has two runs or
+    // twenty. The stamp travels with each snapshot so each slot links to its own full report.
+    const wanted = [...new Set([keys[0], keys[keys.length - 1], keys[keys.length - 2]].filter(Boolean))];
+    const loaded = {};
+    await Promise.all(wanted.map(async k => {
+      const snap = await history.get(k, { type: 'json' }).catch(() => null);
+      if (snap) { snap.stamp = k.split('/').pop(); loaded[k] = snap; }
+    }));
+
+    const first = keys.length ? loaded[keys[0]] || null : null;
+    const latest = keys.length ? loaded[keys[keys.length - 1]] || null : null;
+    const previous = keys.length > 1 ? loaded[keys[keys.length - 2]] || null : null;
+    // The second slot stays empty until a genuinely separate run exists. With one run on record
+    // the first slot already holds it, and repeating it below would read as two scans agreeing.
+    const second = keys.length > 1 ? latest : null;
 
     return json({
       status: (job && job.status) || 'none',
       job: job || null,
       latest,
+      first,
+      second,
       delta: latest ? diff(latest, previous) : null,
       runCount: keys.length
     }, 200);
