@@ -41,7 +41,19 @@ async function memberOfCompany(company, username, password) {
   return verifyPassword(password, member.passwordHash);
 }
 
-async function isStaff(username, password) {
+// A signed-in staff session presents an opaque token instead of the password. Checked first so a
+// restored session never has to ask for the password again; the password path below is unchanged
+// and still answers for anything that has not adopted tokens.
+async function staffFromToken(token) {
+  if (!token) return null;
+  const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
+  if (!s || !s.username) return null;
+  if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
+  return s.username;
+}
+
+async function isStaff(username, password, token) {
+  if (await staffFromToken(token)) return true;
   if (!username || !password) return false;
   const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
   if (!record) return false;
@@ -122,7 +134,7 @@ export default async (request, context) => {
 
   if (request.method === 'GET') {
     const companyParam = url.searchParams.get('company');
-    const staff = await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'));
+    const staff = await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'));
 
     if (companyParam) {
       // A customer may read only their own answers, proven against the company they asked for, so

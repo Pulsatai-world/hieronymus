@@ -53,11 +53,14 @@ function checkAuth() {
 function isAdmin() {
   return localStorage.getItem(ROLE_KEY) === 'admin';
 }
-function staffLogout() {
+async function staffLogout() {
   localStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(ROLE_KEY);
   sessionStorage.removeItem('geo_staff_password');
+  // Revokes the token server-side, so signing out actually ends the session rather than only
+  // forgetting it on this machine.
+  if (typeof window.staffSignOut === 'function') await window.staffSignOut();
   location.reload();
 }
 
@@ -132,6 +135,10 @@ async function tryAuth() {
     localStorage.setItem(USER_KEY, data.username);
     localStorage.setItem(ROLE_KEY, data.role);
     sessionStorage.setItem('geo_staff_password', password);
+    // Trade the password for a session token that survives the tab. Without this, opening a
+    // customer later — or simply reopening the browser — asked for the password mid-task, even
+    // though the portal still showed the user as signed in.
+    if (typeof window.staffSignIn === 'function') await window.staffSignIn(data.username, password);
     location.reload();
   } catch (err) {
     passInput.classList.add('error');

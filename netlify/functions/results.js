@@ -37,7 +37,19 @@ async function memberOfCompany(company, username, password) {
   return verifyPassword(password, member.passwordHash);
 }
 
-async function isStaff(username, password) {
+// A signed-in staff session presents an opaque token instead of the password. Checked first so a
+// restored session never has to ask for the password again; the password path below is unchanged
+// and still answers for anything that has not adopted tokens.
+async function staffFromToken(token) {
+  if (!token) return null;
+  const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
+  if (!s || !s.username) return null;
+  if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
+  return s.username;
+}
+
+async function isStaff(username, password, token) {
+  if (await staffFromToken(token)) return true;
   if (!username || !password) return false;
   const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
   if (!record) return false;
@@ -78,7 +90,7 @@ export default async (request, context) => {
     // so the only remaining callers would be manual imports, which are a staff action. Leaving it
     // open let anyone fabricate rows in any customer's dataset.
     const u = new URL(request.url);
-    if (!await isStaff(u.searchParams.get('staffUsername'), u.searchParams.get('staffPassword'))) {
+    if (!await isStaff(u.searchParams.get('staffUsername'), u.searchParams.get('staffPassword'), u.searchParams.get('staffToken'))) {
       return new Response(JSON.stringify({ error: 'Staff credentials required to write result rows' }), {
         status: 403, headers: { 'Content-Type': 'application/json' }
       });
@@ -109,7 +121,7 @@ export default async (request, context) => {
   if (request.method === 'GET') {
     const url2 = new URL(request.url);
     const company = (url2.searchParams.get('company') || '').trim();
-    const staff = await isStaff(url2.searchParams.get('staffUsername'), url2.searchParams.get('staffPassword'));
+    const staff = await isStaff(url2.searchParams.get('staffUsername'), url2.searchParams.get('staffPassword'), url2.searchParams.get('staffToken'));
     const member = company
       ? await memberOfCompany(company, url2.searchParams.get('username'), url2.searchParams.get('password'))
       : false;

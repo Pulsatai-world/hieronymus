@@ -47,6 +47,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/staff-session"
+  to = "/.netlify/functions/staff-session"
+  status = 200
+
+[[redirects]]
   from = "/api/staff-users"
   to = "/.netlify/functions/staff-users"
   status = 200

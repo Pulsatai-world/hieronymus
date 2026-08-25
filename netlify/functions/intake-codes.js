@@ -93,7 +93,19 @@ async function requireStaffAdmin(requestingUsername, requestingPassword) {
 // forms were not: ?company= returned a customer's whole record (member usernames, roles, monitoring
 // configuration, release flags) and the parameterless form listed every customer, both to anyone.
 // Note this is any-staff, not admin-only: looking is not a mutation.
-async function isStaffReader(username, password) {
+// A signed-in staff session presents an opaque token instead of the password. Checked first so a
+// restored session never has to ask for the password again; the password path below is unchanged
+// and still answers for anything that has not adopted tokens.
+async function staffFromToken(token) {
+  if (!token) return null;
+  const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
+  if (!s || !s.username) return null;
+  if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
+  return s.username;
+}
+
+async function isStaffReader(username, password, token) {
+  if (await staffFromToken(token)) return true;
   if (!username || !password) return false;
   const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
   if (!record) return false;
@@ -159,7 +171,7 @@ export default async (request, context) => {
     // Order matters: a scoped read carries username+password as well as company, so the company
     // form has to be recognised before the login form or it would be answered as a login.
     const companyParam = url.searchParams.get('company');
-    const staffReader = await isStaffReader(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'));
+    const staffReader = await isStaffReader(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'));
 
     if (companyParam) {
       const record = await loadGroup(store, slugify(companyParam));

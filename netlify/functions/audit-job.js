@@ -9,7 +9,19 @@ function verifyPassword(password, stored) {
   const check = crypto.scryptSync(password, salt, 64).toString('hex');
   return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'));
 }
-async function isStaff(username, password) {
+// A signed-in staff session presents an opaque token instead of the password. Checked first so a
+// restored session never has to ask for the password again; the password path below is unchanged
+// and still answers for anything that has not adopted tokens.
+async function staffFromToken(token) {
+  if (!token) return null;
+  const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
+  if (!s || !s.username) return null;
+  if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
+  return s.username;
+}
+
+async function isStaff(username, password, token) {
+  if (await staffFromToken(token)) return true;
   if (!username || !password) return false;
   const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
   if (!record) return false;
@@ -35,7 +47,7 @@ export default async (request) => {
   const key = slugify(company);
 
   if (request.method === 'GET') {
-    if (!await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'))) {
+    if (!await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'))) {
       return json({ error: 'Staff credentials required' }, 403);
     }
     const data = await store.get(key, { type: 'json' });

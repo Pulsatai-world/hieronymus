@@ -12,6 +12,38 @@
   function readLocal(k) {
     try { return localStorage.getItem(k) || ''; } catch (e) { return ''; }
   }
+  function writeLocal(k, v) {
+    try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) { /* private mode */ }
+  }
+
+  const TOKEN_KEY = 'hieronymus_staff_token';
+
+  // Exchanges a verified username and password for a session token, so the password itself never
+  // has to be kept anywhere. Called wherever staff prove who they are — the portal login form and
+  // the just-in-time password dialog both mint one, and from then on nothing asks again.
+  window.staffSignIn = async function (username, password) {
+    try {
+      const res = await fetch('/api/staff-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!data || !data.token) return false;
+      writeLocal(TOKEN_KEY, data.token);
+      return true;
+    } catch (e) { return false; }
+  };
+
+  // Ends the session server-side as well, which a stored password could never do.
+  window.staffSignOut = async function () {
+    const token = readLocal(TOKEN_KEY);
+    writeLocal(TOKEN_KEY, '');
+    if (token) {
+      try { await fetch('/api/staff-session?staffToken=' + encodeURIComponent(token), { method: 'DELETE' }); } catch (e) { /* offline */ }
+    }
+  };
 
   // Async because a persistent staff login (localStorage) can outlive the password cached for the
   // session (sessionStorage) — a browser restart leaves someone logged in with nothing to send. That
@@ -22,6 +54,16 @@
 
     if (readLocal('hieronymus_internal_auth') === 'true') {
       const staffUser = readLocal('hieronymus_internal_user');
+
+      // A token outlives the tab that minted it, so a staff member who is signed in is simply
+      // signed in — no dialog in the middle of a task because sessionStorage happened to be empty.
+      const staffToken = readLocal(TOKEN_KEY);
+      if (staffToken) {
+        if (staffUser) params.set('staffUsername', staffUser);
+        params.set('staffToken', staffToken);
+        return '/api/results?' + params.toString();
+      }
+
       let staffPass = readSession(['geo_staff_password']);
       if (staffUser && !staffPass && window.__resultsAuthNoPrompt !== true && typeof window.requirePassword === 'function') {
         await window.requirePassword({

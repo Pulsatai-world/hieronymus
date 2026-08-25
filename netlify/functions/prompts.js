@@ -36,7 +36,19 @@ async function isBlockedViewer(requestingUsername, requestingPassword) {
 // only exists in prompt-review.html would be no gate at all. Staff prove who they are the same
 // way every other staff action in this app does — by sending their own username+password for
 // server-side verification against the staff registry.
-async function isStaff(username, password) {
+// A signed-in staff session presents an opaque token instead of the password. Checked first so a
+// restored session never has to ask for the password again; the password path below is unchanged
+// and still answers for anything that has not adopted tokens.
+async function staffFromToken(token) {
+  if (!token) return null;
+  const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
+  if (!s || !s.username) return null;
+  if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
+  return s.username;
+}
+
+async function isStaff(username, password, token) {
+  if (await staffFromToken(token)) return true;
   if (!username || !password) return false;
   const staffStore = getStore('hieronymus-staff-users');
   const record = await staffStore.get(String(username).toLowerCase(), { type: 'json' });
@@ -96,7 +108,7 @@ export default async (request, context) => {
       const data = await store.get(slugify(companyParam), { type: 'json' });
       if (!data) return json({ error: 'Not found' }, 404);
 
-      const staff = await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'));
+      const staff = await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'));
       const member = await memberOfCompany(companyParam, url.searchParams.get('username'), url.searchParams.get('password'));
       if (!staff && !member) return json({ error: 'Not authorised to read prompts for this customer' }, 403);
       // Records the customer already approved predate this gate — they have demonstrably seen the
@@ -115,7 +127,7 @@ export default async (request, context) => {
       }
       return json({ ...withoutInternals(data), internalReviewPending: false }, 200);
     }
-    if (!await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'))) {
+    if (!await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'))) {
       return json({ error: 'Listing prompt sets requires staff credentials' }, 403);
     }
     const { blobs } = await store.list();
@@ -156,7 +168,7 @@ export default async (request, context) => {
     // approval below and never reachable with customer credentials.
     if (body.internalApprove) {
       const staffUsername = (body.requestingStaffUsername || '').trim().toLowerCase();
-      if (!await isStaff(staffUsername, body.requestingStaffPassword)) {
+      if (!await isStaff(staffUsername, body.requestingStaffPassword, body.staffToken || url.searchParams.get('staffToken'))) {
         return json({ error: 'Only a signed-in Akore staff user can release prompts to a customer' }, 403);
       }
       if (typeof body.promptsText === 'string' && body.promptsText.trim()) {

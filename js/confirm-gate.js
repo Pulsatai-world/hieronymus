@@ -52,6 +52,8 @@
           // path returns an { items } list with HTTP 200 — that must NOT be accepted as a pass.
           if (!res.ok || !data || !data.username) throw new Error('bad');
           try { sessionStorage.setItem('geo_staff_password', pw); } catch (e) { /* private mode */ }
+          // Mint a session token off the back of this check so the dialog does not come back.
+          if (typeof window.staffSignIn === 'function') await window.staffSignIn(username, pw);
           done(true);
         } catch (e) {
           err.textContent = wrongLabel; err.style.display = 'block';
