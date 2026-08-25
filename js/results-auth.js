@@ -17,6 +17,7 @@
   }
 
   const TOKEN_KEY = 'hieronymus_staff_token';
+  let mintTried = false;
 
   // Exchanges a verified username and password for a session token, so the password itself never
   // has to be kept anywhere. Called wherever staff prove who they are — the portal login form and
@@ -73,6 +74,20 @@
         });
         staffPass = readSession(['geo_staff_password']);
       }
+
+      // Upgrade a password-only session in place. Tried once per page: a failed mint must not
+      // turn a three-second poller into three requests a second.
+      if (staffUser && staffPass && !mintTried) {
+        mintTried = true;
+        await window.staffSignIn(staffUser, staffPass);
+        const minted = readLocal(TOKEN_KEY);
+        if (minted) {
+          params.set('staffUsername', staffUser);
+          params.set('staffToken', minted);
+          return '/api/results?' + params.toString();
+        }
+      }
+
       if (staffUser && staffPass) {
         params.set('staffUsername', staffUser);
         params.set('staffPassword', staffPass);
