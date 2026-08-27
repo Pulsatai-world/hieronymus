@@ -150,6 +150,15 @@
   .presp-item:last-child{border-bottom:none}
   .presp-meta{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
   .presp-text{font-size:13px;color:var(--dark);line-height:1.5;white-space:pre-wrap}
+  .cmp-btn{font-family:inherit;font-size:11px;font-weight:700;color:var(--navy);background:none;border:1px solid var(--line);border-radius:999px;padding:3px 10px;margin-left:8px;cursor:pointer;text-transform:none;letter-spacing:0}
+  .cmp-btn:hover{background:var(--ice2)}
+  .cmp{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .cmp-pick{font-family:inherit;font-size:12px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--dark)}
+  .cmp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
+  .cmp-col{min-width:0}
+  .cmp-head{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .cmp-body{font-size:13px;line-height:1.5;color:var(--dark);white-space:pre-wrap;background:var(--ice);border-radius:8px;padding:10px 12px}
+  @media(max-width:760px){.cmp-grid{grid-template-columns:1fr}}
   .cintro{padding:2px 0 4px;color:var(--muted);font-size:13px;line-height:1.5;max-width:760px}
   .crow{display:grid;grid-template-columns:26px 150px 1fr 120px;gap:14px;align-items:center;padding:12px 8px;border-bottom:1px solid var(--ice2)}
   .crow.hd{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;border-bottom:2px solid var(--line)}
@@ -344,6 +353,13 @@ const T = {
   viewResponsesBtn: { en: (n) => `▸ View ${n} response${n === 1 ? '' : 's'}`, es: (n) => `▸ Ver ${n} respuesta${n === 1 ? '' : 's'}` },
   hideResponsesBtn: { en: '▾ Hide responses', es: '▾ Ocultar respuestas' },
   noResponseCaptured: { en: '(no response text captured)', es: '(no se capturó el texto de la respuesta)' },
+  compareDatesBtn: { en: 'Compare dates', es: 'Comparar fechas' },
+  compareHint: { en: 'Pick an earlier run to see how this engine\'s answer changed.', es: 'Elige una ejecución anterior para ver cómo cambió la respuesta de este motor.' },
+  compareThen: { en: (d) => `Then · ${d}`, es: (d) => `Antes · ${d}` },
+  compareNow: { en: (d) => `Now · ${d}`, es: (d) => `Ahora · ${d}` },
+  compareCited: { en: 'recommended', es: 'recomendado' },
+  compareNotCited: { en: 'not recommended', es: 'no recomendado' },
+  compareOnlyRun: { en: 'This is the only run that captured an answer for this engine.', es: 'Esta es la única ejecución con respuesta para este motor.' },
   ofClustersBasis: { en: (n) => `of ${n} clusters`, es: (n) => `de ${n} grupos` },
   sentGood: { en: 'Good', es: 'Bueno' },
   sentMixed: { en: 'Mixed', es: 'Mixto' },
@@ -1227,16 +1243,65 @@ function renderPrompts(lastRows) {
       respPanel.className = 'presp';
       respPanel.id = respId;
       respPanel.style.display = 'none';
-      respPanel.innerHTML = pr.map(r => `
+      respPanel.innerHTML = pr.map(r => {
+        // Only offer the comparison when there is actually an earlier answer to compare against.
+        const history = answerHistory(pid, r.engine);
+        const canCompare = history.length > 1;
+        return `
         <div class="presp-item">
-          <div class="presp-meta">${esc(r.engine)} &middot; ${esc(r.snapshot_date)}</div>
+          <div class="presp-meta">${esc(r.engine)} &middot; ${esc(r.snapshot_date)}${canCompare
+            ? `<button type="button" class="cmp-btn" onclick="openCompare(this, '${esc(pid)}', '${esc(r.engine)}')">${t('compareDatesBtn')}</button>`
+            : ''}</div>
           <div class="presp-text">${r.answer_excerpt ? mdLite(r.answer_excerpt) : t('noResponseCaptured')}</div>
-        </div>
-      `).join('');
+          <div class="cmp" style="display:none;"></div>
+        </div>`;
+      }).join('');
       sec.appendChild(respPanel);
     });
     pwrap.appendChild(sec);
   });
+}
+
+// Every captured answer for one prompt on one engine, oldest first. TAPE holds every snapshot, so
+// the history is already in memory — the prompts table just never looked across dates.
+function answerHistory(pid, engine) {
+  return TAPE
+    .filter(r => r.prompt_id === pid && r.engine === engine && r.answer_excerpt && r.sentiment !== 'error')
+    .sort((a, b) => String(a.snapshot_date).localeCompare(String(b.snapshot_date)));
+}
+
+// Side-by-side of the newest answer and a chosen earlier one, so a change in wording — or in whether
+// the brand gets recommended at all — is visible rather than inferred from a number moving.
+function openCompare(btn, pid, engine) {
+  const item = btn.closest('.presp-item');
+  const host = item && item.querySelector('.cmp');
+  if (!host) return;
+  if (host.style.display !== 'none') { host.style.display = 'none'; host.innerHTML = ''; return; }
+
+  const history = answerHistory(pid, engine);
+  host.style.display = 'block';
+  if (history.length < 2) { host.innerHTML = `<div class="field-hint">${t('compareOnlyRun')}</div>`; return; }
+
+  const now = history[history.length - 1];
+  const earlier = history.slice(0, -1).reverse();
+  host.innerHTML =
+    `<div class="field-hint" style="margin-bottom:8px;">${t('compareHint')}</div>` +
+    `<select class="cmp-pick">${earlier.map((r, i) =>
+      `<option value="${i}">${esc(r.snapshot_date)}</option>`).join('')}</select>` +
+    `<div class="cmp-grid"></div>`;
+
+  const grid = host.querySelector('.cmp-grid');
+  const badge = r => `<span class="chip ${r.brand_cited ? 'g' : 'b'}">${r.brand_cited ? t('compareCited') : t('compareNotCited')}</span>`;
+  const paint = i => {
+    const then = earlier[i];
+    grid.innerHTML =
+      `<div class="cmp-col"><div class="cmp-head">${t('compareThen', esc(then.snapshot_date))} ${badge(then)}</div>` +
+        `<div class="cmp-body">${mdLite(then.answer_excerpt)}</div></div>` +
+      `<div class="cmp-col"><div class="cmp-head">${t('compareNow', esc(now.snapshot_date))} ${badge(now)}</div>` +
+        `<div class="cmp-body">${mdLite(now.answer_excerpt)}</div></div>`;
+  };
+  host.querySelector('.cmp-pick').addEventListener('change', e => paint(+e.target.value));
+  paint(0);
 }
 
 function toggleResponses(id, btn) {

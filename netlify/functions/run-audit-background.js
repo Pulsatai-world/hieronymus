@@ -298,7 +298,10 @@ function buildSuccessResult(p) {
     incorrectClaims: Number.isFinite(j.incorrect_claims) ? j.incorrect_claims : 0,
     hasIncorrectClaim: (j.incorrect_claims || 0) > 0 ? 1 : 0,
     servicesCorrect: j.services_correct ?? null, locationCorrect: j.location_correct ?? null, contactCorrect: j.contact_correct ?? null,
-    response: (p.rawText || '').slice(0, 500), snapshotDate: p.snapshotDate,
+    // Answers are asked for in 2-5 sentences, which routinely exceeds 500 characters — so the stored
+    // excerpt was cutting real answers off mid-sentence, and the dashboard had nothing more to show.
+    // 4000 is generous enough for any answer this pipeline asks for while keeping a row small.
+    response: (p.rawText || '').slice(0, 4000), snapshotDate: p.snapshotDate,
     aiSessions: 0, aiConversions: 0, aiPipelineUsd: 0, company: p.company, runType: p.runType
   };
 }
