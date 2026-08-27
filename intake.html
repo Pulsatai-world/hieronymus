@@ -1605,9 +1605,10 @@ function findMember(group, username) {
 }
 
 window.clientLogout = function() {
-  sessionStorage.removeItem('geo_intake_username');
-  sessionStorage.removeItem('geo_intake_password');
-  location.reload();
+  // Clears EVERY client session, not just this page's — see js/results-auth.js.
+  if (window.clientLogoutAll) return window.clientLogoutAll();
+  sessionStorage.clear();
+  location.href = location.pathname;
 };
 
 window.submitGateCode = async function() {
@@ -1628,7 +1629,8 @@ window.submitGateCode = async function() {
     setTimeout(() => passInput.classList.remove('error'), 400);
     return;
   }
-  sessionStorage.setItem('geo_intake_username', username);
+  if (window.clearBypassSuppression) window.clearBypassSuppression();
+    sessionStorage.setItem('geo_intake_username', username);
   sessionStorage.setItem('geo_intake_password', password);
   clientUsername = username;
   clientPassword = password;
@@ -1814,7 +1816,8 @@ function populateForm(d) {
 
   // Staff already logged into the internal Portal can open a customer's link straight
   // through, without also needing that customer's own password.
-  if (usernameFromUrl && localStorage.getItem('hieronymus_internal_auth') === 'true') {
+  if (usernameFromUrl && localStorage.getItem('hieronymus_internal_auth') === 'true'
+      && !(window.clientBypassSuppressed && window.clientBypassSuppressed())) {
     try {
       const res = await fetch(await window.apiQuery('/api/intake-codes', {}));
       const data = await res.json();

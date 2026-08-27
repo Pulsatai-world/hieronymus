@@ -121,9 +121,10 @@
   .delta{font-size:13px;font-weight:700;margin-top:2px}
   .delta.up{color:var(--good)}.delta.down{color:var(--bad)}.delta.flat{color:var(--muted)}
   .chart{position:relative;margin-top:14px;width:100%;height:150px}
+  .chart .ygrid{stroke:var(--line);stroke-width:1;opacity:.65}
+  .chart .ytick{fill:var(--muted);font-size:10px;font-variant-numeric:tabular-nums}
   .chart svg{width:100%;height:100%;display:block;overflow:visible}
-  .tgtline{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 4;opacity:.7}
-  .tgtlabel{fill:var(--muted);font-size:10px}.axis{fill:var(--muted);font-size:10px}
+  .axis{fill:var(--muted);font-size:10px}
   .hoverdot{fill:var(--teal);stroke:#fff;stroke-width:2;opacity:0}
   .vline{stroke:var(--navy);stroke-width:1;opacity:0}.hotspot{fill:transparent;cursor:crosshair}
   .tip{position:absolute;pointer-events:none;background:var(--navy);color:#fff;padding:8px 10px;border-radius:8px;font-size:12px;line-height:1.4;opacity:0;transition:opacity .08s;white-space:nowrap;z-index:5;transform:translate(-50%,-115%)}
@@ -276,9 +277,7 @@ const T = {
   noMatchFilterPrompts: { en: 'No prompts match this filter combination.', es: 'Ningún prompt coincide con esta combinación de filtros.' },
   onlyOneRun: { en: 'Only one run recorded so far — trend charts need at least two runs. Run another audit to start tracking movement over time.', es: 'Por ahora solo hay una ejecución registrada — las gráficas de tendencia necesitan al menos dos. Ejecuta otra auditoría para empezar a seguir su evolución con el tiempo.' },
   baseLabel: { en: 'base: ', es: 'base: ' },
-  toTarget: { en: (p) => `${p}% to target`, es: (p) => `${p}% de la meta` },
   vsPriorRun: { en: (p) => `${p}% vs. prior run`, es: (p) => `${p}% vs. ejecución anterior` },
-  targetLabel: { en: (v) => `target ${v}`, es: (v) => `meta ${v}` },
   footText: { en: (tapeLen, nRuns, nPrompts, c) => `Source: Akore Labs' own audit database — one row per prompt, per engine, per run (${tapeLen} rows, ${nRuns} run${nRuns === 1 ? '' : 's'}, ${nPrompts} prompts for ${c}). Every KPI is an aggregation of these rows.`, es: (tapeLen, nRuns, nPrompts, c) => `Fuente: base de datos de auditoría propia de Akore Labs — una fila por prompt, por motor, por ejecución (${tapeLen} filas, ${nRuns} ejecución${nRuns === 1 ? '' : 'es'}, ${nPrompts} prompts para ${c}). Cada KPI es una agregación de estas filas.` },
   catVisibility: { en: 'Visibility', es: 'Visibilidad' },
   askVisibility: { en: 'Do AI engines see you?', es: '¿Te ven los motores de IA?' },
@@ -710,22 +709,38 @@ const stats = document.getElementById('stats'), wrap = document.getElementById('
   foot = document.getElementById('foot'), count = document.getElementById('count'), lastwk = document.getElementById('lastwk'),
   cwrap = document.getElementById('cwrap'), lastwk2 = document.getElementById('lastwk2');
 
-function chart(series, kpi) {
-  const W = 520, H = 150, padL = 8, padR = 8, padT = 14, padB = 22;
-  const vals = series.map(s => s.value); let mn = Math.min(...vals, kpi.target), mx = Math.max(...vals, kpi.target); if (mn === mx) { mn -= 1; mx += 1; } const rng = (mx - mn) || 1;
+// `widthPx` is the host's real pixel width. The viewBox used to be a fixed 520 stretched to fill the
+// container with preserveAspectRatio="none", which scaled the glyphs horizontally too — that is why
+// the axis dates and the target label came out smeared. Drawing at 1:1 keeps text at its true shape.
+function chart(series, kpi, widthPx) {
+  // padL leaves room for Y tick labels. The scale comes from the DATA only — it used to be stretched
+  // to include kpi.target, a goal nobody set, which squashed the real values into a corner and made
+  // every movement look flat.
+  const W = Math.max(320, Math.round(widthPx || 520)), H = 150, padL = 40, padR = 10, padT = 14, padB = 22;
+  const vals = series.map(s => s.value);
+  let mn = Math.min(...vals), mx = Math.max(...vals);
+  if (!Number.isFinite(mn) || !Number.isFinite(mx)) { mn = 0; mx = 1; }
+  if (mn === mx) { mn -= 1; mx += 1; }
+  const ticks = niceTicks(mn, mx, 3, false);
+  if (ticks.length) { mn = Math.min(mn, ticks[0]); mx = Math.max(mx, ticks[ticks.length - 1]); }
+  const rng = (mx - mn) || 1;
   const X = i => padL + (W - padL - padR) * i / (series.length - 1 || 1);
   const Y = v => padT + (H - padT - padB) * (1 - (v - mn) / rng);
   const line = series.map((s, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(s.value).toFixed(1)).join(' ');
   const area = 'M ' + X(0).toFixed(1) + ' ' + Y(series[0].value).toFixed(1) + ' ' + series.map((s, i) => 'L ' + X(i).toFixed(1) + ' ' + Y(s.value).toFixed(1)).join(' ') + ' L ' + X(series.length - 1).toFixed(1) + ' ' + (H - padB).toFixed(1) + ' L ' + X(0).toFixed(1) + ' ' + (H - padB).toFixed(1) + ' Z';
   const improved = series.length > 1 ? (kpi.lower ? series[series.length - 1].value < series[0].value : series[series.length - 1].value > series[0].value) : true;
   const col = improved ? 'var(--good)' : 'var(--bad)';
-  const ty = Y(kpi.target);
+  const ygrid = ticks.map(v => {
+    const y = Y(v);
+    return '<line class="ygrid" x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y.toFixed(1) + '"/>'
+      + '<text class="axis ytick" x="' + (padL - 7) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end">' + fmt(v, kpi.unit) + '</text>';
+  }).join('');
   const xl = series.length > 2 ? [0, Math.floor((series.length - 1) / 2), series.length - 1] : series.map((_, i) => i);
   const xlabels = xl.map(i => '<text class="axis" x="' + X(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? 'start' : i === series.length - 1 ? 'end' : 'middle') + '">' + series[i].date.slice(0, 7) + '</text>').join('');
   const step = (W - padL - padR) / (series.length - 1 || 1);
   const hots = series.map((s, i) => '<rect class="hotspot" data-i="' + i + '" x="' + (X(i) - step / 2).toFixed(1) + '" y="0" width="' + step.toFixed(1) + '" height="' + H + '"></rect>').join('');
   return {
-    svg: '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + col + '" stop-opacity="0.16"/><stop offset="1" stop-color="' + col + '" stop-opacity="0"/></linearGradient></defs><path d="' + area + '" fill="url(#g)"/><line class="tgtline" x1="' + padL + '" y1="' + ty.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + ty.toFixed(1) + '"/><text class="tgtlabel" x="' + (W - padR) + '" y="' + (ty - 4).toFixed(1) + '" text-anchor="end">' + t('targetLabel', fmt(kpi.target, kpi.unit)) + '</text><path d="' + line + '" fill="none" stroke="' + col + '" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>' + xlabels + '<line class="vline"/><circle class="hoverdot" r="4.5"/>' + hots + '</svg>',
+    svg: '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" height="' + H + '"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + col + '" stop-opacity="0.16"/><stop offset="1" stop-color="' + col + '" stop-opacity="0"/></linearGradient></defs><path d="' + area + '" fill="url(#g)"/>' + ygrid + '<path d="' + line + '" fill="none" stroke="' + col + '" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>' + xlabels + '<line class="vline"/><circle class="hoverdot" r="4.5"/>' + hots + '</svg>',
     X: X, Y: Y
   };
 }
@@ -741,7 +756,7 @@ function buildCard(kpi) {
   const deltaText = isNew ? t('deltaNew') : t('vsPriorRun', Math.abs(dpct).toFixed(1));
   const pr = progress(cur.value, kpi.target, kpi.unit, kpi.lower); const ch = chart(ser, kpi);
   const card = document.createElement('div'); card.className = 'card';
-  card.innerHTML = '<div class="card-top"><div><div class="kpi-name">' + t(kpi.tkey) + '</div><div class="kpi-formula">' + t(kpi.formulaKey) + '</div><div class="kpi-basis">' + (cur.basis ? (t('baseLabel') + cur.basis) : '&nbsp;') + ' &middot; ' + t('toTarget', pr.toFixed(0)) + '</div></div><div class="val-wrap"><div class="val">' + fmt(cur.value, kpi.unit) + '</div><div class="delta ' + dir + '">' + arrow + ' ' + deltaText + '</div></div></div><div class="chart"><div class="tip"></div>' + ch.svg + '</div>';
+  card.innerHTML = '<div class="card-top"><div><div class="kpi-name">' + t(kpi.tkey) + '</div><div class="kpi-formula">' + t(kpi.formulaKey) + '</div><div class="kpi-basis">' + (cur.basis ? (t('baseLabel') + cur.basis) : '&nbsp;') + '</div></div><div class="val-wrap"><div class="val">' + fmt(cur.value, kpi.unit) + '</div><div class="delta ' + dir + '">' + arrow + ' ' + deltaText + '</div></div></div><div class="chart"><div class="tip"></div>' + ch.svg + '</div>';
   const chartEl = card.querySelector('.chart'), svg = chartEl.querySelector('svg'), tip = chartEl.querySelector('.tip'), dot = svg.querySelector('.hoverdot'), vline = svg.querySelector('.vline');
   const W = 520, H = 150, padB = 22, padT = 14;
   svg.querySelectorAll('.hotspot').forEach(h => {
@@ -849,8 +864,24 @@ function buildComposite() {
     '</div><div class="chero-val-wrap"><div class="chero-val">' + cur.value + '</div>' +
     (deltaText ? '<div class="delta ' + dir + '">' + arrow + ' ' + deltaText + '</div>' : '') +
     '</div></div>' + (ch ? '<div class="chart"><div class="tip"></div>' + ch.svg + '</div>' : '');
-  if (ch) wireHover(card.querySelector('.chart'), ch, ser, kpi);
+  if (ch) { wireHover(card.querySelector('.chart'), ch, ser, kpi); fitChartToHost(card.querySelector('.chart'), ser, kpi); }
   return card;
+}
+
+// Redraws a sparkline at its host's true width. Without this the chart keeps whatever width it was
+// built with, and any mismatch shows up as distorted text.
+function fitChartToHost(chartEl, series, kpi) {
+  if (!chartEl || typeof ResizeObserver === 'undefined') return;
+  let lastW = 0;
+  const ro = new ResizeObserver(() => {
+    const w = Math.round(chartEl.clientWidth);
+    if (!w || Math.abs(w - lastW) < 8) return;   // ignore sub-pixel churn
+    lastW = w;
+    const re = chart(series, kpi, w);
+    chartEl.innerHTML = '<div class="tip"></div>' + re.svg;
+    wireHover(chartEl, re, series, kpi);
+  });
+  ro.observe(chartEl);
 }
 
 // ── RICH TREND CHART ──

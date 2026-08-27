@@ -231,6 +231,7 @@ async function submitGate() {
     clientUsername = username;
     clientPassword = password;
     clientRole = data.role || 'full';
+    if (window.clearBypassSuppression) window.clearBypassSuppression();
     sessionStorage.setItem('geo_review_username', username);
     sessionStorage.setItem('geo_review_password', password);
     showApp();
@@ -269,9 +270,10 @@ function showApp() {
 }
 
 function clientLogout() {
-  sessionStorage.removeItem('geo_review_username');
-  sessionStorage.removeItem('geo_review_password');
-  location.reload();
+  // Clears EVERY client session, not just this page's — see js/results-auth.js.
+  if (window.clientLogoutAll) return window.clientLogoutAll();
+  sessionStorage.clear();
+  location.href = location.pathname;
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -497,7 +499,8 @@ applyStaticLang();
 
   // Staff already logged into the internal Portal can open a customer's link straight
   // through, without also needing that customer's own password.
-  if (usernameFromUrl && localStorage.getItem('hieronymus_internal_auth') === 'true') {
+  if (usernameFromUrl && localStorage.getItem('hieronymus_internal_auth') === 'true'
+      && !(window.clientBypassSuppressed && window.clientBypassSuppressed())) {
     try {
       const res = await fetch(await window.apiQuery('/api/intake-codes', {}));
       const data = await res.json();

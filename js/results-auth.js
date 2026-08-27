@@ -154,4 +154,31 @@
       el.addEventListener('click', () => { location.href = window.homeHref(company); });
     });
   };
+
+  // Logout was per-page and therefore broken. Each client page cleared only its OWN key pair, so
+  // signing out of the portal left the review and intake sessions intact — opening another client
+  // link walked straight back into an authenticated session. And for anyone with a staff login in
+  // localStorage, the staff bypass re-authenticated on the very next page load, making logout
+  // impossible. Both are fixed here: every client session key is cleared, and a suppression flag
+  // stops the bypass from silently signing them back in until they deliberately log in again.
+  const CLIENT_SESSION_KEYS = [
+    'geo_portal_username', 'geo_portal_password',
+    'geo_review_username', 'geo_review_password',
+    'geo_intake_username', 'geo_intake_password',
+  ];
+  window.clientLogoutAll = function () {
+    CLIENT_SESSION_KEYS.forEach(k => { try { sessionStorage.removeItem(k); } catch (e) { /* ignore */ } });
+    try { sessionStorage.setItem('geo_bypass_suppressed', '1'); } catch (e) { /* ignore */ }
+    // Drop ?username= so a reload cannot re-seed the session from the URL.
+    location.href = location.pathname;
+  };
+
+  // True when the visitor has just logged out of a client page. The staff bypass must honour this or
+  // logout does nothing for staff.
+  window.clientBypassSuppressed = function () {
+    try { return sessionStorage.getItem('geo_bypass_suppressed') === '1'; } catch (e) { return false; }
+  };
+  window.clearBypassSuppression = function () {
+    try { sessionStorage.removeItem('geo_bypass_suppressed'); } catch (e) { /* ignore */ }
+  };
 })();

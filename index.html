@@ -1308,14 +1308,20 @@ async function pollJobStatus(company, opts) {
       // opposite of what happened — the run did start, did work, and then died partway.
       clearAuditPending(company);
       const promptIdx = resumePromptIndex(data);
+      // `completed` can be absent on a job record (Blobs occasionally returns a read with a field
+      // dropped), and dividing undefined by total rendered "NaN%" plus a width of NaN — which CSS
+      // discards, leaving the bar at full width and a failed run looking complete.
+      const doneUnits = Number.isFinite(data.completed) ? data.completed : 0;
+      const totalUnits = Number.isFinite(data.total) && data.total > 0 ? data.total : 0;
+      const pctDone = totalUnits ? Math.round((doneUnits / totalUnits) * 100) : 0;
       block.innerHTML =
         `<div class="row" style="align-items:center;">` +
           `<span class="badge badge-error">${t('endedIncompleteLabel')}</span>` +
-          `<span class="field-hint">${t('auditUnits', data.completed || 0, data.total)}</span>` +
-          `<span class="field-hint progress-pct">${Math.round((data.completed / data.total) * 100)}%</span>` +
+          `<span class="field-hint">${t('auditUnits', doneUnits, totalUnits || '?')}</span>` +
+          `<span class="field-hint progress-pct">${pctDone}%</span>` +
         `</div>` +
-        `<div class="progress-wrap"><div class="progress-bar stalled" style="width:${Math.round((data.completed / data.total) * 100)}%"></div></div>` +
-        `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('endedIncompleteDetail', data.completed || 0, data.total)}</div>` +
+        `<div class="progress-wrap"><div class="progress-bar stalled" style="width:${pctDone}%"></div></div>` +
+        `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('endedIncompleteDetail', doneUnits, totalUnits || '?')}</div>` +
         (promptIdx !== null
           ? `<div class="row" style="margin-top:10px;"><button class="btn btn-sm" onclick="resumeAudit(${promptIdx})">${t('resumeBtn', promptIdx + 1)}</button></div>`
           : '');

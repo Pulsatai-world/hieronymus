@@ -248,11 +248,34 @@ For each engine's answer report:
     messages: [{ role: 'user', content: query }]
   };
 }
-function parseClassifyResponse(data) {
+// Grades are matched to engines by the label the grader puts in its `engine` field, and that used to
+// be an exact string comparison against 'Claude' / 'ChatGPT' / 'Gemini'. A grader that answered
+// 'claude' in lowercase — or 'GPT-5.5' instead of 'ChatGPT' — produced "missing from grader response"
+// for every engine on that prompt: the answer was fetched, the grading was done, both were paid for,
+// and the result was discarded on a case mismatch. Match case-insensitively, then fall back to
+// position, which is safe only when the grader returned exactly one entry per engine (it is asked for
+// one each, in order).
+function parseClassifyResponse(data, expectedEngines) {
   const textBlock = data.content.find(b => b.type === 'text');
   const parsed = JSON.parse(textBlock.text);
+  const entries = Array.isArray(parsed.engines) ? parsed.engines : [];
+  const expected = Array.isArray(expectedEngines) ? expectedEngines : [];
+  const norm = v => String(v || '').trim().toLowerCase();
+
   const byEngine = {};
-  (parsed.engines || []).forEach(e => { byEngine[e.engine] = e; });
+  const unmatched = [];
+  for (const e of entries) {
+    const hit = expected.find(name => norm(name) === norm(e.engine) && !byEngine[name]);
+    if (hit) byEngine[hit] = e;
+    else unmatched.push(e);
+  }
+
+  // Positional rescue, only when nothing was dropped or duplicated — otherwise a grade could be
+  // attributed to the wrong engine, which is worse than losing it.
+  const missing = expected.filter(name => !byEngine[name]);
+  if (missing.length && entries.length === expected.length && unmatched.length === missing.length) {
+    missing.forEach((name, i) => { byEngine[name] = unmatched[i]; });
+  }
   return byEngine;
 }
 
@@ -524,7 +547,7 @@ export default async (request, context) => {
           const classifyBody = buildClassifyRequest(cleanedPrompt, company, truthNote,
             okEngines.map(e => ({ engine: e.def.name, text: rawAnswers[e.def.name].text })));
           const data = await callEngineWithRetry(claudeDef, claudeKey, classifyBody);
-          judgments = parseClassifyResponse(data);
+          judgments = parseClassifyResponse(data, okEngines.map(e => e.def.name));
         } catch (err) {
           classifyError = err.message;
         }
