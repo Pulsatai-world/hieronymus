@@ -46,6 +46,17 @@
   to = "/.netlify/functions/audit-job"
   status = 200
 
+# The dev copies were promoted on 26 Aug 2026. Anyone holding a bookmark lands on the live page.
+[[redirects]]
+  from = "/portal-dev.html"
+  to = "/portal.html"
+  status = 301
+
+[[redirects]]
+  from = "/index-dev.html"
+  to = "/index.html"
+  status = 301
+
 [[redirects]]
   from = "/api/staff-session"
   to = "/.netlify/functions/staff-session"

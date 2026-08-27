@@ -19,11 +19,14 @@ function checkAuth() {
 function isAdmin() {
   return localStorage.getItem(ROLE_KEY) === 'admin';
 }
-function staffLogout() {
+async function staffLogout() {
   localStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(ROLE_KEY);
   sessionStorage.removeItem('geo_staff_password');
+  // Revokes the session token server-side as well; clearing the local flags alone would sign
+  // someone out of the interface while leaving the session valid for the API.
+  if (typeof window.staffSignOut === 'function') await window.staffSignOut();
   location.href = '/portal.html';
 }
 
@@ -50,7 +53,7 @@ function showPasswordGate() {
       .gate-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
       .gate-input.error { border-color: var(--red); animation: shake 0.3s; }
       @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
-    </style>
+</style>
     <div class="card" style="width:100%; max-width:380px; box-shadow:0 8px 32px rgba(27,39,51,0.10); margin-bottom:0;">
       <div style="display:flex; justify-content:flex-end; margin-bottom:20px;">
         <div class="lang-toggle">
@@ -197,6 +200,14 @@ body { font-family: var(--mono); background: var(--bg); color: var(--text); min-
 .btn-sm { padding: 8px 16px; font-size: 11px; min-height: 34px; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .field-hint { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+.geo-slot { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; margin-top: 14px; }
+.geo-slot.is-locked { opacity: 0.55; }
+.geo-slot-head { margin-bottom: 12px; }
+.geo-slot-name { display: block; font-family: var(--display); font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text); }
+.geo-slot-note { display: block; font-size: 11px; color: var(--text-dim); margin-top: 3px; }
+.geo-input { flex: 1; min-width: 260px; font-family: inherit; font-size: 13px; padding: 10px 13px; border: 1px solid var(--border-bright); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); }
+.geo-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+
 .progress-wrap {
   width: 100%; height: 12px; background: var(--surface2); border-radius: 999px; overflow: hidden;
   margin-top: 12px; position: relative; box-shadow: inset 0 1px 2px rgba(8,9,12,0.08);
@@ -398,6 +409,33 @@ const T = {
   intakeTitle: { en: 'Intake', es: 'Formulario' },
   promptsTitle: { en: 'Prompts', es: 'Prompts' },
   auditStatusTitle: { en: 'Audit status', es: 'Estado de la auditoría' },
+  geoTitle: { en: 'Site readiness (GEO)', es: 'Diagnóstico técnico del sitio web (GEO)' },
+  geoUrlPlaceholder: { en: 'https://client-site.com', es: 'https://sitio web-del-cliente.com' },
+  geoRunBtn: { en: 'Run scan', es: 'Analizar sitio web' },
+  geoRerunBtn: { en: 'Scan again', es: 'Analizar de nuevo' },
+  geoHint: { en: 'Technical on-page checks in three layers. Run this before the audit — if the site cannot be read, visibility results say nothing about it.', es: 'Revisiones técnicas en página, en tres capas. Conviene ejecutarlo antes de la auditoría: si el sitio web no se puede leer, los resultados de visibilidad no dicen nada sobre él.' },
+  geoRunning: { en: 'Scanning… this takes 20-100 seconds.', es: 'Analizando… tarda entre 20 y 100 segundos.' },
+  geoNever: { en: 'Not scanned yet.', es: 'Todavía sin analizar.' },
+  geoFailed: { en: 'The scan did not complete.', es: 'El análisis no se ha completado.' },
+  geoNeedUrl: { en: 'Enter the site address first.', es: 'Introduce primero la dirección del sitio web.' },
+  geoUnreachable: { en: 'Site not reachable from the scanner — no score. This is not a finding about the site.', es: 'El escáner no ha podido acceder al sitio web, así que no hay puntuación. Esto no es un hallazgo sobre el sitio web.' },
+  geoOverall: { en: 'Overall', es: 'Global' },
+  geoAccess: { en: 'Access', es: 'Acceso' },
+  geoRead: { en: 'Readability', es: 'Legibilidad' },
+  geoSubstance: { en: 'Substance', es: 'Contenido' },
+  geoPages: { en: 'pages', es: 'páginas' },
+  geoBlockers: { en: 'blockers', es: 'bloqueos' },
+  geoUnverified: { en: 'unverified', es: 'sin verificar' },
+  geoScannedOn: { en: 'Scanned', es: 'Analizado' },
+  geoSlot1: { en: 'Previous scan', es: 'Análisis anterior' },
+  geoSlot2: { en: 'Latest scan', es: 'Análisis más reciente' },
+  geoSlot1Hint: { en: 'How the site stood before.', es: 'Cómo estaba el sitio web antes.' },
+  geoSlot2Hint: { en: 'Run a new one and compare the two.', es: 'Corre uno nuevo y compara los dos.' },
+  geoSlot2Locked: { en: 'Appears as soon as a second scan is run.', es: 'Aparece en cuanto corras un segundo análisis.' },
+  geoNoReport: { en: 'No stored report for this scan — it predates the saved reports. Run a new one to get it.', es: 'Este análisis no tiene informe guardado: se corrió antes de que se guardaran. Corre uno nuevo para tenerlo.' },
+  geoOpenReport: { en: 'Open full report ↗', es: 'Abrir informe completo ↗' },
+  geoCopyLink: { en: 'Copy report link', es: 'Copiar enlace del informe' },
+  geoLinkCopied: { en: 'Report link copied. It only opens for logged-in Akore staff — not for customers.', es: 'Enlace del informe copiado. Solo se abre para el personal de Akore con sesión iniciada, no para clientes.' },
   checking: { en: 'Checking…', es: 'Verificando…' },
   runAuditBtn: { en: '▶ Run Audit', es: '▶ Ejecutar Auditoría' },
   generateFirstTitle: { en: 'Generate prompts first', es: 'Genera los prompts primero' },
@@ -565,8 +603,166 @@ let lastRunEngines = null;
 let currentCompany = '';
 let currentRows = [];
 
+// ── GEO site-readiness card ──
+// The scan belongs to this customer and lives on their page, next to the intake and the audit,
+// in the order the work actually happens: read the site first, then generate prompts, then audit.
+// If the site cannot be read, the visibility results say nothing about it.
+let geoPoll = null;
+
+function geoReportHref(stamp) {
+  // A link with no credentials in it. geo-report.html resolves the reader's own staff session, so
+  // it is safe to paste into chat — and it opens for Akore staff only, never for a customer.
+  // The stamp pins the link to one particular run, so slot 1 keeps pointing at slot 1's report
+  // even after a later scan has been taken.
+  return location.origin + '/geo-report.html?company=' + encodeURIComponent(currentCompany)
+    + '&lang=' + lang + (stamp ? '&run=' + encodeURIComponent(stamp) : '');
+}
+
+async function geoLoad() {
+  const statusEl = document.getElementById('geo-status-1');
+  if (!statusEl) return;
+  try {
+    const res = await fetch(await window.apiQuery('/api/geo-scan-job', { company: currentCompany }));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    geoRender(data);
+    if (data.status === 'running' && !geoPoll) geoPoll = setInterval(geoLoad, 6000);
+    else if (data.status !== 'running' && geoPoll) { clearInterval(geoPoll); geoPoll = null; }
+  } catch (err) {
+    // Never silent. A hidden failure looks exactly like a scan that ran and found nothing, which
+    // is the worst possible behaviour for a tool whose whole job is honest reporting.
+    statusEl.textContent = t('geoFailed') + ' — ' + err.message;
+    if (geoPoll) { clearInterval(geoPoll); geoPoll = null; }
+  }
+}
+
+function geoScoreBlock(value, label, extra, muted) {
+  const colour = muted ? 'var(--text-dim)' : 'var(--accent)';
+  const shown = (value === null || value === undefined) ? '—' : value;
+  return '<div style="display:flex;flex-direction:column;gap:3px;">'
+    + '<div style="font-family:var(--display);font-size:22px;font-weight:800;line-height:1;color:' + colour + ';">' + shown + extra + '</div>'
+    + '<div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-dim);font-weight:700;">' + esc(label) + '</div>'
+    + '</div>';
+}
+
+// Renders one slot. The two slots are identical rectangles that never refer to each other:
+// slot 1 holds the first scan taken and is frozen once it has one, slot 2 holds the most recent.
+// Nothing is subtracted or coloured green and red — the two sets of numbers sit there and the
+// reader draws their own conclusion.
+function geoRenderSlot(n, snap, opts) {
+  const statusEl = document.getElementById('geo-status-' + n);
+  const out = document.getElementById('geo-result-' + n);
+  const actions = document.getElementById('geo-actions-' + n);
+  const form = document.getElementById('geo-form-' + n);
+  const slotEl = document.getElementById('geo-slot-' + n);
+  const input = document.getElementById('geo-url-' + n);
+  const btn = document.getElementById('geo-run-btn-' + n);
+  if (!statusEl || !out) return;
+
+  if (slotEl) slotEl.classList.toggle('is-locked', !!opts.locked);
+  if (form) form.style.display = opts.canRun ? 'flex' : 'none';
+  if (btn) btn.textContent = (snap && n === 1) ? t('geoRerunBtn') : t('geoRunBtn');
+  if (input && !input.value && opts.suggestUrl) input.value = opts.suggestUrl;
+
+  if (opts.locked) { statusEl.textContent = t('geoSlot2Locked'); out.innerHTML = ''; if (actions) actions.style.display = 'none'; return; }
+  if (opts.running) statusEl.textContent = t('geoRunning');
+  else if (opts.error) statusEl.textContent = t('geoFailed') + (opts.error === true ? '' : ' — ' + opts.error);
+  else if (!snap) statusEl.textContent = t('geoNever');
+  else statusEl.textContent = t('geoScannedOn') + ' ' + snap.scannedAt.slice(0, 10)
+    + (snap.hasReport === false ? ' · ' + t('geoNoReport') : '');
+
+  if (!snap) { out.innerHTML = ''; if (actions) actions.style.display = 'none'; return; }
+
+  // Only offer the report when one was actually stored. Older runs kept a score snapshot without
+  // the full result behind it, and linking to those produced a page that read as simply empty.
+  if (actions) {
+    if (snap.hasReport === false) {
+      actions.style.display = 'none';
+    } else {
+      const link = document.getElementById('geo-report-link-' + n);
+      if (link) link.href = geoReportHref(snap.stamp);
+      actions.style.display = 'flex';
+    }
+  }
+
+  if (!snap.reachable || snap.overall === null) {
+    out.innerHTML = '<div class="field-hint" style="margin-top:10px;">' + esc(t('geoUnreachable')) + '</div>';
+    return;
+  }
+
+  const layer = function (id) { return (snap.layers || []).find(function (l) { return l.id === id; }) || {}; };
+  out.innerHTML =
+    '<div style="display:flex;gap:22px;flex-wrap:wrap;margin-top:14px;">'
+      + geoScoreBlock(snap.overall, t('geoOverall'), '', false)
+      + geoScoreBlock(layer('access').score, t('geoAccess'), '', true)
+      + geoScoreBlock(layer('readability').score, t('geoRead'), '', false)
+      + geoScoreBlock(layer('substance').score, t('geoSubstance'), '', false)
+    + '</div>'
+    + '<div class="field-hint" style="margin-top:10px;">' + snap.pagesAnalyzed + ' ' + esc(t('geoPages'))
+      + (snap.blockers ? ' · ' + snap.blockers + ' ' + esc(t('geoBlockers')) : '')
+      + (snap.unverified ? ' · ' + snap.unverified + ' ' + esc(t('geoUnverified')) : '')
+    + '</div>';
+}
+
+function geoRender(data) {
+  const first = data.first || null;
+  const second = data.second || null;
+  const running = data.status === 'running';
+  const error = data.status === 'error' ? ((data.job && data.job.error) || true) : null;
+  const url = (data.job && data.job.url) || (first && first.url) || '';
+
+  // A run in flight belongs to whichever slot is next in line: slot 1 while nothing has been
+  // scanned yet, slot 2 from then on.
+  const inflight = first ? 2 : 1;
+
+  geoRenderSlot(1, first, {
+    canRun: !first,
+    running: running && inflight === 1,
+    error: inflight === 1 ? error : null,
+    suggestUrl: url
+  });
+
+  geoRenderSlot(2, second, {
+    canRun: !!first,
+    locked: !first,
+    running: running && inflight === 2,
+    error: inflight === 2 ? error : null,
+    suggestUrl: url
+  });
+}
+
+async function geoRun(slot) {
+  const input = document.getElementById('geo-url-' + slot);
+  const statusEl = document.getElementById('geo-status-' + slot);
+  const url = (input.value || '').trim();
+  if (!url) { statusEl.textContent = t('geoNeedUrl'); input.focus(); return; }
+
+  statusEl.textContent = t('geoRunning');
+  try {
+    // apiQuery resolves this session's credentials and re-prompts when the password is missing,
+    // which is what happens in a newly opened tab where sessionStorage is empty.
+    const q = await window.apiQuery('/api/geo-scan', {});
+    const res = await fetch(q, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company: currentCompany, url: url })
+    });
+    if (!res.ok && res.status !== 202) { statusEl.textContent = t('geoFailed') + ' (HTTP ' + res.status + ')'; return; }
+  } catch (err) {
+    statusEl.textContent = t('geoFailed') + ' — ' + err.message;
+    return;
+  }
+  setTimeout(geoLoad, 1500);
+}
+
+function geoCopyLink(slot) {
+  const link = document.getElementById('geo-report-link-' + slot);
+  navigator.clipboard.writeText((link && link.href) || geoReportHref()).then(function () { alert(t('geoLinkCopied')); });
+}
+
 async function loadCompany(company) {
   currentCompany = company;
+  if (geoPoll) { clearInterval(geoPoll); geoPoll = null; }
   const main = document.getElementById('main-content');
   main.innerHTML = `<div class="page-title">${esc(company)}</div><div class="empty-state">${t('loading')}</div>`;
 
@@ -710,6 +906,43 @@ async function loadCompany(company) {
       ${promptsBlock}
     </div>
 
+    <div class="card" id="geo-card">
+      <div class="card-title">${t('geoTitle')}</div>
+      <div class="card-caption">${t('geoHint')}</div>
+      <div class="geo-slot" id="geo-slot-1">
+        <div class="geo-slot-head">
+          <span class="geo-slot-name">${t('geoSlot1')}</span>
+          <span class="geo-slot-note">${t('geoSlot1Hint')}</span>
+        </div>
+        <div class="row" id="geo-form-1" style="gap:8px; flex-wrap:wrap;">
+          <input type="url" id="geo-url-1" class="geo-input" placeholder="${t('geoUrlPlaceholder')}">
+          <button class="btn" id="geo-run-btn-1" onclick="geoRun(1)">${t('geoRunBtn')}</button>
+        </div>
+        <div id="geo-status-1" class="field-hint" style="margin-top:10px;"></div>
+        <div id="geo-result-1"></div>
+        <div class="row" id="geo-actions-1" style="display:none; gap:8px; margin-top:14px;">
+          <a class="btn btn-ghost btn-sm" id="geo-report-link-1" target="_blank" rel="noopener" href="#">${t('geoOpenReport')}</a>
+          <button class="btn btn-ghost btn-sm" onclick="geoCopyLink(1)">${t('geoCopyLink')}</button>
+        </div>
+      </div>
+      <div class="geo-slot" id="geo-slot-2">
+        <div class="geo-slot-head">
+          <span class="geo-slot-name">${t('geoSlot2')}</span>
+          <span class="geo-slot-note">${t('geoSlot2Hint')}</span>
+        </div>
+        <div class="row" id="geo-form-2" style="gap:8px; flex-wrap:wrap;">
+          <input type="url" id="geo-url-2" class="geo-input" placeholder="${t('geoUrlPlaceholder')}">
+          <button class="btn" id="geo-run-btn-2" onclick="geoRun(2)">${t('geoRunBtn')}</button>
+        </div>
+        <div id="geo-status-2" class="field-hint" style="margin-top:10px;"></div>
+        <div id="geo-result-2"></div>
+        <div class="row" id="geo-actions-2" style="display:none; gap:8px; margin-top:14px;">
+          <a class="btn btn-ghost btn-sm" id="geo-report-link-2" target="_blank" rel="noopener" href="#">${t('geoOpenReport')}</a>
+          <button class="btn btn-ghost btn-sm" onclick="geoCopyLink(2)">${t('geoCopyLink')}</button>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">${t('auditStatusTitle')}</div>
       <div id="job-status-block"><div class="field-hint">${t('checking')}</div></div>
@@ -776,6 +1009,9 @@ async function loadCompany(company) {
   const pendingSince = auditPendingSince(company);
   const stillStarting = pendingSince && (Date.now() - pendingSince) < 3 * 60 * 1000;
   pollJobStatus(company, stillStarting ? { graceRetriesLeft: 20 } : {});
+
+  // The stored scan for this customer, loaded once the card exists in the DOM.
+  geoLoad();
 }
 
 // The primary member's username is the slug of the company name (intake-codes.js generates it
