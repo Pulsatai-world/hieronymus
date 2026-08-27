@@ -174,11 +174,16 @@ export default async (request, context) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
+    // Optional snapshot_date narrows the delete to one run. Without it the behaviour is unchanged
+    // (every row for that customer) — but a single bad run should not force wiping a monitoring
+    // history that took months to build.
+    const snapshot = (url.searchParams.get('snapshot_date') || '').trim();
     const { blobs } = await store.list();
     const rows = await Promise.all(blobs.map(async b => ({ key: b.key, data: await store.get(b.key, { type: 'json' }) })));
-    const toDelete = rows.filter(r => r.data && r.data.brand === company);
+    const toDelete = rows.filter(r => r.data && r.data.brand === company
+      && (!snapshot || r.data.snapshot_date === snapshot));
     await Promise.all(toDelete.map(r => store.delete(r.key)));
-    return new Response(JSON.stringify({ status: 'ok', deleted: toDelete.length }), {
+    return new Response(JSON.stringify({ status: 'ok', deleted: toDelete.length, snapshot_date: snapshot || null }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
     });

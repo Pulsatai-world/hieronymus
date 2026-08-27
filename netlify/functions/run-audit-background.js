@@ -496,7 +496,7 @@ export default async (request, context) => {
       await updateJob(jobsStore, jobKey, { clearedRows });
     }
 
-    let completed = 0, citedCount = 0;
+    let completed = 0, citedCount = 0, erroredCount = 0;
 
     async function processPrompt(rawPrompt, index) {
       const category = detectCategory(rawPrompt, company);
@@ -543,6 +543,7 @@ export default async (request, context) => {
           result = buildSuccessResult({ ...base, judgment: judgments[name], rawText: raw.text });
         }
         if (result.cited) citedCount++;
+        if (result.error) erroredCount++;
         try {
           await saveResultRow(buildDbRow(result));
         } catch { /* one failed save shouldn't abort the whole run */ }
@@ -601,7 +602,20 @@ export default async (request, context) => {
       });
     }
 
-    await updateJob(jobsStore, jobKey, { status: 'done', finishedAt: new Date().toISOString() });
+    // A run where every single row failed collected no data at all. Reporting that as 'done' is how
+    // a failed monitoring run ended up on the trend as a month of zero visibility — it looked like a
+    // completed measurement. Call it what it is, and record the counts either way so a partial
+    // failure is visible without digging through the CSV.
+    const totalRows = baseCompleted + completed;
+    const allFailed = totalRows > 0 && erroredCount >= totalRows;
+    await updateJob(jobsStore, jobKey, {
+      status: allFailed ? 'error' : 'done',
+      errored: erroredCount,
+      message: allFailed
+        ? 'Every row failed — no data was collected. Check the failure reasons below before trusting anything from this run.'
+        : '',
+      finishedAt: new Date().toISOString()
+    });
   } catch (err) {
     await updateJob(jobsStore, jobKey, { status: 'error', message: err.message, finishedAt: new Date().toISOString() });
   }

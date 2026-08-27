@@ -461,6 +461,14 @@ const T = {
   showingRecent: { en: (n) => `Showing the 5 most recent of ${n} rows — see the dashboards below for the full picture.`, es: (n) => `Se muestran las 5 filas más recientes de ${n} — consulta los tableros de abajo para ver el panorama completo.` },
   noResultsYet: { en: 'No audit results yet for this customer.', es: 'Aún no hay resultados de auditoría para este cliente.' },
   dashboardsTitle: { en: 'Dashboards', es: 'Tableros' },
+  runsTitle: { en: 'Runs on record', es: 'Ejecuciones registradas' },
+  runsHint: { en: 'Each snapshot stored for this customer. A run where every row failed collected no data — delete it so it cannot be mistaken for a month of zero visibility.', es: 'Cada snapshot guardado de este cliente. Una ejecución donde todas las filas fallaron no recolectó datos — elimínala para que no se confunda con un mes de visibilidad cero.' },
+  runRowLine: { en: (d, n, e, t) => `${d} · ${n} rows · ${e} failed · ${t}`, es: (d, n, e, t) => `${d} · ${n} filas · ${e} con error · ${t}` },
+  runAllFailed: { en: 'collected nothing', es: 'no recolectó nada' },
+  deleteRunBtn: { en: 'Delete this run', es: 'Eliminar esta ejecución' },
+  pwDeleteRunTitle: { en: 'Delete this run', es: 'Eliminar esta ejecución' },
+  pwDeleteRunMsg: { en: (d, c) => `This permanently deletes every result row from the <b>${d}</b> run for <b>${c}</b>. Other runs are not affected. Enter your password to confirm.`, es: (d, c) => `Esto elimina permanentemente todas las filas de la ejecución del <b>${d}</b> de <b>${c}</b>. Las demás ejecuciones no se ven afectadas. Ingresa tu contraseña para confirmar.` },
+  deleteRunFailed: { en: 'Failed to delete run: ', es: 'Error al eliminar la ejecución: ' },
   clientAccessTitle: { en: 'Client dashboard access', es: 'Acceso del cliente a los tableros' },
   clientAccessHint: { en: 'Controls what this customer can open from their portal. Releasing is what makes a dashboard visible to them — having audit data is not enough on its own.', es: 'Controla lo que este cliente puede abrir desde su portal. Liberar es lo que hace visible un tablero para ellos — tener datos de auditoría no basta por sí solo.' },
   diagReleaseLabel: { en: 'Diagnosis dashboard', es: 'Tablero de diagnóstico' },
@@ -842,6 +850,26 @@ async function loadCompany(company) {
     }
   });
   const failedEngines = Object.keys(failuresByEngine).filter(e => failuresByEngine[e].failed > 0);
+  // Per-snapshot list, so a single bad run can be removed without wiping a customer's history. A
+  // wholly failed run is called out: on the monitoring trend it would otherwise read as a real month
+  // of zero visibility rather than a measurement that never happened.
+  const runsBlock = runDates.length ? `
+    <div class="card">
+      <div class="card-title">${t('runsTitle')}</div>
+      <div class="card-caption">${t('runsHint')}</div>
+      ${runDates.map(d => {
+        const rs = rows.filter(r => r.snapshot_date === d);
+        const errs = rs.filter(r => r.sentiment === 'error').length;
+        const allFailed = rs.length > 0 && errs === rs.length;
+        const kind = rs.some(r => r.run_type === 'monitoring') ? 'monitoring' : 'diagnostic';
+        return `<div class="row" style="margin-top:10px;align-items:center;">
+          <span class="badge ${allFailed ? 'badge-error' : (errs ? 'badge-partial' : 'badge-done')}">${esc(d)}</span>
+          <span class="field-hint">${t('runRowLine', esc(d), rs.length, errs, kind)}${allFailed ? ' — ' + t('runAllFailed') : ''}</span>
+          <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="deleteRun('${esc(d)}')">${t('deleteRunBtn')}</button>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+
   const failureBlock = failedEngines.length ? `
     <div class="card">
       <div class="card-title">${t('engineFailuresTitle')}</div>
@@ -975,6 +1003,7 @@ async function loadCompany(company) {
       ` : `<div class="empty-state">${t('noResultsYet')}</div>`}
     </div>
 
+    ${runsBlock}
     ${failureBlock}
     ${monitoringBlock}
 
@@ -1519,6 +1548,27 @@ async function resumeAudit(startIndex) {
 function recheckAuditStatus() {
   if (!currentCompany) return;
   pollJobStatus(currentCompany, { graceRetriesLeft: 20 });
+}
+
+// Deletes one snapshot's rows. Scoped to a single run on purpose — a failed monitoring run should
+// not cost a customer their whole trend history.
+async function deleteRun(snapshotDate) {
+  if (!currentCompany || !snapshotDate) return;
+  if (!(await confirmWithPassword(t('pwDeleteRunTitle'), t('pwDeleteRunMsg', esc(snapshotDate), esc(currentCompany))))) return;
+  try {
+    const params = new URLSearchParams({
+      company: currentCompany,
+      snapshot_date: snapshotDate,
+      requestingUsername: localStorage.getItem(USER_KEY) || '',
+      requestingPassword: getStaffPassword()
+    });
+    const res = await fetch('/api/results?' + params.toString(), { method: 'DELETE' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    await loadCompany(currentCompany);
+  } catch (err) {
+    alert(t('deleteRunFailed') + err.message);
+  }
 }
 
 // Releases (or revokes) one dashboard for this customer. Password-gated like every other action

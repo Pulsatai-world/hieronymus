@@ -204,6 +204,7 @@
  <div class="count" id="count"></div>
 </div>
 <div id="schedule-block" style="display:none; padding:0 48px 18px;"></div>
+<div class="field-hint" id="failed-snapshot-note" style="display:none;padding:10px 48px 0;color:var(--warning);"></div>
 <div class="tabs">
  <button class="tab active" data-panel="trends" data-t="tabTrends">Trends</button>
  <button class="tab" data-panel="competitors" data-t="tabCompetitors">Competitors</button>
@@ -354,6 +355,7 @@ const T = {
   geoScoreBasis: { en: (n) => `blended from ${n} KPI${n === 1 ? '' : 's'} with data`, es: (n) => `combinado a partir de ${n} KPI${n === 1 ? '' : 's'} con datos` },
   compTrendTitle: { en: 'Share of Voice over time', es: 'Cuota de voz a lo largo del tiempo' },
   compTrendSub: { en: 'Your Share of Voice vs. the leading competitor, run over run.', es: 'Tu cuota de voz vs. el competidor líder, ejecución tras ejecución.' },
+  failedSnapshotNote: { en: (d) => `A run on ${d} failed to collect any data and has been left out of these trends — it is not a drop in visibility.`, es: (d) => `Una ejecución del ${d} no logró recolectar datos y se excluyó de estas tendencias — no es una caída de visibilidad.` },
   compTrendYou: { en: 'you', es: 'tú' },
   compTrendRival: { en: 'Top competitor', es: 'Competidor líder' },
   rankTrendTitle: { en: 'Your competitive position over time', es: 'Tu posición competitiva a lo largo del tiempo' },
@@ -605,10 +607,29 @@ function buildForCompany() {
     ? '/index.html?company=' : '/client-portal.html?company=') + encodeURIComponent(company);
   const companyKey = company.toLowerCase();
   TAPE = allRows.filter(r => r.brand && r.brand.toLowerCase() === companyKey);
-  DATES = [...new Set(TAPE.map(r => r.snapshot_date))].sort();
+
+  // A run where every row failed is a failed MEASUREMENT, not a month of zero visibility. Left in,
+  // it lands on the trend as a cliff to 0% and reads as "we lost all our visibility" — which is a
+  // worse lie than showing nothing. Such snapshots are dropped from the trend entirely; a partly
+  // failed run is kept, because the rows that did succeed are real data.
+  const allSnapshots = [...new Set(TAPE.map(r => r.snapshot_date))].sort();
+  const failedSnapshots = allSnapshots.filter(d => {
+    const rows = TAPE.filter(r => r.snapshot_date === d);
+    return rows.length > 0 && rows.every(r => r.sentiment === 'error');
+  });
+  if (failedSnapshots.length) {
+    TAPE = TAPE.filter(r => !failedSnapshots.includes(r.snapshot_date));
+  }
+  window.__failedSnapshots = failedSnapshots;
+  DATES = allSnapshots.filter(d => !failedSnapshots.includes(d));
   LAST = DATES[DATES.length - 1] || '';
   engines = [...new Set(TAPE.map(r => r.engine))];
   intents = [...new Set(TAPE.map(r => r.query_intent))].filter(Boolean).sort();
+  const failNote = document.getElementById('failed-snapshot-note');
+  if (failNote) {
+    failNote.textContent = failedSnapshots.length ? t('failedSnapshotNote', failedSnapshots.join(', ')) : '';
+    failNote.style.display = failedSnapshots.length ? '' : 'none';
+  }
   promptMap = {}; promptLangMap = {};
   TAPE.forEach(r => { if (r.prompt_id && !promptMap[r.prompt_id]) { promptMap[r.prompt_id] = r.prompt_text; promptLangMap[r.prompt_id] = detectLanguage(r.prompt_text); } });
   prompts = Object.keys(promptMap).sort();
