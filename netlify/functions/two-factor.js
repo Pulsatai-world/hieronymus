@@ -77,18 +77,54 @@ export default async (request) => {
   // means a permanently locked account. Reuses the admin-proves-their-own-password pattern already
   // used for password resets.
   if (action === 'reset') {
-    // Clearing someone's two-factor is the most powerful action in this file, so the admin doing it
-    // must prove their own two-factor — not merely know their password. Deliberately scoped to this
-    // action: `begin` and `confirm` below are how an account with no authenticator gets one, and
-    // requiring a ticket there would make enrollment impossible.
-    const proofDenied = await requireTwoFactorProof(url, body, json);
-    if (proofDenied) return proofDenied;
-    if (!await isStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword)) {
-      return json({ error: 'Only a staff admin can reset two-factor for an account' }, 403);
+    // ── Break-glass recovery ──
+    // The normal reset needs an admin who is signed in, which is circular when the only admin has
+    // lost their authenticator: they cannot sign in to reset themselves, and nobody else can do it
+    // for them. That is a genuine lockout with no way out, and it happened.
+    //
+    // The way back in is a secret held only in the site's environment variables, so using it means
+    // having access to the hosting account — a higher bar than any login here. It does not exist
+    // unless TWO_FACTOR_RECOVERY_SECRET is configured, and a short one is refused rather than
+    // treated as protection.
+    const configured = process.env.TWO_FACTOR_RECOVERY_SECRET || '';
+    const offered = String(body.recoverySecret || '');
+    let breakGlass = false;
+    if (configured && offered) {
+      if (configured.length < 24) {
+        return json({ error: 'TWO_FACTOR_RECOVERY_SECRET must be at least 24 characters' }, 500);
+      }
+      breakGlass = offered.length === configured.length
+        && crypto.timingSafeEqual(Buffer.from(offered), Buffer.from(configured));
+      if (!breakGlass) return json({ error: 'Invalid recovery secret' }, 403);
     }
+
+    if (!breakGlass) {
+      // Clearing someone's two-factor is the most powerful action in this file, so the admin doing it
+      // must prove their own two-factor — not merely know their password. Deliberately scoped to this
+      // action: `begin` and `confirm` below are how an account with no authenticator gets one, and
+      // requiring a ticket there would make enrollment impossible.
+      const proofDenied = await requireTwoFactorProof(url, body, json);
+      if (proofDenied) return proofDenied;
+      if (!await isStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword)) {
+        return json({ error: 'Only a staff admin can reset two-factor for an account' }, 403);
+      }
+    }
+
     delete rec.totp;
     await found.save();
-    return json({ status: 'ok', enabled: false }, 200);
+
+    // End every session and ticket belonging to that account as well. A reset that left them alive
+    // would clear the authenticator while anyone already holding a session carried on unaffected.
+    const uname = String(body.username || '').toLowerCase();
+    for (const storeName of ['hieronymus-2fa-sessions', 'hieronymus-staff-sessions']) {
+      const st = getStore(storeName);
+      const { blobs } = await st.list().catch(() => ({ blobs: [] }));
+      for (const b of blobs) {
+        const held = await st.get(b.key, { type: 'json' }).catch(() => null);
+        if (held && held.username === uname) await st.delete(b.key).catch(() => {});
+      }
+    }
+    return json({ status: 'ok', enabled: false, resetBy: breakGlass ? 'recovery-secret' : 'admin' }, 200);
   }
 
   // Everything below is the account acting on itself, so it proves its own password first.

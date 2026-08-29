@@ -12,7 +12,12 @@ import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
 import { totpGate } from './lib/two-factor-gate.js';
 
-const SESSION_DAYS = 30;
+// Twelve hours, not thirty days. A signed-in session is the thing that spares someone the code, so
+// its length IS the two-factor policy: a month-long session means a code once a month.
+const SESSION_HOURS = 12;
+
+// Sessions minted before two-factor was deployed are dead — see the other endpoints.
+const SESSION_EPOCH = Date.parse('2026-08-29T14:11:51Z');
 
 function verifyPassword(password, stored) {
   const [salt, hash] = String(stored || '').split(':');
@@ -38,6 +43,23 @@ export default async (request) => {
     return json({ status: 'ok' }, 200);
   }
 
+  // Is this session still real? The internal pages ask on every load. They used to decide it
+  // themselves from a localStorage flag that never expired and was never checked against anything,
+  // so one sign-in let someone into the Portal forever without a password or a code.
+  if (request.method === 'GET') {
+    const token = new URL(request.url).searchParams.get('staffToken');
+    if (!token) return json({ error: 'No session' }, 401);
+    const sess = await sessions.get(String(token), { type: 'json' }).catch(() => null);
+    if (!sess || !sess.username) return json({ error: 'No session' }, 401);
+    if (sess.expiresAt && Date.parse(sess.expiresAt) < Date.now()) return json({ error: 'Session expired' }, 401);
+    if (sess.createdAt && Date.parse(sess.createdAt) < SESSION_EPOCH) return json({ error: 'Session expired' }, 401);
+    const rec = await getStore('hieronymus-staff-users').get(sess.username, { type: 'json' }).catch(() => null);
+    if (!rec) return json({ error: 'No session' }, 401);
+    // An account whose authenticator was reset must go through setup again, not ride an old session.
+    if (!(rec.totp && rec.totp.enabledAt)) return json({ error: 'Two-factor setup required', needsEnrollment: true }, 401);
+    return json({ username: sess.username, role: rec.role || 'user', expiresAt: sess.expiresAt }, 200);
+  }
+
   if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
 
   const body = await request.json().catch(() => ({}));
@@ -58,7 +80,7 @@ export default async (request) => {
   if (gate) return gate;
 
   const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();
+  const expiresAt = new Date(Date.now() + SESSION_HOURS * 3600 * 1000).toISOString();
   await sessions.setJSON(token, { username, createdAt: new Date().toISOString(), expiresAt });
 
   return json({ token, username, expiresAt }, 200);

@@ -219,6 +219,52 @@
     return endpoint + (p.toString() ? '?' + p.toString() : '');
   };
 
+  // ── Is this browser signed in? ──
+  // The three internal pages each answered this themselves, from localStorage:
+  //     function checkAuth() { return localStorage.getItem(SESSION_KEY) === 'true'; }
+  // A bare string that never expired and was never checked against anything. One sign-in let
+  // someone into the Portal forever — no password, no code — which made two-factor at the login
+  // endpoint beside the point, because the page never asked the login endpoint anything.
+  //
+  // Being signed in now means holding a session the server still recognises. The token is minted
+  // only after a password AND a code, so a code is genuinely required to get one.
+  //
+  // Returns true only if the server confirms the session. Clears everything and returns false
+  // otherwise, so the caller shows the gate.
+  window.staffSessionValid = async function () {
+    const token = readLocal(TOKEN_KEY);
+    if (!token) return false;
+    let res;
+    try {
+      res = await fetch('/api/staff-session?staffToken=' + encodeURIComponent(token));
+    } catch (e) {
+      // Offline. Do not lock someone out of a page they are already on for a network blip; the
+      // scoped endpoints verify every request anyway, so nothing sensitive rides on this answer.
+      return 'offline';
+    }
+    if (res.ok) {
+      const data = await res.json().catch(function () { return null; });
+      if (data && data.username) {
+        writeLocal('hieronymus_internal_user', data.username);
+        writeLocal('hieronymus_internal_role', data.role || 'user');
+        writeLocal('hieronymus_internal_auth', 'true');
+        return true;
+      }
+    }
+    // Expired, revoked, or the authenticator was reset — this browser is not signed in.
+    ['hieronymus_internal_auth', 'hieronymus_internal_user', 'hieronymus_internal_role', TOKEN_KEY, STAFF_TFA_KEY]
+      .forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } });
+    return false;
+  };
+
+  // Called by every internal page on load. `showGate` is that page's own gate renderer.
+  window.requireStaffSession = async function (showGate) {
+    const ok = await window.staffSessionValid();
+    if (ok === true || ok === 'offline') return true;
+    try { showGate(); } catch (e) { /* the page will render its gate on DOMContentLoaded */ }
+    return false;
+  };
+
   // The whole staff sign-out, in one place. portal.html, index.html and intake-view.html each had
   // their own copy and intake-view's was missing the server-side revoke entirely — so signing out
   // there left the session valid for the API and left the two-factor ticket in the browser. Signing

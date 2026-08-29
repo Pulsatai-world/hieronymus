@@ -14,7 +14,13 @@ const USER_KEY = 'hieronymus_internal_user';
 const ROLE_KEY = 'hieronymus_internal_role';
 
 function checkAuth() {
-  return localStorage.getItem(SESSION_KEY) === 'true';
+  // Signed in means: this browser holds a session token, which is only ever minted after a password
+  // AND a code. The flag alone used to be enough — it never expired and was never verified, so one
+  // sign-in opened this page forever. The flag is kept only so the rest of the page can read it
+  // synchronously; js/results-auth.js confirms the session with the server on load and clears
+  // everything if it is no longer real.
+  return localStorage.getItem(SESSION_KEY) === 'true'
+    && !!localStorage.getItem('hieronymus_staff_token');
 }
 
 function showPasswordGate() {
@@ -93,8 +99,19 @@ async function staffLogout() {
   await window.staffLogoutAll('/portal.html');
 }
 
+// A local flag cannot be trusted on its own, so the session is confirmed with the server on every
+// load. If it has expired, been revoked by signing out elsewhere, or the account's authenticator was
+// reset, this drops back to the gate — where a password and a code are required again.
 if (!checkAuth()) {
   document.addEventListener('DOMContentLoaded', showPasswordGate);
+} else {
+  window.requireStaffSession(function () {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', showPasswordGate);
+    } else {
+      showPasswordGate();
+    }
+  });
 }
 </script>
 <style>

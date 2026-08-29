@@ -12,6 +12,7 @@ const crypto = require('crypto');
 // These are ES modules that reach for Netlify Blobs at call time, so they are evaluated in a vm with
 // getStore injected — the same lift-the-real-source approach the other suites here use. Nothing is
 // reimplemented: the code under test is the code that ships.
+const ENV = {};
 const STORES = {};
 const store = name => (STORES[name] = STORES[name] || {});
 const getStore = name => ({
@@ -50,7 +51,7 @@ function load(file) {
     .matchAll(/^export (?:async )?function (\w+)/gm)].map(m => m[1]);
   src += '\n' + named.map(n => 'EXPORTS.' + n + ' = ' + n + ';').join('\n');
   const ctx = { getStore, crypto, URL, URLSearchParams, Response, Request, Buffer, Date, JSON,
-                console, EXPORTS: {}, QRCode: require('qrcode') };
+                console, EXPORTS: {}, QRCode: require('qrcode'), process: { env: ENV } };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
   vm.runInContext(src, ctx, { filename: file });
@@ -578,6 +579,56 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     check('every string has a Spanish translation', missingEs.length === 0, 'missing: ' + missingEs.join(', '));
     check('the secret is never sent to a third party for a QR image',
       !/api\.qrserver|chart\.googleapis|qrcode/i.test(setup), 'an external QR service is referenced');
+  }
+
+  // ── Break-glass recovery ──
+  // A lost authenticator on the only admin account is a lockout with no way out: the reset needs an
+  // admin who is signed in, and that admin is the one locked out. This is the way back, and it must
+  // be closed unless someone with access to the hosting account deliberately opens it.
+  console.log('\nRecovering the only admin account:');
+  reset();
+  {
+    const b = await (await POST(twoFactor, { action: 'begin', username: 'akore-rene', password: PW })).json();
+    await POST(twoFactor, { action: 'confirm', username: 'akore-rene', password: PW, code: codeAt(b.secret, nowStep() - 1) });
+    store('hieronymus-staff-sessions')['SESS'] = { username: 'akore-rene', createdAt: new Date().toISOString(), expiresAt: '2030-01-01T00:00:00Z' };
+
+    // Locked out for real: they cannot sign in, so they cannot use the normal reset.
+    delete ENV.TWO_FACTOR_RECOVERY_SECRET;
+    const noSecret = await POST(twoFactor, { action: 'reset', username: 'akore-rene', recoverySecret: 'anything-at-all-here-ok' });
+    check('with no recovery secret configured, this path does not exist', noSecret.status === 401 || noSecret.status === 403, 'status ' + noSecret.status);
+    check('the authenticator is untouched', !!store('hieronymus-staff-users')['akore-rene'].totp, 'cleared');
+
+    // Configured, but a short secret is refused rather than treated as protection.
+    ENV.TWO_FACTOR_RECOVERY_SECRET = 'too-short';
+    const short = await POST(twoFactor, { action: 'reset', username: 'akore-rene', recoverySecret: 'too-short' });
+    check('a secret under 24 characters is refused', short.status === 500, 'status ' + short.status);
+
+    ENV.TWO_FACTOR_RECOVERY_SECRET = 'a-real-recovery-secret-of-sufficient-length';
+    const wrong = await POST(twoFactor, { action: 'reset', username: 'akore-rene', recoverySecret: 'a-real-recovery-secret-of-WRONG-length-xxxxx' });
+    check('a wrong secret is refused', wrong.status === 403, 'status ' + wrong.status);
+    check('and still nothing was cleared', !!store('hieronymus-staff-users')['akore-rene'].totp, 'cleared');
+
+    const ok = await POST(twoFactor, { action: 'reset', username: 'akore-rene', recoverySecret: ENV.TWO_FACTOR_RECOVERY_SECRET });
+    const okBody = await ok.json();
+    check('the right secret resets the account', ok.status === 200, 'status ' + ok.status);
+    check('it says how it was reset', okBody.resetBy === 'recovery-secret', JSON.stringify(okBody));
+    check('the authenticator is gone', !store('hieronymus-staff-users')['akore-rene'].totp, 'still enrolled');
+    check('every session for that account is gone too',
+      !Object.values(STORES['hieronymus-staff-sessions'] || {}).some(v => v.username === 'akore-rene'),
+      'a session survived the reset');
+    check('so the next login sends them through setup',
+      (await GET(staffUsers, 'username=akore-rene&password=' + encodeURIComponent(PW))).status === 401, '');
+
+    const after = await GET(staffUsers, 'username=akore-rene&password=' + encodeURIComponent(PW));
+    check('and it is enrollment they are sent to, not a code', (await after.json()).needsEnrollment === true, '');
+
+    // It resets one named account, not everything.
+    const cb = await (await POST(twoFactor, { action: 'begin', username: 'fiacsa', password: PW })).json();
+    await POST(twoFactor, { action: 'confirm', username: 'fiacsa', password: PW, code: codeAt(cb.secret, nowStep() - 1) });
+    await POST(twoFactor, { action: 'reset', username: 'akore-rene', recoverySecret: ENV.TWO_FACTOR_RECOVERY_SECRET });
+    check("another account's authenticator is left alone",
+      !!store('hieronymus-intake-codes')['fiacsa'].members[0].totp, 'cleared someone else too');
+    delete ENV.TWO_FACTOR_RECOVERY_SECRET;
   }
 
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all assertions passed'));
