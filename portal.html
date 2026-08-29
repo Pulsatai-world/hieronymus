@@ -418,6 +418,8 @@ function escapeHtml(s) {
 
 // ── Language ──
 const T = {
+  saveKeyGateTitle: { en: 'Change API key', es: 'Cambiar clave de API' },
+  saveKeyGateMessage: { en: 'Confirm your password to replace this customer\u2019s {engine} key. Their audit runs will use the new key from now on.', es: 'Confirma tu contraseña para reemplazar la clave de {engine} de este cliente. Sus auditorías usarán la clave nueva a partir de ahora.' },
   twoFactorOn: { en: 'authenticator set up', es: 'autenticador configurado' },
   twoFactorPending: { en: 'no authenticator yet', es: 'sin autenticador' },
   resetTwoFactorBtn: { en: 'Reset authenticator', es: 'Restablecer autenticador' },
@@ -1048,6 +1050,14 @@ async function saveResetKey(engine) {
   const errBox = document.getElementById('member-error-box');
   if (!value) { errBox.textContent = t('fillNewKey'); errBox.style.display = 'block'; return; }
   errBox.style.display = 'none';
+  // Password-gated like the other outward-facing staff actions: this key is what the customer's
+  // audit runs are billed against, so replacing it silently redirects every future run.
+  const okPw = await window.requirePassword({
+    title: t('saveKeyGateTitle'),
+    message: t('saveKeyGateMessage').replace('{engine}', engine),
+    username: localStorage.getItem(USER_KEY) || ''
+  });
+  if (!okPw) return;
   try {
     const res = await fetch(await window.apiQuery('/api/customer-keys', {}), {
       method: 'POST',

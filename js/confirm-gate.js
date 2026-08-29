@@ -46,11 +46,14 @@
         if (!username) { err.textContent = wrongLabel; err.style.display = 'block'; return; }
         err.style.display = 'none'; okBtn.disabled = true;
         try {
-          const res = await fetch('/api/staff-users?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(pw));
+          // verifyOnly: this confirms the password of someone who is ALREADY signed in, so it must
+          // not drag the whole login through — two-factor is asked for once, at the door. The
+          // endpoint answers { ok: true } and nothing else.
+          const res = await fetch('/api/staff-users?verifyOnly=1&username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(pw));
           const data = await res.json().catch(() => ({}));
-          // A valid single-user check returns that user's record (has `username`); the no-username
-          // path returns an { items } list with HTTP 200 — that must NOT be accepted as a pass.
-          if (!res.ok || !data || !data.username) throw new Error('bad');
+          // Only an explicit yes counts. The no-username path returns an { items } list with HTTP
+          // 200, and that must never read as a pass.
+          if (!res.ok || !data || data.ok !== true) throw new Error('bad');
           try { sessionStorage.setItem('geo_staff_password', pw); } catch (e) { /* private mode */ }
           // Mint a session token off the back of this check so the dialog does not come back.
           if (typeof window.staffSignIn === 'function') await window.staffSignIn(username, pw);

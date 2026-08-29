@@ -294,6 +294,53 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     });
   }
 
+  // ── Two-factor at the door, password behind it ──
+  // The in-app gates re-check the password of someone already signed in. Routing those through the
+  // full login would have demanded a code for every run-audit, dashboard release and delete — and
+  // since confirm-gate.js verified against the login endpoint, that is exactly what shipping this
+  // without verifyOnly would have done.
+  console.log('\nConfirming a password behind an existing login:');
+  reset();
+  {
+    const b = await (await POST(twoFactor, { action: 'begin', username: 'akore-rene', password: PW })).json();
+    await POST(twoFactor, { action: 'confirm', username: 'akore-rene', password: PW, code: codeAt(b.secret, nowStep() - 1) });
+
+    const res = await GET(staffUsers, 'verifyOnly=1&username=akore-rene&password=' + encodeURIComponent(PW));
+    const body = await res.json();
+    check('an enrolled account can confirm its password with no code', res.status === 200 && body.ok === true, JSON.stringify(body));
+
+    // It must confirm and nothing more: no record, no role, no token, no session.
+    check('it returns nothing but a yes', Object.keys(body).length === 1 && 'ok' in body, JSON.stringify(body));
+    ['passwordHash', 'totp', 'tfToken', 'role', 'username'].forEach(k => {
+      check('the confirmation does not leak ' + k, !(k in body), JSON.stringify(body));
+    });
+    check('no session token was minted by it', Object.keys(STORES['hieronymus-2fa-sessions'] || {}).length === 1,
+      'sessions: ' + Object.keys(STORES['hieronymus-2fa-sessions'] || {}).length);
+
+    const bad = await GET(staffUsers, 'verifyOnly=1&username=akore-rene&password=wrong');
+    check('a wrong password is still refused', bad.status === 401, 'status ' + bad.status);
+
+    // And it must not become a way around the login itself.
+    const login = await GET(staffUsers, 'username=akore-rene&password=' + encodeURIComponent(PW));
+    check('logging in still demands a code', login.status === 401 && (await login.json()).needsCode === true, 'status ' + login.status);
+    const listing = await GET(staffUsers, 'verifyOnly=1');
+    const lbody = await listing.json();
+    check('verifyOnly with no username cannot answer yes', lbody.ok !== true, JSON.stringify(lbody).slice(0, 120));
+  }
+
+  console.log('\nThe in-app gates and the API-key change:');
+  {
+    const gate = fs.readFileSync('js/confirm-gate.js', 'utf8');
+    check('confirm-gate asks for password only', gate.includes('verifyOnly=1'), 'still uses the login path');
+    check('and accepts only an explicit yes', gate.includes('data.ok !== true'), 'weaker check');
+
+    const portal = fs.readFileSync('portal.html', 'utf8');
+    const i = portal.indexOf('async function saveResetKey');
+    const j = portal.indexOf("'/api/customer-keys'", i);
+    check('changing a customer API key is password-gated',
+      i > -1 && j > i && portal.slice(i, j).includes('requirePassword'), 'no gate before the write');
+  }
+
   // ── The page wiring ──
   // The server can be perfect and the feature still absent, because a gate that never asks for a
   // code lets nobody in and a page that logs in its own way bypasses the shared handling entirely.

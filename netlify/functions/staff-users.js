@@ -81,6 +81,14 @@ export default async (request, context) => {
         return json({ error: 'Invalid username or password' }, 401);
       }
       const uname = username.toLowerCase();
+
+      // Confirming a password is not logging in. The in-app gates (run audit, release a dashboard,
+      // delete a customer, clear results) re-check the password of someone who is ALREADY signed in,
+      // so they stop here: two-factor belongs at the door, not on every step behind it. This answers
+      // with nothing but a yes — no account record, no session token, nothing that grants access —
+      // and the login path below still requires a code, so this cannot be used to get in.
+      if (url.searchParams.get('verifyOnly')) return json({ ok: true }, 200);
+
       const gateOpts = { username: uname, token: url.searchParams.get('tfToken') };
       const gate = await totpGate(record, url.searchParams.get('code'), () => store.setJSON(uname, record), json, gateOpts);
       if (gate) return gate;
