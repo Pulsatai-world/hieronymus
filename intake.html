@@ -796,10 +796,6 @@ select {
 }
 
 </style>
-<script src="/js/auth-epoch.js"></script>
-<script src="/js/confirm-gate.js"></script>
-<script src="/js/results-auth.js"></script>
-<script src="/js/two-factor-setup.js"></script>
 </head>
 <body>
 
@@ -1397,6 +1393,8 @@ select {
 
 </div><!-- /#app-content -->
 
+<script src="/js/auth.js"></script>
+<script src="/js/enroll-dialog.js"></script>
 <script>
 const PANELS = ['panel-0','panel-websites','panel-1','panel-2','panel-3','panel-4','panel-5','panel-6','panel-7','panel-8','panel-complete'];
 const TAB_IDS = ['tab-0','tab-websites','tab-1','tab-2','tab-3','tab-4','tab-5','tab-6','tab-7','tab-8','tab-complete'];
@@ -1599,7 +1597,6 @@ function buildSummary() {
 
 // ── ACCESS GATE ──
 let clientUsername = '';
-let clientPassword = '';
 let clientCompany = '';
 let clientRole = 'full';
 let isStaffBypass = false;
@@ -1608,7 +1605,7 @@ function findMember(group, username) {
 }
 
 window.clientLogout = function() {
-  // Clears EVERY client session, not just this page's — see js/results-auth.js.
+  // Ends the session on the server too, so signing out really signs out — see js/auth.js.
   if (window.clientLogoutAll) return window.clientLogoutAll();
   sessionStorage.clear();
   location.href = location.pathname;
@@ -1616,55 +1613,44 @@ window.clientLogout = function() {
 
 // opts.useTicket is set only when continuing a session (after enrollment, or a restore) — a
 // password typed into the gate always requires a code.
-window.submitGateCode = async function(opts) {
+// Applies a signed-in session to the page, from the gate or from the on-load restore.
+async function adoptSession(who) {
+  clientUsername = who.username || '';
+  clientCompany = who.company || '';
+  clientRole = who.role || 'full';
+  isStaffBypass = !!who.staffBypass;
+  showApp();
+  await restoreSavedProgress();
+}
+
+window.submitGateCode = async function() {
   const userInput = document.getElementById('gate-username-input');
   const passInput = document.getElementById('gate-password-input');
+  const codeEl = document.getElementById('gate-code-input');
   const errEl = document.getElementById('gate-error');
   const username = userInput.value.trim().toLowerCase();
   const password = passInput.value.trim();
+  const code = codeEl ? codeEl.value.replace(/\D/g, '') : '';
   errEl.textContent = '';
   if (!username || !password) {
     errEl.textContent = lang === 'es' ? 'Ingresa tu usuario y contraseña.' : 'Enter your username and password.';
     return;
   }
-  const codeEl = document.getElementById('gate-code-input');
-  const typedCode = codeEl ? codeEl.value.trim() : '';
-  const attempt = await validateGateCode(username, password, typedCode, opts);
-  if (!attempt.ok && attempt.needsEnrollment) {
-    // Two-factor is mandatory: walk them through setup, then retry the login. The token issued on
-    // confirmation is already stored, so the retry goes through without asking for another code.
-    const done = await window.startTwoFactorSetup({ username: username, password: password, lang: lang, audience: 'client' });
-    if (done) return window.submitGateCode({ useTicket: true });
-    errEl.textContent = window.showGateCode({ }, lang, false);
-    return;
-  }
-  if (!attempt.ok && attempt.needsCode) {
-    errEl.textContent = window.showGateCode(attempt, lang, !!typedCode);
-    return;
-  }
-  const data = attempt.ok ? attempt.data : null;
-  if (!data) {
-    errEl.textContent = lang === 'es' ? 'Usuario o contraseña inválidos. Verifica e intenta de nuevo.' : 'Invalid username or password. Please check and try again.';
+
+  const attempt = await window.akoreSignIn(username, password, code, lang);
+  if (attempt.cancelled) { errEl.textContent = ''; return; }
+  if (attempt.needsCode) { errEl.textContent = window.showGateCode(attempt, lang, !!code); return; }
+  if (!attempt.ok) {
+    errEl.textContent = attempt.error || (lang === 'es'
+      ? 'Usuario o contraseña inválidos. Verifica e intenta de nuevo.'
+      : 'Invalid username or password. Please check and try again.');
     passInput.classList.add('error');
     setTimeout(() => passInput.classList.remove('error'), 400);
     return;
   }
-  if (window.clearBypassSuppression) window.clearBypassSuppression();
-    sessionStorage.setItem('geo_intake_username', username);
-  sessionStorage.setItem('geo_intake_password', password);
-  clientUsername = username;
-  clientPassword = password;
-  clientCompany = data.company || '';
-  clientRole = data.role || 'full';
-  showApp();
-  await restoreSavedProgress();
+  await adoptSession(attempt.who);
 };
 
-// Returns the shared login attempt rather than just the data, because a refused login now has two
-// distinct meanings — bad credentials, or a correct password still awaiting its 6-digit code.
-async function validateGateCode(username, password, code, opts) {
-  return await window.clientLogin(username, password, code, opts);
-}
 
 async function restoreSavedProgress() {
   if (!clientCompany) return;
@@ -1830,69 +1816,18 @@ function populateForm(d) {
   const params = new URLSearchParams(location.search);
   const usernameFromUrl = params.get('username');
 
-  // Staff already logged into the internal Portal can open a customer's link straight
-  // through, without also needing that customer's own password.
-  if (usernameFromUrl && localStorage.getItem('hieronymus_internal_auth') === 'true'
-      && !!localStorage.getItem('hieronymus_staff_token')
-      && !(window.clientBypassSuppressed && window.clientBypassSuppressed())) {
-    try {
-      const res = await fetch(await window.apiQuery('/api/intake-codes', {}));
-      const data = await res.json();
-      const group = (data.items || []).find(i => findMember(i, usernameFromUrl));
-      if (group) {
-        clientUsername = usernameFromUrl;
-        clientPassword = '';
-        clientCompany = group.company || '';
-        clientRole = 'full'; // staff bypass — full unrestricted access regardless of the member's own role
-        isStaffBypass = true;
-        showApp();
-        await restoreSavedProgress();
-        return;
-      }
-    } catch { /* fall through to the normal client login gate */ }
-  }
+  // Already signed in? The server decides, from the session this browser holds. Nothing else is
+  // remembered between visits — no password is stored for a restore to read.
+  const who = await window.akoreAuth.restore();
+  if (who) { await adoptSession(who); return; }
 
-  // The password is never carried in the URL — only a remembered same-session login can
-  // skip straight past the gate. A fresh visit always requires typing the password.
-  const usernameToTry = sessionStorage.getItem('geo_intake_username');
-  const passwordToTry = sessionStorage.getItem('geo_intake_password');
-  if (usernameFromUrl && !usernameToTry) {
+  // Staff filling in or correcting a customer's intake, using the staff session already in this
+  // browser. Every request the page then makes carries that staff session.
+  if (usernameFromUrl) {
+    const asCustomer = await window.akoreStaffBypass(usernameFromUrl);
+    if (asCustomer) { await adoptSession({ ...asCustomer, staffBypass: true }); return; }
     const userInput = document.getElementById('gate-username-input');
     if (userInput) userInput.value = usernameFromUrl;
-  }
-  if (!usernameToTry || !passwordToTry) return;
-  const restored = await validateGateCode(usernameToTry, passwordToTry, '', { useTicket: true });
-  if (restored.needsEnrollment) {
-    // Their authenticator was reset (a lost phone, most likely). Set a new one up and carry on
-    // rather than dropping them at a blank gate with no explanation.
-    const u = document.getElementById('gate-username-input');
-    const pw = document.getElementById('gate-password-input');
-    if (u) u.value = usernameToTry;
-    if (pw) pw.value = passwordToTry;
-    const done = await window.startTwoFactorSetup({ username: usernameToTry, password: passwordToTry, lang: lang, audience: 'client' });
-    if (done) return window.submitGateCode();
-    return;
-  }
-  if (restored.needsCode) {
-    // The two-factor session expired mid-visit. Put them back at the gate with the credentials
-    // filled in, needing only a fresh code — not a full re-login.
-    const u = document.getElementById('gate-username-input');
-    const pw = document.getElementById('gate-password-input');
-    if (u) u.value = usernameToTry;
-    if (pw) pw.value = passwordToTry;
-    const errEl = document.getElementById('gate-error');
-    const msg = window.showGateCode(restored, lang, false);
-    if (errEl) errEl.textContent = msg;
-    return;
-  }
-  if (restored.ok) {
-    const data = restored.data;
-    clientUsername = usernameToTry;
-    clientPassword = passwordToTry;
-    clientCompany = data.company || '';
-    clientRole = data.role || 'full';
-    showApp();
-    await restoreSavedProgress();
   }
 })();
 
@@ -1916,7 +1851,7 @@ window.submitIntake = async function() {
     const res = await fetch(await window.apiQuery('/api/intake', {}), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company, intake: data, requestingUsername: isStaffBypass ? '' : clientUsername, requestingPassword: clientPassword, tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '' })
+      body: JSON.stringify({ company, intake: data })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -1928,11 +1863,8 @@ window.submitIntake = async function() {
         headers: { 'Content-Type': 'application/json' },
         // Says who is asking: the customer themselves, or staff correcting on their behalf.
         body: JSON.stringify({
-          username: clientUsername || '', markSubmitted: true,
-          requestingPassword: clientPassword,
-          requestingStaffUsername: isStaffBypass ? (localStorage.getItem('hieronymus_internal_user') || '') : '',
-          requestingStaffPassword: isStaffBypass ? (sessionStorage.getItem('geo_staff_password') || '') : '',
-          tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+          session: window.akoreAuth.session(),
+          username: clientUsername || '', markSubmitted: true
         })
       }).catch(() => {});
     }
@@ -1964,7 +1896,7 @@ window.saveProgress = async function() {
     const res = await fetch(await window.apiQuery('/api/intake', {}), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company, intake: data, requestingUsername: isStaffBypass ? '' : clientUsername, requestingPassword: clientPassword, tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '' })
+      body: JSON.stringify({ company, intake: data })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     btn.textContent = '✓ ' + (lang === 'es' ? 'Guardado' : 'Saved');

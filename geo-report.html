@@ -12,12 +12,11 @@
   .msg h1 { font-family: "Montserrat","Helvetica Neue",Arial,sans-serif; font-size: 19px; margin: 0 0 10px; color: #08090c; }
   .msg a { color: #6d4fe0; }
 </style>
-<script src="/js/confirm-gate.js"></script>
-<script src="/js/results-auth.js"></script>
 </head>
 <body>
 <div class="msg" id="msg"><h1>Cargando informe…</h1><p>Un momento.</p></div>
 
+<script src="/js/auth.js"></script>
 <script>
 // A shareable link to a stored scan.
 //
@@ -27,7 +26,6 @@
 // into the document. Anyone on the team who is logged in opens the same link and sees the report;
 // anyone who is not gets sent to log in first, and the link still works afterwards.
 
-const SESSION_KEY = 'hieronymus_internal_auth';
 const params = new URLSearchParams(location.search);
 const company = params.get('company');
 const run = params.get('run');
@@ -63,7 +61,7 @@ function show(pair, extra) {
 (async () => {
   if (!company) return show(C.noCompany);
 
-  if (localStorage.getItem(SESSION_KEY) !== 'true') {
+  if ((window.akoreAuth.who() || {}).kind !== 'staff') {
     // The portal has no return-to-URL handling, so redirecting there would strand the reader on
     // the customer list with the report link lost. Instead the portal opens in a new tab and this
     // one stays put: log in there, come back here, reload.

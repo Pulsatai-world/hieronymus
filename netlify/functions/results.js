@@ -1,20 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { requireTwoFactorProof } from './lib/two-factor-gate.js';
+import { requireStaff, requireStaffAdmin, requireCompany } from './lib/authorize.js';
 
-function verifyPassword(password, stored) {
-  const [salt, hash] = String(stored || '').split(':');
-  if (!salt || !hash) return false;
-  const check = crypto.scryptSync(password, salt, 64).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'));
-}
-async function requireAdmin(username, password) {
-  if (!username || !password) return false;
-  const usersStore = getStore('hieronymus-staff-users');
-  const record = await usersStore.get(String(username).toLowerCase(), { type: 'json' });
-  if (!record || record.role !== 'admin') return false;
-  return verifyPassword(password, record.passwordHash);
-}
 
 // Each result row is stored as its own blob, keyed by run_id. This avoids the read-modify-write
 // race that a single shared "append to one big CSV" blob has under concurrent writers (audits
@@ -26,17 +13,6 @@ async function requireAdmin(username, password) {
 // every other customer's data, and swapping ?company= in the URL showed a competitor's audit. A
 // client-side filter is not an access control.
 //
-// The write path (POST) stays open: run-audit-background.js calls it server-to-server with no
-// credentials to save each row, and gating it would break every audit.
-async function memberOfCompany(company, username, password) {
-  if (!company || !username || !password) return false;
-  const codesStore = getStore('hieronymus-intake-codes');
-  const group = await codesStore.get(slugify(company), { type: 'json' });
-  if (!group) return false;
-  const member = (group.members || []).find(m => m.username === String(username).toLowerCase());
-  if (!member) return false;
-  return verifyPassword(password, member.passwordHash);
-}
 
 // A signed-in staff session presents an opaque token instead of the password. Checked first so a
 // restored session never has to ask for the password again; the password path below is unchanged
@@ -47,22 +23,7 @@ async function memberOfCompany(company, username, password) {
 // the deploy itself so every session that predates two-factor ends with it.
 const SESSION_EPOCH = Date.parse('2026-08-29T14:11:51Z');
 
-async function staffFromToken(token) {
-  if (!token) return null;
-  const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
-  if (!s || !s.username) return null;
-  if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
-  if (s.createdAt && Date.parse(s.createdAt) < SESSION_EPOCH) return null;
-  return s.username;
-}
 
-async function isStaff(username, password, token) {
-  if (await staffFromToken(token)) return true;
-  if (!username || !password) return false;
-  const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
-  if (!record) return false;
-  return verifyPassword(password, record.passwordHash);
-}
 
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
@@ -90,32 +51,23 @@ function rowToCsvLine(row) {
   return CSV_COLUMNS.map(col => csvEscape(row[col])).join(',') + '\n';
 }
 
+function json(obj, status) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' }
+  });
+}
+
 export default async (request, context) => {
   const store = getStore('hieronymus-results-rows');
-
-  // A password alone is no longer enough here. A customer's password must be accompanied by the
-  // ticket issued when their code was accepted, and so must a staff password; a staff session token
-  // is proof on its own. Before this, two-factor guarded the login pages while this endpoint still
-  // handed a customer's entire dataset to anyone who knew their password.
-  const proofDenied = await requireTwoFactorProof(
-    new URL(request.url),
-    null,
-    (obj, status) => new Response(JSON.stringify(obj), {
-      status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' }
-    })
-  );
-  if (proofDenied) return proofDenied;
+  const url = new URL(request.url);
 
   if (request.method === 'POST') {
     // The audit no longer calls this — run-audit-background.js writes rows straight to the store —
     // so the only remaining callers would be manual imports, which are a staff action. Leaving it
     // open let anyone fabricate rows in any customer's dataset.
-    const u = new URL(request.url);
-    if (!await isStaff(u.searchParams.get('staffUsername'), u.searchParams.get('staffPassword'), u.searchParams.get('staffToken'))) {
-      return new Response(JSON.stringify({ error: 'Staff credentials required to write result rows' }), {
-        status: 403, headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const denied = await requireStaff(url, null, json);
+    if (denied) return denied;
     let body;
     try {
       body = await request.json();
@@ -140,23 +92,13 @@ export default async (request, context) => {
   }
 
   if (request.method === 'GET') {
-    const url2 = new URL(request.url);
-    const company = (url2.searchParams.get('company') || '').trim();
-    const staff = await isStaff(url2.searchParams.get('staffUsername'), url2.searchParams.get('staffPassword'), url2.searchParams.get('staffToken'));
-    const member = company
-      ? await memberOfCompany(company, url2.searchParams.get('username'), url2.searchParams.get('password'))
-      : false;
+    const company = (url.searchParams.get('company') || '').trim();
 
-    // Staff may read one customer or everything. A customer may read only their own, and only by
-    // proving membership of the company they asked for — so editing ?company= gets a 403 rather
-    // than someone else's data.
-    if (!staff && !member) {
-      return new Response(JSON.stringify({
-        error: company
-          ? 'Not authorised to read results for this customer'
-          : 'Reading all results requires staff credentials'
-      }), { status: 403, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
-    }
+    // Staff may read one customer or everything. A customer may read only their own: the company is
+    // taken from their session, not from the query, so editing ?company= gets a refusal rather than
+    // somebody else's audit.
+    const denied = await requireCompany(url, null, json, company);
+    if (denied) return denied;
 
     const { blobs } = await store.list();
     let rows = (await Promise.all(blobs.map(b => store.get(b.key, { type: 'json' })))).filter(Boolean);
@@ -180,7 +122,6 @@ export default async (request, context) => {
   // button on that customer's Hieronymus page) — scoped to a single company on purpose, never
   // a blanket wipe, and the frontend gates this behind an explicit confirm dialog.
   if (request.method === 'DELETE') {
-    const url = new URL(request.url);
     const company = (url.searchParams.get('company') || '').trim();
     if (!company) {
       return new Response(JSON.stringify({ error: 'Missing company param' }), {
@@ -188,13 +129,8 @@ export default async (request, context) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    const ok = await requireAdmin(url.searchParams.get('requestingUsername'), url.searchParams.get('requestingPassword'));
-    if (!ok) {
-      return new Response(JSON.stringify({ error: 'Only an admin can clear results' }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    const denied = await requireStaffAdmin(url, null, json);
+    if (denied) return denied;
     // Optional snapshot_date narrows the delete to one run. Without it the behaviour is unchanged
     // (every row for that customer) — but a single bad run should not force wiping a monitoring
     // history that took months to build.

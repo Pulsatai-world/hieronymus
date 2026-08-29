@@ -1,35 +1,12 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { requireTwoFactorProof } from './lib/two-factor-gate.js';
+import { callerOf, requireCompany, requireStaff } from './lib/authorize.js';
 
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
 }
 
-function verifyPassword(password, stored) {
-  const [salt, hash] = String(stored || '').split(':');
-  if (!salt || !hash) return false;
-  const check = crypto.scryptSync(password, salt, 64).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'));
-}
 
-// "Viewer" members of a company group can look at prompts but not approve/edit them — this
-// is the one server-enforced boundary for that role (an internal staff request has no
-// member credentials to check, so it's allowed through unchanged).
-async function isBlockedViewer(requestingUsername, requestingPassword) {
-  if (!requestingUsername) return false;
-  const codesStore = getStore('hieronymus-intake-codes');
-  const { blobs } = await codesStore.list();
-  const groups = await Promise.all(blobs.map(b => codesStore.get(b.key, { type: 'json' })));
-  for (const g of groups) {
-    const member = (g.members || []).find(m => m.username === requestingUsername);
-    if (member) {
-      if (!verifyPassword(requestingPassword || '', member.passwordHash)) return true; // bad creds — block
-      return member.role === 'viewer';
-    }
-  }
-  return false;
-}
 
 // Generated prompts are held back from the customer until someone on the internal Akore team has
 // reviewed and released them. This has to be enforced here rather than in the browser: the
@@ -46,34 +23,8 @@ async function isBlockedViewer(requestingUsername, requestingPassword) {
 // the deploy itself so every session that predates two-factor ends with it.
 const SESSION_EPOCH = Date.parse('2026-08-29T14:11:51Z');
 
-async function staffFromToken(token) {
-  if (!token) return null;
-  const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
-  if (!s || !s.username) return null;
-  if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
-  if (s.createdAt && Date.parse(s.createdAt) < SESSION_EPOCH) return null;
-  return s.username;
-}
 
-async function isStaff(username, password, token) {
-  if (await staffFromToken(token)) return true;
-  if (!username || !password) return false;
-  const staffStore = getStore('hieronymus-staff-users');
-  const record = await staffStore.get(String(username).toLowerCase(), { type: 'json' });
-  if (!record) return false;
-  return verifyPassword(password, record.passwordHash);
-}
 
-// A customer may read their own prompt set. Previously any caller could read any customer's
-// released prompts by naming their company, and the parameterless list named every customer.
-async function memberOfCompany(company, username, password) {
-  if (!company || !username || !password) return false;
-  const group = await getStore('hieronymus-intake-codes').get(slugify(company), { type: 'json' });
-  if (!group) return false;
-  const member = (group.members || []).find(m => m.username === String(username).toLowerCase());
-  if (!member) return false;
-  return verifyPassword(password, member.passwordHash);
-}
 
 // The brief is internal working material from the generator (competitor lists, the
 // "facts a searcher could not know" exclusion list) — it is never part of a client response.
@@ -93,13 +44,6 @@ export default async (request, context) => {
   const store = getStore('hieronymus-prompts');
   const url = new URL(request.url);
 
-  // Every credential this endpoint accepts must now be backed by two-factor: a customer password
-  // needs the ticket issued when their code was accepted, and a staff password needs the same. A
-  // staff session token is proof on its own. Without this, two-factor guarded the login pages while
-  // this endpoint still answered anyone holding a password.
-  const proofDenied = await requireTwoFactorProof(url, null, json);
-  if (proofDenied) return proofDenied;
-
   if (request.method === 'POST') {
     let body;
     try {
@@ -107,6 +51,8 @@ export default async (request, context) => {
     } catch {
       return json({ error: 'Invalid JSON body' }, 400);
     }
+    const deniedPost = await requireStaff(url, body, json);
+    if (deniedPost) return deniedPost;
     const company = (body.company || '').trim();
     const promptsText = body.promptsText || '';
     if (!company) return json({ error: 'Missing company name' }, 400);
@@ -123,9 +69,10 @@ export default async (request, context) => {
       const data = await store.get(slugify(companyParam), { type: 'json' });
       if (!data) return json({ error: 'Not found' }, 404);
 
-      const staff = await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'));
-      const member = await memberOfCompany(companyParam, url.searchParams.get('username'), url.searchParams.get('password'));
-      if (!staff && !member) return json({ error: 'Not authorised to read prompts for this customer' }, 403);
+      const denied = await requireCompany(url, null, json, companyParam);
+      if (denied) return denied;
+      const caller = await callerOf(url, null);
+      const staff = caller.kind === 'staff';
       // Records the customer already approved predate this gate — they have demonstrably seen the
       // prompts, so treating them as unreleased would lock a live customer out of their own
       // review page for no benefit. Grandfather them in.
@@ -142,9 +89,8 @@ export default async (request, context) => {
       }
       return json({ ...withoutInternals(data), internalReviewPending: false }, 200);
     }
-    if (!await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'))) {
-      return json({ error: 'Listing prompt sets requires staff credentials' }, 403);
-    }
+    const deniedList = await requireStaff(url, null, json);
+    if (deniedList) return deniedList;
     const { blobs } = await store.list();
     const items = await Promise.all(blobs.map(async b => {
       const data = await store.get(b.key, { type: 'json' });
@@ -168,14 +114,17 @@ export default async (request, context) => {
       return json({ error: 'Invalid JSON body' }, 400);
     }
 
-    // Credentials in the body need the same two-factor proof as those in the query string —
-    // otherwise a stolen password could still overwrite an intake or approve a prompt set.
-    const bodyDenied = await requireTwoFactorProof(url, body, json);
-    if (bodyDenied) return bodyDenied;
     const company = (body.company || '').trim();
     if (!company) return json({ error: 'Missing company name' }, 400);
 
-    if (body.requestingUsername && await isBlockedViewer(body.requestingUsername, body.requestingPassword)) {
+    // Staff, or the customer this set belongs to.
+    const denied = await requireCompany(url, body, json, company);
+    if (denied) return denied;
+    const caller = await callerOf(url, body);
+    const asMember = caller.kind === 'customer';
+
+    // A viewer may read the prompts but not approve or edit them. The role is on the session.
+    if (asMember && caller.role === 'viewer') {
       return json({ error: 'Viewer accounts cannot approve or edit prompts' }, 403);
     }
 
@@ -187,10 +136,10 @@ export default async (request, context) => {
     // An Akore reviewer releasing the prompts to the customer. Separate from the customer's own
     // approval below and never reachable with customer credentials.
     if (body.internalApprove) {
-      const staffUsername = (body.requestingStaffUsername || '').trim().toLowerCase();
-      if (!await isStaff(staffUsername, body.requestingStaffPassword, body.staffToken || url.searchParams.get('staffToken'))) {
+      if (asMember) {
         return json({ error: 'Only a signed-in Akore staff user can release prompts to a customer' }, 403);
       }
+      const staffUsername = caller.username;
       if (typeof body.promptsText === 'string' && body.promptsText.trim()) {
         data.promptsText = body.promptsText.trim();
         data.editedAt = new Date().toISOString();
@@ -209,24 +158,9 @@ export default async (request, context) => {
       return json({ error: 'These prompts are still in internal review and cannot be approved yet' }, 409);
     }
 
-    // As with the intake, "no member credentials means staff" made an unauthenticated request the
-    // most privileged kind: anyone could approve a customer's prompt set, or replace the questions
-    // in it, without holding any credential at all. Staff now identify themselves explicitly.
-    const asMember = body.requestingUsername
-      ? await memberOfCompany(company, body.requestingUsername, body.requestingPassword)
-      : false;
-    const asStaff = await isStaff(
-      body.requestingStaffUsername || url.searchParams.get('staffUsername'),
-      body.requestingStaffPassword || url.searchParams.get('staffPassword'),
-      body.staffToken || url.searchParams.get('staffToken')
-    );
-    if (!asMember && !asStaff) {
-      return json({ error: 'Not authorised to approve prompts for this customer' }, 403);
-    }
-
-    // Approval is one-way for the customer. A staff request is still allowed through so they can
-    // revise and re-approve on a customer's behalf — but it now has to be a proven staff request.
-    if (data.approvedAt && body.requestingUsername) {
+    // Approval is one-way for the customer. Staff are still allowed through so they can revise and
+    // re-approve on a customer's behalf.
+    if (data.approvedAt && asMember) {
       return json({ error: 'These prompts have already been approved and cannot be approved again' }, 409);
     }
 

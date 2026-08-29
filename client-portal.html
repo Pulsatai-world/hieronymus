@@ -116,10 +116,6 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--i
 @media (max-width: 640px) { .kv { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .app-header { padding: 0 16px; } .logo-sub, .logo-divider { display: none; } }
 </style>
-<script src="/js/auth-epoch.js"></script>
-<script src="/js/confirm-gate.js"></script>
-<script src="/js/results-auth.js"></script>
-<script src="/js/two-factor-setup.js"></script>
 </head>
 <body>
 
@@ -179,6 +175,8 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--i
   </div>
 </div>
 
+<script src="/js/auth.js"></script>
+<script src="/js/enroll-dialog.js"></script>
 <script>
 let clientCompany = '';
 let clientMonitoring = false;
@@ -186,7 +184,6 @@ let clientMonitoring = false;
 // explicitly from the customer's page in the platform; until then the client sees a "being
 // prepared" state instead of a link.
 let clientDiagnosisReleased = false, clientMonitoringReleased = false;
-let clientPassword = '';
 let clientDefaultLanguage = '';
 let clientSubmittedAt = '';
 let clientUsername = '';
@@ -323,8 +320,8 @@ async function savePassword() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: sessionStorage.getItem('geo_portal_username'), currentPassword: cur, newPassword: next,
-        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+        session: window.akoreAuth.session(),
+        username: clientUsername, currentPassword: cur, newPassword: next
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -333,8 +330,8 @@ async function savePassword() {
       msg.className = 'field-msg error';
       return;
     }
-    clientPassword = next;
-    sessionStorage.setItem('geo_portal_password', next);
+    // Nothing to remember: the session is unaffected by a password change, and no password is
+    // kept in the browser.
     document.getElementById('set-current-password').value = '';
     document.getElementById('set-new-password').value = '';
     document.getElementById('set-confirm-password').value = '';
@@ -360,8 +357,8 @@ async function saveDefaultLanguage(newLang) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username: sessionStorage.getItem('geo_portal_username'), currentPassword: clientPassword, defaultLanguage: newLang,
-        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+        session: window.akoreAuth.session(),
+        username: clientUsername, defaultLanguage: newLang
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -379,56 +376,51 @@ async function saveDefaultLanguage(newLang) {
 // opts.useTicket distinguishes restoring a session on page load from a person typing their
 // password. A typed password always requires a code; a restore does not, or every hop between the
 // customer's pages would ask for one.
-async function submitGate(opts) {
+// Applies a signed-in session to the page. One place, so the gate and the on-load restore cannot
+// end up disagreeing about what the page knows about itself.
+function adoptSession(who) {
+  clientCompany = who.company || '';
+  clientUsername = who.username || '';
+  clientRole = who.role || 'full';
+  clientMonitoring = !!who.monitoringEnabled;
+  clientDiagnosisReleased = !!who.diagnosisReleased;
+  clientMonitoringReleased = !!who.monitoringReleased;
+  clientSubmittedAt = who.submittedAt || '';
+  clientDefaultLanguage = who.defaultLanguage || '';
+  if (clientDefaultLanguage && clientDefaultLanguage !== lang) {
+    lang = clientDefaultLanguage;
+    localStorage.setItem('hieronymus_lang', lang);
+    applyStaticLang();
+  }
+  showApp();
+}
+
+async function submitGate() {
   const userInput = document.getElementById('gate-username-input');
   const passInput = document.getElementById('gate-password-input');
+  const codeEl = document.getElementById('gate-code-input');
   const errEl = document.getElementById('gate-error');
   const username = userInput.value.trim().toLowerCase();
   const password = passInput.value.trim();
+  const code = codeEl ? codeEl.value.replace(/\D/g, '') : '';
   errEl.textContent = '';
-  if (!username || !password) {
-    errEl.textContent = t('enterCreds');
+  if (!username || !password) { errEl.textContent = t('enterCreds'); return; }
+
+  // Three possible answers: in, needs a code, or needs an authenticator set up first. Setting one up
+  // ends signed in, so there is no second step to get wrong.
+  const attempt = await window.akoreSignIn(username, password, code, lang);
+  if (attempt.cancelled) { errEl.textContent = ''; return; }
+  if (attempt.needsCode) {
+    errEl.textContent = window.showGateCode(attempt, lang, !!code);
     return;
   }
-  // Routed through the shared client login so the two-factor step and its session token behave the
-  // same on all three client pages, including the session-restore path that calls this on load.
-  const codeEl = document.getElementById('gate-code-input');
-  const typedCode = codeEl ? codeEl.value.trim() : '';
-  const attempt = await window.clientLogin(username, password, typedCode, opts);
-  if (!attempt.ok && attempt.needsEnrollment) {
-    // Two-factor is mandatory: walk them through setup, then retry the login. The token issued on
-    // confirmation is already stored, so the retry goes through without asking for another code.
-    const done = await window.startTwoFactorSetup({ username: username, password: password, lang: lang, audience: 'client' });
-    if (done) return submitGate({ useTicket: true });
-    errEl.textContent = window.showGateCode({ }, lang, false);
-    return;
-  }
-  if (!attempt.ok && attempt.needsCode) {
-    errEl.textContent = window.showGateCode(attempt, lang, !!typedCode);
-    return;
-  }
-  try {
-    if (!attempt.ok) throw new Error('bad credentials');
-    const data = attempt.data;
-    clientTwoFactorEnabled = !!data.twoFactorEnabled;
-    clientCompany = data.company || '';
-    clientMonitoring = !!data.monitoringEnabled;
-    clientDiagnosisReleased = !!data.diagnosisReleased;
-    clientMonitoringReleased = !!data.monitoringReleased;
-    clientPassword = password;
-    clientDefaultLanguage = data.defaultLanguage || '';
-    clientSubmittedAt = data.submittedAt || '';
-    clientUsername = username;
-    clientRole = data.role || 'full';
-    if (window.clearBypassSuppression) window.clearBypassSuppression();
-    sessionStorage.setItem('geo_portal_username', username);
-    sessionStorage.setItem('geo_portal_password', password);
-    if (clientDefaultLanguage && clientDefaultLanguage !== lang) { lang = clientDefaultLanguage; localStorage.setItem('hieronymus_lang', lang); applyStaticLang(); }
-    showApp();
-  } catch {
-    errEl.textContent = t('invalidCreds');
+  if (!attempt.ok) {
+    errEl.textContent = attempt.error || t('invalidCreds');
     passInput.classList.add('error');
+    setTimeout(() => passInput.classList.remove('error'), 400);
+    return;
   }
+  adoptSession(attempt.who);
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -462,7 +454,7 @@ function titleRow() {
   return `<div class="page-title-row"><div class="page-title">${esc(clientCompany)}</div><div style="display:flex; gap:8px;">${settingsBtn}<button class="btn-ghost-sm" onclick="clientLogout()">${t('logoutBtn')}</button></div></div>`;
 }
 function clientLogout() {
-  // Clears EVERY client session, not just this page's — see js/results-auth.js.
+  // Ends the session on the server too, so signing out really signs out — see js/auth.js.
   if (window.clientLogoutAll) return window.clientLogoutAll();
   sessionStorage.clear();
   location.href = location.pathname;
@@ -658,43 +650,22 @@ applyStaticLang();
   const params = new URLSearchParams(location.search);
   const usernameFromUrl = params.get('username');
 
-  // Staff already logged into the internal Portal can open a customer's link straight
-  // through, without also needing that customer's own password.
-  if (usernameFromUrl && localStorage.getItem('hieronymus_internal_auth') === 'true'
-      && !!localStorage.getItem('hieronymus_staff_token')
-      && !(window.clientBypassSuppressed && window.clientBypassSuppressed())) {
-    try {
-      const res = await fetch(await window.apiQuery('/api/intake-codes', {}));
-      const data = await res.json();
-      const group = (data.items || []).find(i => findMember(i, usernameFromUrl));
-      const member = group && findMember(group, usernameFromUrl);
-      if (group && member) {
-        clientCompany = group.company || '';
-        clientMonitoring = !!group.monitoringEnabled;
-        clientDiagnosisReleased = !!group.diagnosisReleased;
-        clientMonitoringReleased = !!group.monitoringReleased;
-        clientDefaultLanguage = member.defaultLanguage || '';
-        clientSubmittedAt = group.submittedAt || '';
-        clientUsername = usernameFromUrl;
-        clientRole = member.role || 'full';
-        if (clientDefaultLanguage && clientDefaultLanguage !== lang) { lang = clientDefaultLanguage; localStorage.setItem('hieronymus_lang', lang); applyStaticLang(); }
-        showApp();
-        return;
-      }
-    } catch { /* fall through to the normal client login gate */ }
-  }
+  // Already signed in? The server decides, from the session this browser holds.
+  const who = await window.akoreAuth.restore();
+  if (who) { adoptSession(who); return; }
 
+  // Staff opening a customer's own page. Uses the staff session already in this browser; nothing is
+  // issued to it, and every request the page then makes carries that staff session. It means a staff
+  // sign-in reaches any customer's pages — a deliberate trade for being able to help someone who has
+  // lost their password.
   if (usernameFromUrl) {
+    const asCustomer = await window.akoreStaffBypass(usernameFromUrl);
+    if (asCustomer) { adoptSession(asCustomer); return; }
     const userInput = document.getElementById('gate-username-input');
     if (userInput) userInput.value = usernameFromUrl;
   }
-  const usernameToTry = sessionStorage.getItem('geo_portal_username');
-  const passwordToTry = sessionStorage.getItem('geo_portal_password');
-  if (usernameToTry && passwordToTry) {
-    document.getElementById('gate-username-input').value = usernameToTry;
-    document.getElementById('gate-password-input').value = passwordToTry;
-    submitGate({ useTicket: true });
-  }
+  // Otherwise the gate asks for a username, a password and a code. Nothing is remembered between
+  // visits except the session itself, so there is no stored password to restore from.
 })();
 </script>
 </body>

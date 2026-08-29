@@ -194,9 +194,6 @@
   .invtxt{font-size:13px;color:var(--dark);line-height:1.4}
   @media(max-width:900px){.geo-subs{margin-left:0}.erow{grid-template-columns:1fr 90px 90px}.barrow{grid-template-columns:100px 1fr 54px}.dual{flex-direction:column}}
 </style>
-<script src="/js/auth-epoch.js"></script>
-<script src="/js/confirm-gate.js"></script>
-<script src="/js/results-auth.js"></script>
 </head><body>
 <div class="head">
   <div class="headnav">
@@ -226,6 +223,7 @@
 <div class="panel" id="panel-prompts"><div class="wrap" id="pwrap"></div></div>
 <div class="foot" id="foot"></div>
 
+<script src="/js/auth.js"></script>
 <script>
 // ── i18n ──
 const T = {
@@ -456,6 +454,10 @@ function normalizeRow(r) {
 }
 
 async function loadData() {
+  // A dashboard can be opened by staff or by the customer it belongs to, so the session is restored
+  // before anything reads it — the "back" link, the staff-only controls and this request all depend
+  // on knowing which. Not signed in means the endpoint refuses and the message below explains it.
+  await window.akoreRestoreEither();
   const res = await fetch(await window.resultsQuery(new URLSearchParams(location.search).get('company') || ''));
   // Results are scoped server-side now, so a refusal means the visitor is not signed in as this
   // customer (or as staff). Say that, rather than parsing an error body as CSV and rendering an
@@ -663,7 +665,7 @@ function makeMulti(mountId, options, placeholder, onChange) {
 
 function buildForCompany() {
   // Back button: internal staff return to that customer's detail page; clients to their own portal.
-  document.getElementById('link-back').href = (localStorage.getItem('hieronymus_internal_auth') === 'true'
+  document.getElementById('link-back').href = (!!((window.akoreAuth.who() || {}).kind === 'staff')
     ? '/index.html?company=' : '/client-portal.html?company=') + encodeURIComponent(company);
   const companyKey = company.toLowerCase();
   // Diagnostic dashboard shows ONLY diagnosis data — monitoring runs (run_type='monitoring')
@@ -1070,7 +1072,7 @@ loadData();
   const co = (params.get('company') || '').trim();
   const user = (params.get('username') || '').trim();
   const slug = s => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
-  if (localStorage.getItem('hieronymus_internal_auth') === 'true') {
+  if (!!((window.akoreAuth.who() || {}).kind === 'staff')) {
     el.href = co ? '/index.html?company=' + encodeURIComponent(co) : '/portal.html';
   } else if (user || co) {
     el.href = '/client-portal.html?username=' + encodeURIComponent(user || slug(co));

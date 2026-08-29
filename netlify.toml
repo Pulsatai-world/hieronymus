@@ -58,20 +58,8 @@
   status = 301
 
 [[redirects]]
-  from = "/api/staff-session"
-  to = "/.netlify/functions/staff-session"
-  status = 200
-
-[[redirects]]
   from = "/api/staff-users"
   to = "/.netlify/functions/staff-users"
-  status = 200
-
-# Enrollment and recovery for two-factor. Its absence made /api/two-factor a 404, so the setup dialog
-# could never fetch a secret — and with enrollment mandatory at every login, that locked everyone out.
-[[redirects]]
-  from = "/api/two-factor"
-  to = "/.netlify/functions/two-factor"
   status = 200
 
 [[redirects]]
@@ -87,4 +75,24 @@
 [[redirects]]
   from = "/api/geo-report"
   to = "/.netlify/functions/geo-report"
+  status = 200
+
+# ── The login system ──
+# One login for staff and customers, one enrollment, one password re-confirmation. Every /api path a
+# page calls must appear here: /api/two-factor once shipped without a route, answered 404, and with
+# enrollment mandatory that locked every account out of the platform. test/api-routes.test.cjs now
+# fails if a path a page calls is missing from this file.
+[[redirects]]
+  from = "/api/login"
+  to = "/.netlify/functions/login"
+  status = 200
+
+[[redirects]]
+  from = "/api/enroll"
+  to = "/.netlify/functions/enroll"
+  status = 200
+
+[[redirects]]
+  from = "/api/confirm-password"
+  to = "/.netlify/functions/confirm-password"
   status = 200

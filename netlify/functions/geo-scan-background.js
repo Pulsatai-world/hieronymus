@@ -11,14 +11,8 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
 import { runScan } from './lib/geo-scan-engine.js';
-import { requireTwoFactorProof } from './lib/two-factor-gate.js';
+import { requireStaff } from './lib/authorize.js';
 
-function verifyPassword(password, stored) {
-  const [salt, hash] = String(stored || '').split(':');
-  if (!salt || !hash) return false;
-  const check = crypto.scryptSync(password, salt, 64).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'));
-}
 // A signed-in staff session presents an opaque token instead of the password. Checked first so a
 // restored session never has to ask for the password again; the password path below is unchanged
 // and still answers for anything that has not adopted tokens.
@@ -28,22 +22,7 @@ function verifyPassword(password, stored) {
 // the deploy itself so every session that predates two-factor ends with it.
 const SESSION_EPOCH = Date.parse('2026-08-29T14:11:51Z');
 
-async function staffFromToken(token) {
-  if (!token) return null;
-  const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
-  if (!s || !s.username) return null;
-  if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
-  if (s.createdAt && Date.parse(s.createdAt) < SESSION_EPOCH) return null;
-  return s.username;
-}
 
-async function isStaff(username, password, token) {
-  if (await staffFromToken(token)) return true;
-  if (!username || !password) return false;
-  const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
-  if (!record) return false;
-  return verifyPassword(password, record.passwordHash);
-}
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
 }
@@ -79,25 +58,13 @@ export default async (request) => {
   const { company, url, maxPages } = body || {};
   if (!company || !url) return new Response('Missing company or url', { status: 400 });
 
-  // Same two-factor requirement as every other staff-scoped endpoint. `url` here is the site being
-  // scanned, so the request's own URL is read separately.
-  const proofDenied = await requireTwoFactorProof(
-    new URL(request.url),
-    body,
-    (obj, status) => new Response(JSON.stringify(obj), {
-      status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
-    })
-  );
-  if (proofDenied) return proofDenied;
-
-  // Credentials may arrive in the query string (apiQuery puts them there, as it does for every
-  // other staff-scoped call) or in the body. Accepting both means neither caller shape is
-  // silently wrong.
-  const qs = new URL(request.url).searchParams;
-  const staffUsername = (body && body.staffUsername) || qs.get('staffUsername');
-  const staffPassword = (body && body.staffPassword) || qs.get('staffPassword');
-  const staffToken = (body && body.staffToken) || qs.get('staffToken');
-  if (!await isStaff(staffUsername, staffPassword, staffToken)) return new Response('Staff credentials required', { status: 403 });
+  // Staff only. `url` in this scope is the site being scanned, so the request's own URL is read
+  // separately. The session may arrive in the query string or in the body; both are read by the one
+  // helper, so neither caller shape can be silently wrong.
+  const denied = await requireStaff(new URL(request.url), body, (obj, status) => new Response(
+    JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } }
+  ));
+  if (denied) return denied;
 
   const key = slugify(company);
   const jobs = getStore('hieronymus-geo-jobs');

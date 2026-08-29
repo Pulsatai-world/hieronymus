@@ -41,9 +41,13 @@ for (const [p, fn] of Object.entries(routes).sort()) {
   check(p + ' -> ' + fn, fs.existsSync(path.join('netlify/functions', fn + '.js')), 'no such function file');
 }
 
-console.log('\nThe two-factor endpoint specifically, since its absence locked everyone out:');
-check('/api/two-factor is routed', routes['/api/two-factor'] === 'two-factor', JSON.stringify(routes['/api/two-factor']));
-check('the setup dialog calls that exact path', fs.readFileSync('js/two-factor-setup.js', 'utf8').includes("'/api/two-factor'"), 'calls something else');
+console.log('\nThe login endpoints specifically, since a missing route locked everyone out once:');
+for (const [path, fn] of [['/api/login', 'login'], ['/api/enroll', 'enroll'], ['/api/confirm-password', 'confirm-password']]) {
+  check(path + ' is routed', routes[path] === fn, JSON.stringify(routes[path]));
+}
+check('the browser calls those exact paths', ['/api/login', '/api/enroll', '/api/confirm-password']
+  .every(p => (fs.readFileSync('js/auth.js', 'utf8') + fs.readFileSync('js/enroll-dialog.js', 'utf8')).includes("'" + p + "'")),
+  'a page calls something else');
 
 // Server-side calls to our own API count too — a cron that posts to an unrouted path fails monthly,
 // quietly, in the middle of the night.

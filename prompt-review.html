@@ -5,10 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
 <!-- Shared staff password gate — used here only for the internal review/release step. -->
-<script src="/js/auth-epoch.js"></script>
-<script src="/js/confirm-gate.js"></script>
-<script src="/js/results-auth.js"></script>
-<script src="/js/two-factor-setup.js"></script>
 <title>GEO Audit — Review Prompts | Akore Labs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -128,10 +124,11 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-
 
 <main class="main" id="main-content"></main>
 
+<script src="/js/auth.js"></script>
+<script src="/js/enroll-dialog.js"></script>
 <script>
 let clientCompany = '';
 let clientUsername = '';
-let clientPassword = '';
 let clientRole = 'full';
 // True when an internal Akore staff member opened this page through the Portal bypass. Staff see
 // prompts before they're released to the customer, and are the only ones who can release them.
@@ -218,47 +215,37 @@ if (window.wireLogoHome) window.wireLogoHome(typeof clientCompany !== 'undefined
 // opts.useTicket distinguishes restoring a session on page load from a person typing their
 // password. A typed password always requires a code; a restore does not, or every hop between the
 // customer's pages would ask for one.
-async function submitGate(opts) {
+// Applies a signed-in session to the page, from the gate or from the on-load restore.
+function adoptSession(who) {
+  clientCompany = who.company || '';
+  clientUsername = who.username || '';
+  clientRole = who.role || 'full';
+  isStaffReviewer = who.kind === 'staff' || !!who.staffBypass;
+  if (isStaffReviewer) staffUsername = who.staffBypass ? (window.akoreAuth.who() || {}).username || '' : who.username;
+  showApp();
+}
+
+async function submitGate() {
   const userInput = document.getElementById('gate-username-input');
   const passInput = document.getElementById('gate-password-input');
+  const codeEl = document.getElementById('gate-code-input');
   const errEl = document.getElementById('gate-error');
   const username = userInput.value.trim().toLowerCase();
   const password = passInput.value.trim();
+  const code = codeEl ? codeEl.value.replace(/\D/g, '') : '';
   errEl.textContent = '';
-  if (!username || !password) {
-    errEl.textContent = t('enterCreds');
-    return;
-  }
-  const codeEl = document.getElementById('gate-code-input');
-  const typedCode = codeEl ? codeEl.value.trim() : '';
-  const attempt = await window.clientLogin(username, password, typedCode, opts);
-  if (!attempt.ok && attempt.needsEnrollment) {
-    // Two-factor is mandatory: walk them through setup, then retry the login. The token issued on
-    // confirmation is already stored, so the retry goes through without asking for another code.
-    const done = await window.startTwoFactorSetup({ username: username, password: password, lang: lang, audience: 'client' });
-    if (done) return submitGate({ useTicket: true });
-    errEl.textContent = window.showGateCode({ }, lang, false);
-    return;
-  }
-  if (!attempt.ok && attempt.needsCode) {
-    errEl.textContent = window.showGateCode(attempt, lang, !!typedCode);
-    return;
-  }
-  try {
-    if (!attempt.ok) throw new Error('bad credentials');
-    const data = attempt.data;
-    clientCompany = data.company || '';
-    clientUsername = username;
-    clientPassword = password;
-    clientRole = data.role || 'full';
-    if (window.clearBypassSuppression) window.clearBypassSuppression();
-    sessionStorage.setItem('geo_review_username', username);
-    sessionStorage.setItem('geo_review_password', password);
-    showApp();
-  } catch {
-    errEl.textContent = t('invalidCreds');
+  if (!username || !password) { errEl.textContent = t('enterCreds'); return; }
+
+  const attempt = await window.akoreSignIn(username, password, code, lang);
+  if (attempt.cancelled) { errEl.textContent = ''; return; }
+  if (attempt.needsCode) { errEl.textContent = window.showGateCode(attempt, lang, !!code); return; }
+  if (!attempt.ok) {
+    errEl.textContent = attempt.error || t('invalidCreds');
     passInput.classList.add('error');
+    setTimeout(() => passInput.classList.remove('error'), 400);
+    return;
   }
+  adoptSession(attempt.who);
 }
 
 // This page was a dead end — you could get in but not back out. Where "back" goes depends on who
@@ -290,7 +277,7 @@ function showApp() {
 }
 
 function clientLogout() {
-  // Clears EVERY client session, not just this page's — see js/results-auth.js.
+  // Ends the session on the server too, so signing out really signs out — see js/auth.js.
   if (window.clientLogoutAll) return window.clientLogoutAll();
   sessionStorage.clear();
   location.href = location.pathname;
@@ -326,15 +313,6 @@ function groupByLabel(items) {
 // password to prove staff status server-side, so ask for it just-in-time via the shared gate
 // (which verifies it against /api/staff-users and caches it on success).
 async function ensureStaffPassword() {
-  const cached = sessionStorage.getItem('geo_staff_password');
-  if (cached) return cached;
-  const ok = await window.requirePassword({
-    title: t('staffUnlockTitle'),
-    message: esc(t('staffPasswordNeeded')),
-    username: staffUsername,
-    labels: { enter: t('pwEnter'), confirm: t('pwConfirm'), cancel: t('pwCancel'), wrong: t('pwWrong') }
-  });
-  return ok ? (sessionStorage.getItem('geo_staff_password') || '') : '';
 }
 
 async function loadPrompts() {
@@ -463,10 +441,7 @@ async function releasePrompts() {
       body: JSON.stringify({
         company: clientCompany,
         internalApprove: true,
-        promptsText,
-        requestingStaffUsername: staffUsername,
-        requestingStaffPassword: sessionStorage.getItem('geo_staff_password') || '',
-        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+        promptsText
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -494,7 +469,7 @@ async function approvePrompts() {
     const res = await fetch(await window.apiQuery('/api/prompts', {}), {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company: clientCompany, comments, promptsText, requestingUsername: clientUsername, requestingPassword: clientPassword, tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '' })
+      body: JSON.stringify({ company: clientCompany, comments, promptsText })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     // Staff stay put (they may keep editing); a client is done here, so hand them back to their
@@ -518,43 +493,18 @@ applyStaticLang();
   const params = new URLSearchParams(location.search);
   const usernameFromUrl = params.get('username');
 
-  // Staff already logged into the internal Portal can open a customer's link straight
-  // through, without also needing that customer's own password.
-  if (usernameFromUrl && localStorage.getItem('hieronymus_internal_auth') === 'true'
-      && !!localStorage.getItem('hieronymus_staff_token')
-      && !(window.clientBypassSuppressed && window.clientBypassSuppressed())) {
-    try {
-      const res = await fetch(await window.apiQuery('/api/intake-codes', {}));
-      const data = await res.json();
-      const group = (data.items || []).find(i => findMember(i, usernameFromUrl));
-      if (group) {
-        clientCompany = group.company || '';
-        // Staff bypass: full unrestricted access regardless of the member's own role, and no
-        // member credentials are sent with the approve call below (isBlockedViewer treats a
-        // missing requestingUsername as "not a member request, let it through").
-        clientRole = 'full';
-        clientUsername = '';
-        clientPassword = '';
-        // Marks this as the internal reviewer's view: unreleased prompts are visible (once the
-        // staff password is confirmed) and the release action is available.
-        isStaffReviewer = true;
-        staffUsername = localStorage.getItem('hieronymus_internal_user') || '';
-        showApp();
-        return;
-      }
-    } catch { /* fall through to the normal client login gate */ }
-  }
+  // Already signed in? The server decides, from the session this browser holds.
+  const who = await window.akoreAuth.restore();
+  if (who) { adoptSession(who); return; }
 
+  // Staff reviewing on a customer's behalf, using the staff session already in this browser. It
+  // gives the internal reviewer's view: unreleased prompts are visible and the release action is
+  // available, and every request carries the staff session.
   if (usernameFromUrl) {
+    const asCustomer = await window.akoreStaffBypass(usernameFromUrl);
+    if (asCustomer) { adoptSession({ ...asCustomer, staffBypass: true, role: 'full' }); return; }
     const userInput = document.getElementById('gate-username-input');
     if (userInput) userInput.value = usernameFromUrl;
-  }
-  const usernameToTry = sessionStorage.getItem('geo_review_username');
-  const passwordToTry = sessionStorage.getItem('geo_review_password');
-  if (usernameToTry && passwordToTry) {
-    document.getElementById('gate-username-input').value = usernameToTry;
-    document.getElementById('gate-password-input').value = passwordToTry;
-    submitGate({ useTicket: true });
   }
 })();
 </script>

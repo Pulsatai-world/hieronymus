@@ -1,6 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { requireTwoFactorProof, totpGate } from './lib/two-factor-gate.js';
+import { callerOf, requireCompany, requireStaff, requireStaffAdmin } from './lib/authorize.js';
+
 
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
@@ -69,13 +70,13 @@ async function loadGroup(store, key) {
 function stripHashes(record) {
   if (!record) return record;
   const { members, ...rest } = record;
-  // `totp` holds the authenticator's shared secret — anyone who reads it can mint valid codes for
-  // that account forever. It is removed here alongside the password hash, and replaced by the only
-  // thing a caller legitimately needs: whether the person has finished setting one up.
+  // The authenticator holds a shared secret — anyone who reads it can mint valid codes for that
+  // account forever. It is removed alongside the password hash, and replaced by the only thing a
+  // caller legitimately needs: whether that person has finished setting one up.
   return {
     ...rest,
-    members: (members || []).map(({ passwordHash, totp, ...m }) => ({
-      ...m, twoFactorEnabled: !!(totp && totp.enabledAt)
+    members: (members || []).map(({ passwordHash, authenticator, totp, ...m }) => ({
+      ...m, twoFactorEnabled: !!(authenticator && authenticator.secret && authenticator.enabledAt)
     }))
   };
 }
@@ -86,54 +87,10 @@ function findMember(record, username) {
   return record && (record.members || []).find(m => m.username === username);
 }
 
-// Lets an admin reset a customer member's password without knowing the old one — the member's
-// own self-service change (below) still requires their current password; this is the separate,
-// staff-only path for when a customer forgets/loses theirs.
-async function requireStaffAdmin(requestingUsername, requestingPassword) {
-  if (!requestingUsername || !requestingPassword) return false;
-  const usersStore = getStore('hieronymus-staff-users');
-  const record = await usersStore.get(String(requestingUsername).toLowerCase(), { type: 'json' });
-  if (!record || record.role !== 'admin') return false;
-  return verifyPassword(requestingPassword, record.passwordHash);
-}
 
-// Reads of the registry are scoped. The ?username=&password= form is the LOGIN for all three
-// client-facing pages and stays open by necessity — it is itself a credential check. The other two
-// forms were not: ?company= returned a customer's whole record (member usernames, roles, monitoring
-// configuration, release flags) and the parameterless form listed every customer, both to anyone.
-// Note this is any-staff, not admin-only: looking is not a mutation.
-// A signed-in staff session presents an opaque token instead of the password. Checked first so a
-// restored session never has to ask for the password again; the password path below is unchanged
-// and still answers for anything that has not adopted tokens.
-// Sessions minted before this cutoff are dead. It is the moment two-factor was deployed, not a
-// round date: a staff token lasts 30 days and the code running before this deploy minted them with
-// no second factor, so anyone holding one would have skipped enrollment for up to a month. Set to
-// the deploy itself so every session that predates two-factor ends with it.
-const SESSION_EPOCH = Date.parse('2026-08-29T14:11:51Z');
 
-async function staffFromToken(token) {
-  if (!token) return null;
-  const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
-  if (!s || !s.username) return null;
-  if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
-  if (s.createdAt && Date.parse(s.createdAt) < SESSION_EPOCH) return null;
-  return s.username;
-}
 
-async function isStaffReader(username, password, token) {
-  if (await staffFromToken(token)) return true;
-  if (!username || !password) return false;
-  const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
-  if (!record) return false;
-  return verifyPassword(password, record.passwordHash);
-}
 
-async function isMemberOf(record, username, password) {
-  if (!record || !username || !password) return false;
-  const member = findMember(record, String(username).toLowerCase());
-  if (!member) return false;
-  return verifyPassword(password, member.passwordHash);
-}
 
 export default async (request, context) => {
   const store = getStore('hieronymus-intake-codes');
@@ -152,11 +109,8 @@ export default async (request, context) => {
     // password of their choosing to any existing customer, log in as it, and be walked through
     // enrolling their own authenticator — arriving as a fully legitimate user of that customer, with
     // two-factor, having started with nothing.
-    const createDenied = await requireTwoFactorProof(url, body, json);
+    const createDenied = await requireStaffAdmin(url, body, json);
     if (createDenied) return createDenied;
-    if (!await requireStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword)) {
-      return json({ error: 'Only a staff admin can create a customer or add a user' }, 403);
-    }
 
     // Adding a member to an EXISTING company group.
     if (body.addMember) {
@@ -198,65 +152,23 @@ export default async (request, context) => {
     // Order matters: a scoped read carries username+password as well as company, so the company
     // form has to be recognised before the login form or it would be answered as a login.
     const companyParam = url.searchParams.get('company');
-    const staffReader = await isStaffReader(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'));
 
     if (companyParam) {
-      // Reading a customer record requires two-factor proof, not just a password. Deliberately NOT
-      // at the top of this handler: the login form below arrives with a username and password and no
-      // ticket, because it is the request that issues one.
-      const proofDenied = await requireTwoFactorProof(url, null, json);
-      if (proofDenied) return proofDenied;
-
+      // Staff, or the customer this record belongs to. The company comes from the session, so
+      // editing ?company= yields a refusal rather than a competitor's record.
+      const denied = await requireCompany(url, null, json, companyParam);
+      if (denied) return denied;
       const record = await loadGroup(store, slugify(companyParam));
       if (!record) return json({ error: 'Unknown company' }, 404);
-      // A customer may read their own company's record; anyone else needs staff credentials.
-      const member = await isMemberOf(record, url.searchParams.get('username'), url.searchParams.get('password'));
-      if (!staffReader && !member) return json({ error: 'Not authorised to read this customer record' }, 403);
       return json(stripHashes(record), 200);
     }
 
-    const username = url.searchParams.get('username');
-    if (username) {
-      const password = url.searchParams.get('password');
-      const { blobs } = await store.list();
-      const groups = await Promise.all(blobs.map(b => loadGroup(store, b.key)));
-      const idx = groups.findIndex(g => findMember(g, username.toLowerCase()));
-      const group = idx === -1 ? null : groups[idx];
-      const member = group && findMember(group, username.toLowerCase());
-      if (!group || !member || !password || !verifyPassword(password, member.passwordHash)) {
-        return json({ error: 'Invalid username or password' }, 401);
-      }
-
-      // Same gate as staff. This endpoint is the login for all three client-facing pages, so putting
-      // it here covers every customer entry point at once.
-      // The key this group was actually read from — not slugify(company), which on any divergence
-      // would write a second shadow record and silently drop the replay guard with it.
-      const groupKey = blobs[idx].key;
-      const gateOpts = { username: member.username, token: url.searchParams.get('tfToken') };
-      const gate = await totpGate(member, url.searchParams.get('code'), () => store.setJSON(groupKey, group), json, gateOpts);
-      if (gate) return gate;
-      // This trimmed payload is the ONLY thing client-portal.html sees on a real customer login, so
-      // anything that page renders from must be here. The dashboard release flags were missing, which
-      // meant a released dashboard stayed hidden for the customer while looking fine through the staff
-      // bypass (that path reads the full record instead).
-      return json({
-        username: member.username, role: member.role, defaultLanguage: member.defaultLanguage || null,
-        company: group.company, submittedAt: group.submittedAt,
-        monitoringEnabled: !!group.monitoringEnabled,
-        diagnosisReleased: !!group.diagnosisReleased,
-        monitoringReleased: !!group.monitoringReleased,
-        // Lets client-portal.html show the customer whether two-factor is on for their account.
-        twoFactorEnabled: !!(member.totp && member.totp.enabledAt),
-        // Present only on the request that actually verified a code; the pages keep it for the rest
-        // of the session so page-to-page navigation doesn't ask again.
-        ...(gateOpts.issued ? { tfToken: gateOpts.issued } : {})
-      }, 200);
-    }
-
-    // Only the full list remains, and it names every customer — staff only. This guard must sit
-    // AFTER the login form above: a customer signing in has no staff credentials, so guarding
-    // earlier would refuse every client login.
-    if (!staffReader) return json({ error: 'Listing customers requires staff credentials' }, 403);
+    // Signing in lives in /api/login now — one login for staff and customers, which is where the
+    // code is checked and the session is issued. This endpoint manages customer records.
+    //
+    // The full list names every customer, so it is staff-only.
+    const deniedList = await requireStaff(url, null, json);
+    if (deniedList) return deniedList;
 
     const { blobs } = await store.list();
     // store.list() can momentarily include a key whose store.get() hasn't caught up yet
@@ -277,13 +189,17 @@ export default async (request, context) => {
 
     // Releasing a dashboard, toggling monitoring, resetting a customer's password — all reachable
     // with a staff password, so all need the ticket that proves a code was entered.
-    const adminDenied = await requireTwoFactorProof(url, body, json);
-    if (adminDenied) return adminDenied;
+    // Who is calling, once. The branches below are a mix of staff-admin actions (monitoring,
+    // releasing a dashboard, resetting a member's password) and a customer's own account settings,
+    // so each says which it needs rather than the shape of the request implying it.
+    const caller = await callerOf(url, body);
+    if (!caller) return json({ error: 'Sign in to continue.', needsSignIn: true }, 401);
+    const isAdmin = caller.kind === 'staff' && caller.role === 'admin';
 
     // Scheduling monitoring is a company-wide setting, not tied to any one member's login —
     // staff-only, verified the same way an admin password reset is.
     if (body.company && (typeof body.monitoringCadence === 'string' || Number.isInteger(body.monitoringIntervalDays))) {
-      const ok = await requireStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword);
+      const ok = isAdmin;
       if (!ok) return json({ error: 'Only a staff admin can configure monitoring' }, 403);
       const groupKey = slugify(body.company);
       const record = await loadGroup(store, groupKey);
@@ -312,12 +228,12 @@ export default async (request, context) => {
     // well before monitoring is set up, and having a run in the database is not the same thing as
     // being ready to show it to them.
     if (body.company && (typeof body.diagnosisReleased === 'boolean' || typeof body.monitoringReleased === 'boolean')) {
-      const ok = await requireStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword);
+      const ok = isAdmin;
       if (!ok) return json({ error: 'Only a staff admin can release a dashboard' }, 403);
       const groupKey = slugify(body.company);
       const record = await loadGroup(store, groupKey);
       if (!record) return json({ error: 'Unknown company' }, 404);
-      const who = String(body.requestingStaffUsername || '').trim().toLowerCase();
+      const who = caller.username;
       const now = new Date().toISOString();
       if (typeof body.diagnosisReleased === 'boolean') {
         record.diagnosisReleased = body.diagnosisReleased;
@@ -348,7 +264,7 @@ export default async (request, context) => {
     // Admin-driven reset: no knowledge of the old password required, but the requester must
     // prove they're an existing staff admin.
     if (body.adminReset) {
-      const ok = await requireStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword);
+      const ok = isAdmin;
       if (!ok) return json({ error: 'Only a staff admin can reset a member\'s password' }, 403);
       const np = (body.newPassword || '').trim();
       if (np.length < 6) return json({ error: 'New password must be at least 6 characters' }, 400);
@@ -357,11 +273,18 @@ export default async (request, context) => {
       return json({ status: 'ok' }, 200);
     }
 
-    // Customer-initiated self-service changes (password/language) require the current
-    // password, since this endpoint has no other auth — staff-only fields below (markSubmitted,
-    // monitoringEnabled) are called from the internal Portal and stay password-free as before.
+    // A customer changing their own password or language. Two things are required: the session must
+    // belong to that member (so one customer cannot change another's), and the current password must
+    // be right (so a borrowed session cannot lock the owner out of their own account).
     if (typeof body.newPassword === 'string' || typeof body.defaultLanguage === 'string') {
-      if (!verifyPassword(body.currentPassword || '', member.passwordHash)) {
+      if (!(caller.kind === 'customer' && caller.username === member.username)) {
+        return json({ error: 'Not authorised to change this account' }, 403);
+      }
+      // Changing the password needs the current one as well as the session, so a borrowed session
+      // cannot lock the owner out of their own account. A language preference is not worth a
+      // password prompt, and nothing is stored in the browser for one to be read from any more.
+      if (typeof body.newPassword === 'string'
+          && !verifyPassword(body.currentPassword || '', member.passwordHash)) {
         return json({ error: 'Current password is incorrect' }, 401);
       }
       if (typeof body.newPassword === 'string') {
@@ -379,8 +302,8 @@ export default async (request, context) => {
     // spends API credit every month, and the real caller in index.html sends a cadence and so lands
     // in the guarded branch above — but a bare request could reach here and flip it for anyone.
     if (body.markSubmitted || typeof body.monitoringEnabled === 'boolean') {
-      const asMember = verifyPassword(body.requestingPassword || body.currentPassword || '', member.passwordHash);
-      const asStaffAdmin = await requireStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword);
+      const asMember = caller.kind === 'customer' && caller.username === member.username;
+      const asStaffAdmin = isAdmin;
       if (typeof body.monitoringEnabled === 'boolean' && !asStaffAdmin) {
         return json({ error: 'Only a staff admin can change monthly monitoring' }, 403);
       }
@@ -403,11 +326,8 @@ export default async (request, context) => {
     // entire customer — their intake, their prompt set, their whole record — or quietly remove one
     // member. Found while auditing the login path. Staff admin, with the two-factor ticket, like
     // every other destructive action.
-    const delDenied = await requireTwoFactorProof(url, null, json);
+    const delDenied = await requireStaffAdmin(url, null, json);
     if (delDenied) return delDenied;
-    if (!await requireStaffAdmin(url.searchParams.get('requestingStaffUsername'), url.searchParams.get('requestingStaffPassword'))) {
-      return json({ error: 'Only a staff admin can delete a customer or a member' }, 403);
-    }
 
     // Removing a single member from their group (leaves the group and other members intact).
     if (url.searchParams.get('memberOnly') === 'true') {

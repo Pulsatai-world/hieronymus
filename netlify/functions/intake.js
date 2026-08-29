@@ -1,46 +1,13 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { requireTwoFactorProof } from './lib/two-factor-gate.js';
+import { callerOf, requireCompany, requireStaff } from './lib/authorize.js';
 
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
 }
 
-function verifyPassword(password, stored) {
-  const [salt, hash] = String(stored || '').split(':');
-  if (!salt || !hash) return false;
-  const check = crypto.scryptSync(password, salt, 64).toString('hex');
-  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'));
-}
 
-// "Viewer" members of a company group can look at the intake form but not submit/edit it — an
-// internal staff request has no member credentials to check, so it's allowed through unchanged.
-async function isBlockedViewer(requestingUsername, requestingPassword) {
-  if (!requestingUsername) return false;
-  const codesStore = getStore('hieronymus-intake-codes');
-  const { blobs } = await codesStore.list();
-  const groups = await Promise.all(blobs.map(b => codesStore.get(b.key, { type: 'json' })));
-  for (const g of groups) {
-    const member = (g.members || []).find(m => m.username === requestingUsername);
-    if (member) {
-      if (!verifyPassword(requestingPassword || '', member.passwordHash)) return true;
-      return member.role === 'viewer';
-    }
-  }
-  return false;
-}
 
-// The intake questionnaire is the most sensitive record in the system — competitors, personas, client
-// names, pricing context, the lot. GET was unauthenticated, so any caller could read any customer's
-// answers by naming their company. These mirror the checks results.js uses.
-async function memberOfCompany(company, username, password) {
-  if (!company || !username || !password) return false;
-  const group = await getStore('hieronymus-intake-codes').get(slugify(company), { type: 'json' });
-  if (!group) return false;
-  const member = (group.members || []).find(m => m.username === String(username).toLowerCase());
-  if (!member) return false;
-  return verifyPassword(password, member.passwordHash);
-}
 
 // A signed-in staff session presents an opaque token instead of the password. Checked first so a
 // restored session never has to ask for the password again; the password path below is unchanged
@@ -51,22 +18,7 @@ async function memberOfCompany(company, username, password) {
 // the deploy itself so every session that predates two-factor ends with it.
 const SESSION_EPOCH = Date.parse('2026-08-29T14:11:51Z');
 
-async function staffFromToken(token) {
-  if (!token) return null;
-  const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
-  if (!s || !s.username) return null;
-  if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
-  if (s.createdAt && Date.parse(s.createdAt) < SESSION_EPOCH) return null;
-  return s.username;
-}
 
-async function isStaff(username, password, token) {
-  if (await staffFromToken(token)) return true;
-  if (!username || !password) return false;
-  const record = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' });
-  if (!record) return false;
-  return verifyPassword(password, record.passwordHash);
-}
 
 // Two events settle the answers: the customer approving the prompt set generated from them, and an
 // audit having actually run against those prompts. After either, editing the intake would leave the
@@ -100,13 +52,6 @@ export default async (request, context) => {
   const store = getStore('hieronymus-intake');
   const url = new URL(request.url);
 
-  // Every credential this endpoint accepts must now be backed by two-factor: a customer password
-  // needs the ticket issued when their code was accepted, and a staff password needs the same. A
-  // staff session token is proof on its own. Without this, two-factor guarded the login pages while
-  // this endpoint still answered anyone holding a password.
-  const proofDenied = await requireTwoFactorProof(url, null, json);
-  if (proofDenied) return proofDenied;
-
   if (request.method === 'POST') {
     let body;
     try {
@@ -115,34 +60,22 @@ export default async (request, context) => {
       return json({ error: 'Invalid JSON body' }, 400);
     }
 
-    // Credentials in the body need the same two-factor proof as those in the query string —
-    // otherwise a stolen password could still overwrite an intake or approve a prompt set.
-    const bodyDenied = await requireTwoFactorProof(url, body, json);
-    if (bodyDenied) return bodyDenied;
-
     const intake = body.intake ?? body;
     const company = (body.company || intake?.general?.company || '').trim();
     if (!company) return json({ error: 'Missing company name' }, 400);
 
-    if (body.requestingUsername && await isBlockedViewer(body.requestingUsername, body.requestingPassword)) {
-      return json({ error: 'Viewer accounts cannot submit or edit the intake form' }, 403);
-    }
+    // Staff, or the customer this company belongs to. The session says which. There is no request
+    // shape that means "trust me" — an empty-handed request used to mean exactly that, which made it
+    // the most privileged kind and let anyone overwrite any customer's answers.
+    const denied = await requireCompany(url, body, json, company);
+    if (denied) return denied;
+    const caller = await callerOf(url, body);
+    const asMember = caller.kind === 'customer';
 
-    // Somebody has to have proved who they are. This endpoint used to read "no member credentials"
-    // as "must be staff, let it through" — the convention that let staff correct a customer's
-    // answers without holding that customer's password. An empty-handed request was therefore the
-    // most privileged kind, and anyone at all could send one and overwrite any customer's intake.
-    // Staff now identify themselves the same way they do on every other request.
-    const asMember = body.requestingUsername
-      ? await memberOfCompany(company, body.requestingUsername, body.requestingPassword)
-      : false;
-    const asStaff = await isStaff(
-      url.searchParams.get('staffUsername') || body.staffUsername,
-      url.searchParams.get('staffPassword') || body.staffPassword,
-      url.searchParams.get('staffToken') || body.staffToken
-    );
-    if (!asMember && !asStaff) {
-      return json({ error: 'Not authorised to save this intake' }, 403);
+    // A viewer may look but not edit. The role travels on the session, so this is a comparison
+    // rather than another password check against a record.
+    if (asMember && caller.role === 'viewer') {
+      return json({ error: 'Viewer accounts cannot submit or edit the intake form' }, 403);
     }
 
     const key = slugify(company);
@@ -150,10 +83,9 @@ export default async (request, context) => {
     // Once the customer has approved their prompt set, the intake behind it is frozen for them.
     // The prompts were derived from these answers, so editing them afterwards leaves an approved
     // prompt set describing a business the form no longer matches — and the audit then runs against
-    // a premise nobody actually approved. Staff requests carry no member credentials (the same
-    // convention isBlockedViewer relies on) and are still allowed through, so corrections remain
-    // possible on our side. Keyed on "acting as the customer" rather than on the absence of
-    // credentials, now that the absence of credentials is no longer accepted at all.
+    // a premise nobody actually approved. Staff are still allowed through so corrections remain
+    // possible on our side — keyed on who the session says is acting, not on which credentials
+    // happen to be absent.
     if (asMember) {
       const lock = await intakeLock(company);
       if (lock.locked) {
@@ -172,13 +104,12 @@ export default async (request, context) => {
 
   if (request.method === 'GET') {
     const companyParam = url.searchParams.get('company');
-    const staff = await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'));
 
     if (companyParam) {
-      // A customer may read only their own answers, proven against the company they asked for, so
-      // renaming the parameter yields 403 rather than someone else's questionnaire.
-      const member = await memberOfCompany(companyParam, url.searchParams.get('username'), url.searchParams.get('password'));
-      if (!staff && !member) return json({ error: 'Not authorised to read this intake' }, 403);
+      // A customer may read only their own answers: the company comes from their session, so
+      // renaming the parameter yields a refusal rather than someone else's questionnaire.
+      const denied = await requireCompany(url, null, json, companyParam);
+      if (denied) return denied;
       const data = await store.get(slugify(companyParam), { type: 'json' });
       if (!data) return json({ error: 'Not found' }, 404);
       // Reported here so the form and the save guard can never disagree about whether it is editable.
@@ -187,7 +118,8 @@ export default async (request, context) => {
     }
 
     // The full list names every customer, so it is staff-only.
-    if (!staff) return json({ error: 'Listing intakes requires staff credentials' }, 403);
+    const deniedList = await requireStaff(url, null, json);
+    if (deniedList) return deniedList;
 
     const { blobs } = await store.list();
     const items = await Promise.all(blobs.map(async b => {

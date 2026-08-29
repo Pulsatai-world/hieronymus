@@ -4,30 +4,27 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
-<script src="/js/auth-epoch.js"></script>
-<script src="/js/confirm-gate.js"></script>
 <title>Akore Labs — Customer Detail</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<script src="/js/auth.js"></script>
+<script>window.akoreAuth.useStaffSession();</script>
+<script src="/js/enroll-dialog.js"></script>
 <script>
-const SESSION_KEY = 'hieronymus_internal_auth'; // shared with portal.html/intake-view.html — log in once, stay in across all three
-const USER_KEY = 'hieronymus_internal_user';
-const ROLE_KEY = 'hieronymus_internal_role';
+// Who is signed in comes from the session the server validated on load.
 
 function checkAuth() {
-  // Signed in means: this browser holds a session token, which is only ever minted after a password
-  // AND a code. The flag alone used to be enough — it never expired and was never verified, so one
-  // sign-in opened this page forever. The flag is kept only so the rest of the page can read it
-  // synchronously; js/results-auth.js confirms the session with the server on load and clears
-  // everything if it is no longer real.
-  return localStorage.getItem(SESSION_KEY) === 'true'
-    && !!localStorage.getItem('hieronymus_staff_token');
+  // Signed in means the server recognised our session on this page load — see the guarded init at
+  // the end of this file. Not a stored flag, which proved nothing and granted everything.
+  return !!(window.akoreAuth.who());
 }
 function isAdmin() {
-  return localStorage.getItem(ROLE_KEY) === 'admin';
+  // The role comes from the session the server validated, not from whatever the browser last wrote.
+  const who = window.akoreAuth.who();
+  return !!(who && who.role === 'admin');
 }
 async function staffLogout() {
-  // Everything sign-out means lives in js/results-auth.js — see staffLogoutAll.
+  // Ends the session on the server too, so signing out really signs out.
   await window.staffLogoutAll('/portal.html');
 }
 
@@ -88,58 +85,35 @@ function setGateLang(newLang) {
 async function tryAuth() {
   const userInput = document.getElementById('user-input');
   const passInput = document.getElementById('pw-input');
+  const codeInput = document.getElementById('code-input');
+  const errEl = document.getElementById('pw-error');
   const username = userInput.value.trim().toLowerCase();
   const password = passInput.value.trim();
+  const code = codeInput ? codeInput.value.replace(/\D/g, '') : '';
   if (!username || !password) return;
-  const errEl = document.getElementById('pw-error');
-  const codeInput = document.getElementById('code-input');
-  const typedCode = codeInput ? codeInput.value.replace(/\D/g, '') : '';
-  const gateLang = localStorage.getItem('hieronymus_lang') || 'es';
-  try {
-    // Login, first-visit bootstrap, mandatory enrollment and the code step all live in
-    // js/results-auth.js so the three internal pages cannot drift apart on them.
-    const attempt = await window.staffGateLogin(username, password, typedCode, gateLang);
-    if (attempt.cancelled) { errEl.textContent = ''; return; }
-    if (attempt.needsCode) {
-      if (codeInput) codeInput.style.display = '';
-      errEl.textContent = window.showGateCode(attempt, gateLang, !!typedCode);
-      return;
-    }
-    if (!attempt.ok) throw new Error(attempt.error || 'bad credentials');
-    const data = attempt.data;
-    localStorage.setItem(SESSION_KEY, 'true');
-    localStorage.setItem(USER_KEY, data.username);
-    localStorage.setItem(ROLE_KEY, data.role);
-    sessionStorage.setItem('geo_staff_password', password);
-    // Portal (customer list/search/create) is the real "home" — only stay on this page if a
-    // specific customer was already requested (e.g. a bookmarked/shared link with ?company=).
-    if (new URLSearchParams(location.search).get('company')) {
-      location.reload();
-    } else {
-      location.href = '/portal.html';
-    }
-  } catch (err) {
+  const lang = localStorage.getItem('hieronymus_lang') || 'es';
+
+  // Three possible answers: in, needs a code, or needs an authenticator set up first. The setup
+  // dialog ends signed in, so there is no second round trip to get wrong.
+  const attempt = await window.akoreSignIn(username, password, code, lang);
+  if (attempt.cancelled) { errEl.textContent = ''; return; }
+  if (attempt.needsCode) {
+    if (codeInput) codeInput.style.display = '';
+    errEl.textContent = window.showGateCode(attempt, lang, !!code);
+    return;
+  }
+  if (!attempt.ok) {
     passInput.classList.add('error');
-    errEl.textContent = err.message === 'bad credentials' || !err.message ? gt('error') : err.message;
+    errEl.textContent = attempt.error || (lang === 'es'
+      ? 'Usuario o contraseña incorrectos. Intenta de nuevo.'
+      : 'Incorrect username or password. Try again.');
     passInput.value = '';
     setTimeout(() => { passInput.classList.remove('error'); passInput.focus(); }, 400);
+    return;
   }
+  location.reload();
 }
 
-// A local flag cannot be trusted on its own, so the session is confirmed with the server on every
-// load. If it has expired, been revoked by signing out elsewhere, or the account's authenticator was
-// reset, this drops back to the gate — where a password and a code are required again.
-if (!checkAuth()) {
-  document.addEventListener('DOMContentLoaded', showPasswordGate);
-} else {
-  window.requireStaffSession(function () {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', showPasswordGate);
-    } else {
-      showPasswordGate();
-    }
-  });
-}
 </script>
 <style>
 :root {
@@ -281,8 +255,6 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
   .modal-box { padding: 20px 16px; max-height: 88vh; overflow-y: auto; }
 }
 </style>
-<script src="/js/results-auth.js"></script>
-<script src="/js/two-factor-setup.js"></script>
 </head>
 <body>
 
@@ -1090,17 +1062,6 @@ function exportCompanyCSV() {
   URL.revokeObjectURL(url);
 }
 
-// Persistent login (localStorage) can outlive the password cached in sessionStorage (e.g. the
-// browser was closed and reopened) — admin actions need the password again to prove admin
-// status server-side, so ask for it just-in-time rather than failing silently.
-function getStaffPassword() {
-  let pw = sessionStorage.getItem('geo_staff_password');
-  if (!pw) {
-    pw = prompt(t('reenterPasswordPrompt')) || '';
-    if (pw) sessionStorage.setItem('geo_staff_password', pw);
-  }
-  return pw;
-}
 
 async function clearResults() {
   if (!currentCompany) return;
@@ -1110,11 +1071,8 @@ async function clearResults() {
   try {
     const params = new URLSearchParams({
       company: currentCompany,
-      requestingUsername: localStorage.getItem(USER_KEY) || '',
-      requestingPassword: getStaffPassword(),
       // The password dialog is all the user sees; this ticket rides along so the endpoint can tell
       // a signed-in staff member from someone who merely knows the password.
-      tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
     });
     const res = await fetch('/api/results?' + params.toString(), { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
@@ -1380,16 +1338,16 @@ async function cancelAudit() {
 }
 
 // Final confirmation gate for important actions (run audit / regenerate prompts / enable
-// monitoring). Delegates to the shared window.requirePassword (js/confirm-gate.js) — one gate
+// monitoring). Delegates to the shared window.requirePassword (js/auth.js) — one gate
 // implementation shared with the Portal — passing this page's localized labels + current user.
 // NOTE: deliberately NOT named requirePassword — a same-named top-level function declaration
 // here would overwrite window.requirePassword with itself (both refer to the same global
 // binding), turning the call below into infinite self-recursion instead of reaching the shared
-// implementation loaded from js/confirm-gate.js.
+// implementation loaded from js/auth.js.
 function confirmWithPassword(title, message) {
   return window.requirePassword({
     title, message,
-    username: localStorage.getItem(USER_KEY) || '',
+    username: ((window.akoreAuth.who() || {}).username || ''),
     labels: { enter: t('pwGateLabel'), confirm: t('pwGateConfirm'), cancel: t('cancelBtn'), wrong: t('pwGateWrong') }
   });
 }
@@ -1516,10 +1474,7 @@ async function saveMonitoring() {
         company: currentCompany,
         monitoringEnabled: enabled,
         monitoringCadence: cadence,
-        monitoringStartDate: startDate,
-        requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
-        requestingStaffPassword: getStaffPassword(),
-        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+        monitoringStartDate: startDate
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -1578,11 +1533,8 @@ async function deleteRun(snapshotDate) {
     const params = new URLSearchParams({
       company: currentCompany,
       snapshot_date: snapshotDate,
-      requestingUsername: localStorage.getItem(USER_KEY) || '',
-      requestingPassword: getStaffPassword(),
       // The password dialog is all the user sees; this ticket rides along so the endpoint can tell
       // a signed-in staff member from someone who merely knows the password.
-      tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
     });
     const res = await fetch('/api/results?' + params.toString(), { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
@@ -1601,10 +1553,7 @@ async function setDashboardRelease(which, release) {
   if (!(await confirmWithPassword(t('pwReleaseTitle'), t('pwReleaseMsg', esc(label), esc(currentCompany))))) return;
   try {
     const body = {
-      company: currentCompany,
-      requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
-      requestingStaffPassword: getStaffPassword(),
-      tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+      company: currentCompany
     };
     body[which === 'diagnosis' ? 'diagnosisReleased' : 'monitoringReleased'] = release;
     const res = await fetch('/api/intake-codes', {
@@ -1723,7 +1672,12 @@ async function pollGenerateJob(company, opts) {
   }
 }
 
-(function init() {
+(async function init() {
+  // Nothing on this page runs until the server confirms this browser holds a live session. A value
+  // in storage is not proof — a stored flag once opened the internal pages indefinitely, with no
+  // code ever asked for again.
+  if (!await window.akoreAuth.restore()) { showPasswordGate(); return; }
+
   const params = new URLSearchParams(location.search);
   const company = params.get('company');
   // Portal is the one place to choose/search/create a customer now — this page only makes

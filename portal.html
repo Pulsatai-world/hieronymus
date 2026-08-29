@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
-<script src="/js/auth-epoch.js"></script>
-<script src="/js/confirm-gate.js"></script>
 <style>
   .cust-cards { display: flex; flex-direction: column; gap: 10px; }
   .cust-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); }
@@ -23,10 +21,12 @@
 <title>Akore Labs — Portal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<script src="/js/auth.js"></script>
+<script>window.akoreAuth.useStaffSession();</script>
+<script src="/js/enroll-dialog.js"></script>
 <script>
-const SESSION_KEY = 'hieronymus_internal_auth'; // shared with index.html/intake-view.html — log in once, stay in across all three
-const USER_KEY = 'hieronymus_internal_user';
-const ROLE_KEY = 'hieronymus_internal_role';
+// Who is signed in comes from the session the server validated on load — see the guarded init at
+// the end of this file. These keys are gone; nothing in a browser grants access any more.
 const GATE_T = {
   title: { en: 'Internal Portal', es: 'Portal Interno' },
   sub: { en: 'Akore Labs — Restricted Access', es: 'Akore Labs — Acceso Restringido' },
@@ -40,19 +40,17 @@ const GATE_T = {
 function gt(key) { return GATE_T[key][localStorage.getItem('hieronymus_lang') || 'es']; }
 
 function checkAuth() {
-  // Signed in means: this browser holds a session token, which is only ever minted after a password
-  // AND a code. The flag alone used to be enough — it never expired and was never verified, so one
-  // sign-in opened this page forever. The flag is kept only so the rest of the page can read it
-  // synchronously; js/results-auth.js confirms the session with the server on load and clears
-  // everything if it is no longer real.
-  return localStorage.getItem(SESSION_KEY) === 'true'
-    && !!localStorage.getItem('hieronymus_staff_token');
+  // Signed in means the server recognised our session on this page load — see the guarded init at
+  // the end of this file. Not a stored flag, which proved nothing and granted everything.
+  return !!(window.akoreAuth.who());
 }
 function isAdmin() {
-  return localStorage.getItem(ROLE_KEY) === 'admin';
+  // The role comes from the session the server validated, not from whatever the browser last wrote.
+  const who = window.akoreAuth.who();
+  return !!(who && who.role === 'admin');
 }
 async function staffLogout() {
-  // Everything sign-out means lives in js/results-auth.js — see staffLogoutAll.
+  // Ends the session on the server too, so signing out really signs out.
   await window.staffLogoutAll('reload');
 }
 
@@ -99,55 +97,35 @@ function showPasswordGate() {
 async function tryAuth() {
   const userInput = document.getElementById('user-input');
   const passInput = document.getElementById('pw-input');
+  const codeInput = document.getElementById('code-input');
+  const errEl = document.getElementById('pw-error');
   const username = userInput.value.trim().toLowerCase();
   const password = passInput.value.trim();
+  const code = codeInput ? codeInput.value.replace(/\D/g, '') : '';
   if (!username || !password) return;
-  const errEl = document.getElementById('pw-error');
-  const codeInput = document.getElementById('code-input');
-  const typedCode = codeInput ? codeInput.value.replace(/\D/g, '') : '';
-  const gateLang = localStorage.getItem('hieronymus_lang') || 'es';
-  try {
-    // Login, first-visit bootstrap, mandatory enrollment and the code step all live in
-    // js/results-auth.js so the three internal pages cannot drift apart on them.
-    const attempt = await window.staffGateLogin(username, password, typedCode, gateLang);
-    if (attempt.cancelled) { errEl.textContent = ''; return; }
-    if (attempt.needsCode) {
-      if (codeInput) codeInput.style.display = '';
-      errEl.textContent = window.showGateCode(attempt, gateLang, !!typedCode);
-      return;
-    }
-    if (!attempt.ok) throw new Error(attempt.error || 'bad credentials');
-    const data = attempt.data;
-    localStorage.setItem(SESSION_KEY, 'true');
-    localStorage.setItem(USER_KEY, data.username);
-    localStorage.setItem(ROLE_KEY, data.role);
-    sessionStorage.setItem('geo_staff_password', password);
-    // Trade the password for a session token that survives the tab, so nothing asks for the
-    // password again mid-task in a new tab or after a browser restart.
-    if (typeof window.staffSignIn === 'function') await window.staffSignIn(data.username, password);
-    location.reload();
-  } catch (err) {
+  const lang = localStorage.getItem('hieronymus_lang') || 'es';
+
+  // Three possible answers: in, needs a code, or needs an authenticator set up first. The setup
+  // dialog ends signed in, so there is no second round trip to get wrong.
+  const attempt = await window.akoreSignIn(username, password, code, lang);
+  if (attempt.cancelled) { errEl.textContent = ''; return; }
+  if (attempt.needsCode) {
+    if (codeInput) codeInput.style.display = '';
+    errEl.textContent = window.showGateCode(attempt, lang, !!code);
+    return;
+  }
+  if (!attempt.ok) {
     passInput.classList.add('error');
-    errEl.textContent = err.message === 'bad credentials' || !err.message ? gt('error') : err.message;
+    errEl.textContent = attempt.error || (lang === 'es'
+      ? 'Usuario o contraseña incorrectos. Intenta de nuevo.'
+      : 'Incorrect username or password. Try again.');
     passInput.value = '';
     setTimeout(() => { passInput.classList.remove('error'); passInput.focus(); }, 400);
+    return;
   }
+  location.reload();
 }
 
-// A local flag cannot be trusted on its own, so the session is confirmed with the server on every
-// load. If it has expired, been revoked by signing out elsewhere, or the account's authenticator was
-// reset, this drops back to the gate — where a password and a code are required again.
-if (!checkAuth()) {
-  document.addEventListener('DOMContentLoaded', showPasswordGate);
-} else {
-  window.requireStaffSession(function () {
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', showPasswordGate);
-    } else {
-      showPasswordGate();
-    }
-  });
-}
 </script>
 <style>
 :root {
@@ -258,8 +236,6 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
 .lang-btn { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-mid); background: var(--surface); border: none; padding: 6px 12px; cursor: pointer; }
 .lang-btn.active { background: var(--accent); color: #fff; }
 </style>
-<script src="/js/results-auth.js"></script>
-<script src="/js/two-factor-setup.js"></script>
 </head>
 <body>
 
@@ -602,13 +578,10 @@ async function generateCode() {
   if (!company) { alert(t('enterCompanyAlert')); return; }
 
   try {
-    const res = await fetch('/api/intake-codes', {
+    const res = await fetch(await window.apiQuery('/api/intake-codes', {}), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
-        requestingStaffPassword: getStaffPassword(),
-        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '', company })
+      body: JSON.stringify({ company })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
@@ -815,15 +788,12 @@ async function deleteCustomer(username, company) {
   const okPw = await window.requirePassword({
     title: t('pwDeleteTitle'),
     message: t('pwDeleteMsg', escapeHtml(company)),
-    username: localStorage.getItem(USER_KEY) || '',
+    username: ((window.akoreAuth.who() || {}).username || ''),
     labels: { enter: t('pwGateLabel'), confirm: t('pwGateConfirm'), cancel: t('cancelBtn'), wrong: t('pwGateWrong') }
   });
   if (!okPw) return;
   try {
-    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username)
-      + '&requestingStaffUsername=' + encodeURIComponent(localStorage.getItem(USER_KEY) || '')
-      + '&requestingStaffPassword=' + encodeURIComponent(getStaffPassword())
-      + '&tfToken=' + encodeURIComponent(window.twoFactorTicket ? window.twoFactorTicket() : ''), { method: 'DELETE' });
+    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username), { method: 'DELETE' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     await loadAll();
   } catch (err) {
@@ -946,13 +916,10 @@ async function addMember() {
     return;
   }
   try {
-    const res = await fetch('/api/intake-codes', {
+    const res = await fetch(await window.apiQuery('/api/intake-codes', {}), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
-        requestingStaffPassword: getStaffPassword(),
-        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '', addMember: true, company: manageUsersCompany, username, password, role })
+      body: JSON.stringify({ addMember: true, company: manageUsersCompany, username, password, role })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
@@ -970,10 +937,7 @@ async function addMember() {
 async function removeMember(username) {
   if (!confirm(t('confirmRemoveMember', username))) return;
   try {
-    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username) + '&memberOnly=true'
-      + '&requestingStaffUsername=' + encodeURIComponent(localStorage.getItem(USER_KEY) || '')
-      + '&requestingStaffPassword=' + encodeURIComponent(getStaffPassword())
-      + '&tfToken=' + encodeURIComponent(window.twoFactorTicket ? window.twoFactorTicket() : ''), { method: 'DELETE' });
+    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username) + '&memberOnly=true', { method: 'DELETE' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     await renderMembersList();
     await loadAll();
@@ -991,10 +955,7 @@ async function resetMemberPassword(username) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username, adminReset: true, newPassword: newPassword.trim(),
-        requestingStaffUsername: localStorage.getItem(USER_KEY),
-        requestingStaffPassword: getStaffPassword(),
-        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+        username, adminReset: true, newPassword: newPassword.trim()
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -1047,7 +1008,7 @@ async function openResetKeyForm(engine) {
   const okPw = await window.requirePassword({
     title: t('pwResetKeyTitle'),
     message: t('pwResetKeyMsg', t(ENGINE_LABEL_KEY[engine]), escapeHtml(manageUsersCompany)),
-    username: localStorage.getItem(USER_KEY) || '',
+    username: ((window.akoreAuth.who() || {}).username || ''),
     labels: { enter: t('pwGateLabel'), confirm: t('pwGateConfirm'), cancel: t('cancelBtn'), wrong: t('pwGateWrong') }
   });
   if (!okPw) return;
@@ -1079,7 +1040,7 @@ async function saveResetKey(engine) {
   const okPw = await window.requirePassword({
     title: t('saveKeyGateTitle'),
     message: t('saveKeyGateMessage').replace('{engine}', engine),
-    username: localStorage.getItem(USER_KEY) || ''
+    username: ((window.akoreAuth.who() || {}).username || '')
   });
   if (!okPw) return;
   try {
@@ -1098,17 +1059,6 @@ async function saveResetKey(engine) {
   }
 }
 
-// Persistent login (localStorage) can outlive the password cached in sessionStorage (e.g. the
-// browser was closed and reopened) — admin actions need the password again to prove admin
-// status server-side, so ask for it just-in-time rather than failing silently.
-function getStaffPassword() {
-  let pw = sessionStorage.getItem('geo_staff_password');
-  if (!pw) {
-    pw = prompt(t('reenterPasswordPrompt')) || '';
-    if (pw) sessionStorage.setItem('geo_staff_password', pw);
-  }
-  return pw;
-}
 
 // ── Two-factor recovery ──
 // With two-factor required at every login, a lost or wiped phone locks an account out completely.
@@ -1118,20 +1068,16 @@ async function resetTwoFactor(username) {
   const okPw = await window.requirePassword({
     title: t('resetTwoFactorBtn'),
     message: t('resetTwoFactorConfirm').replace('{user}', username),
-    username: localStorage.getItem(USER_KEY) || ''
+    username: ((window.akoreAuth.who() || {}).username || '')
   });
   if (!okPw) return;
   try {
-    const res = await fetch('/api/two-factor', {
+    const res = await fetch('/api/enroll', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'reset',
-        username: username,
-        requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
-        requestingStaffPassword: getStaffPassword(),
-        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
-      })
+      // The session says who is asking and that they are an admin. The password dialog above stays
+      // as a confirmation step — it is not what authorises this.
+      body: JSON.stringify({ action: 'reset', username: username, session: window.akoreAuth.session() })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
@@ -1178,7 +1124,7 @@ async function renderStaffList() {
     const res = await fetch(await window.apiQuery('/api/staff-users', {}));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    const me = localStorage.getItem(USER_KEY);
+    const me = ((window.akoreAuth.who() || {}).username || '');
     list.innerHTML = (data.items || []).map(u => `
       <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--border);">
         <div>
@@ -1213,10 +1159,7 @@ async function addStaffUser() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        username, password, role,
-        requestingUsername: localStorage.getItem(USER_KEY),
-        requestingPassword: getStaffPassword(),
-        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+        username, password, role
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -1235,10 +1178,7 @@ async function removeStaffUser(username) {
   if (!confirm(t('confirmRemoveStaff', username))) return;
   try {
     const params = new URLSearchParams({
-      username,
-      requestingUsername: localStorage.getItem(USER_KEY) || '',
-      requestingPassword: getStaffPassword(),
-      tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+      username
     });
     const res = await fetch('/api/staff-users?' + params.toString(), { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
@@ -1249,10 +1189,16 @@ async function removeStaffUser(username) {
   }
 }
 
-if (isAdmin()) document.getElementById('manage-staff-nav-btn').style.display = '';
-
-applyStaticLang();
-loadAll();
+// Nothing on this page runs until the server confirms this browser holds a live session. A value in
+// storage is not proof of anything — a stored flag once opened the internal pages indefinitely, with
+// no code ever asked for again. If there is no live session the gate is shown, where a password and
+// a code are both required.
+window.akoreAuth.restore().then(function (who) {
+  if (!who) { showPasswordGate(); return; }
+  if (isAdmin()) document.getElementById('manage-staff-nav-btn').style.display = '';
+  applyStaticLang();
+  loadAll();
+});
 </script>
 </body>
 </html>
