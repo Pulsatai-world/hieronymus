@@ -64,7 +64,7 @@ export function verifyCode(secret, code, { drift = 1, nowMs = Date.now() } = {})
   const clean = String(code || '').replace(/\D/g, '');
   if (!secret || clean.length !== 6) return { ok: false, step: null };
   const current = currentStep(nowMs);
-  const window = Math.max(0, Math.min(4, drift));
+  const window = Math.max(0, Math.min(10, drift));
   for (let d = -window; d <= window; d++) {
     const expected = codeForStep(secret, current + d);
     // Both sides are fixed-length six-digit strings, so this cannot throw on length.
@@ -75,7 +75,20 @@ export function verifyCode(secret, code, { drift = 1, nowMs = Date.now() } = {})
   return { ok: false, step: null };
 }
 
-/** The URI an authenticator app reads. The label is what the app displays. */
+/**
+ * The URI an authenticator app reads. The label is what the app displays.
+ *
+ * The label carries the setup time because every enrollment for one account used to produce an
+ * identical entry. Someone who had tried before ended up with several "Akore Labs — name" rows in
+ * their app, indistinguishable, only one of them live, and the odds of picking the right one got
+ * worse with every attempt — which is what "the code is wrong, but the next one works" actually
+ * was. Dated, the newest row is obvious and the dead ones can be deleted.
+ */
+export function otpauthLabel(account, at = new Date()) {
+  const stamp = at.toISOString().slice(5, 16).replace('T', ' ');   // MM-DD HH:MM, UTC
+  return account + ' (' + stamp + ' UTC)';
+}
+
 export function otpauthUri(account, secret, issuer = 'Akore Labs') {
   return 'otpauth://totp/' + encodeURIComponent(issuer + ':' + account)
     + '?secret=' + secret

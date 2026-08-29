@@ -485,6 +485,107 @@ function scrypt(pw) {
     check('and it reports enrollment truthfully', /"twoFactorEnabled":true/.test(text), text.slice(0, 300));
   }
 
+
+  // ── 12. Recovery codes ──
+  // The way back in when the phone is gone. Before these, the only recovery was a staff admin
+  // clearing the authenticator — which the last remaining admin cannot get done for themselves.
+  console.log('\nRecovery codes:');
+  reset();
+  {
+    const { body } = await enrolAndSignIn('akore-rene');
+    const codes = body.recoveryCodes;
+    check('a set is issued when setup completes', Array.isArray(codes) && codes.length === 10,
+      JSON.stringify(codes));
+    check('and they are shown in a readable shape', codes.every(c => /^[0-9A-Z]{5}-[0-9A-Z]{5}$/.test(c)),
+      String(codes && codes[0]));
+
+    const stored = JSON.stringify(store('hieronymus-staff-users')['akore-rene']);
+    check('only their hashes are stored', codes.every(c => !stored.includes(c)), 'a code is stored in the clear');
+
+    // The phone is gone: no code can be produced. A recovery code stands in for one.
+    const outIn = await POST(login, { username: 'akore-rene', password: PW, code: codes[0] });
+    const outBody = await outIn.json();
+    check('one signs you in with no authenticator code at all', outIn.status === 200 && !!outBody.session,
+      outIn.status + ' ' + JSON.stringify(outBody).slice(0, 140));
+    check('and says how many are left', outBody.usedRecoveryCode === true && outBody.recoveryRemaining === 9,
+      JSON.stringify(outBody).slice(0, 200));
+
+    const again = await POST(login, { username: 'akore-rene', password: PW, code: codes[0] });
+    check('the same one never works twice', again.status === 403, 'status ' + again.status);
+
+    const spaced = await POST(login, { username: 'akore-rene', password: PW, code: '  ' + codes[1].toLowerCase().replace('-', ' ') + ' ' });
+    check('case, spaces and the dash are all forgiven', spaced.status === 200, 'status ' + spaced.status);
+
+    const wrong = await POST(login, { username: 'akore-rene', password: PW, code: 'ZZZZZ-ZZZZZ' });
+    check('an invented one is refused', wrong.status === 403, 'status ' + wrong.status);
+  }
+
+  reset();
+  {
+    // Using one must not knock the authenticator out of step. Recording a recovery code where the
+    // replay marker lives would reject the app's own next code and strand the account.
+    const { started, body } = await enrolAndSignIn('akore-roy');
+    await POST(login, { username: 'akore-roy', password: PW, code: body.recoveryCodes[0] });
+    // The very next code the app shows: one step on, which a login accepts and which is past the
+    // marker enrollment left behind.
+    const after = await POST(login, { username: 'akore-roy', password: PW, code: codeAt(started.secret, nowStep() + 1) });
+    check('the app still works afterwards', after.status === 200, 'status ' + after.status);
+  }
+
+  reset();
+  {
+    const { body } = await enrolAndSignIn('akore-rene');
+    const old = body.recoveryCodes;
+    const fresh = await POST(enroll, { action: 'recovery', username: 'akore-rene', session: body.session });
+    const freshBody = await fresh.json();
+    check('a signed-in person can get a new set', fresh.status === 200 && freshBody.recoveryCodes.length === 10,
+      fresh.status + ' ' + JSON.stringify(freshBody).slice(0, 120));
+    check('which retires the old set',
+      (await POST(login, { username: 'akore-rene', password: PW, code: old[0] })).status === 403, 'an old code still works');
+    check('and the new ones work',
+      (await POST(login, { username: 'akore-rene', password: PW, code: freshBody.recoveryCodes[0] })).status === 200, '');
+    check('a password alone cannot mint a set',
+      (await POST(enroll, { action: 'recovery', username: 'akore-rene', password: PW })).status === 403, 'minted without a session');
+  }
+
+  reset();
+  {
+    // A listing must never carry them, in any form — a stored hash is as good as the code.
+    const intakeCodes = await load('intake-codes.js');
+    const customer = await enrolAndSignIn('fiacsa');
+    const staff = await enrolAndSignIn('akore-rene');
+    const text = await (await GET(intakeCodes, 'session=' + staff.body.session)).text();
+    check('no listing carries a recovery code or its hash',
+      customer.body.recoveryCodes.every(c => !text.includes(c)) && !/recovery/i.test(text), text.slice(0, 200));
+  }
+
+
+  reset();
+  {
+    // The whole point of a recovery code: getting back to a working authenticator after losing the
+    // phone. Signing in is only half of that.
+    const { started, body } = await enrolAndSignIn('akore-roy');
+    await POST(login, { username: 'akore-roy', password: PW, code: codeAt(started.secret, nowStep() + 1) });
+
+    const blocked = await POST(enroll, { username: 'akore-roy', password: PW });
+    check('normally a new authenticator needs a code from the current one',
+      blocked.status === 403 && (await blocked.json()).needsCurrentCode === true, 'status ' + blocked.status);
+
+    await POST(login, { username: 'akore-roy', password: PW, code: body.recoveryCodes[0] });
+    const allowed = await POST(enroll, { username: 'akore-roy', password: PW });
+    const fresh = await allowed.json();
+    check('but after a recovery sign-in the password alone starts a new one',
+      allowed.status === 200 && !!fresh.secret, allowed.status + ' ' + JSON.stringify(fresh).slice(0, 120));
+
+    const done = await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(scanned(fresh), nowStep()) });
+    const doneBody = await done.json();
+    check('the new phone takes over', done.status === 200 && !!doneBody.session, 'status ' + done.status);
+    check('and comes with a new set of recovery codes', (doneBody.recoveryCodes || []).length === 10, '');
+    check('the old codes die with the old authenticator',
+      (await POST(login, { username: 'akore-roy', password: PW, code: body.recoveryCodes[1] })).status === 403,
+      'an old recovery code still works');
+  }
+
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
   process.exit(failures ? 1 : 0);
 })();

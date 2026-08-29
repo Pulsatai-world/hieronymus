@@ -116,7 +116,7 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-
     <p id="gate-desc">Enter the username and password from your invitation to review your GEO audit prompts.</p>
     <input type="text" id="gate-username-input" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')document.getElementById('gate-password-input').focus()">
     <input type="password" id="gate-password-input" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitGate()">
-    <input type="text" id="gate-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" style="display:none" onkeydown="if(event.key==='Enter')submitGate()">
+    <input type="text" id="gate-code-input" autocomplete="one-time-code" maxlength="13" placeholder="6-digit code" style="display:none" onkeydown="if(event.key==='Enter')submitGate()">
     <button class="btn-accent" id="gate-continue-btn" onclick="submitGate()">Continue</button>
     <div id="gate-error" class="access-gate-error"></div>
   </div>
@@ -232,7 +232,7 @@ async function submitGate() {
   const errEl = document.getElementById('gate-error');
   const username = userInput.value.trim().toLowerCase();
   const password = passInput.value.trim();
-  const code = codeEl ? codeEl.value.replace(/\D/g, '') : '';
+  const code = window.akoreCodeValue(codeEl);
   errEl.textContent = '';
   if (!username || !password) { errEl.textContent = t('enterCreds'); return; }
 

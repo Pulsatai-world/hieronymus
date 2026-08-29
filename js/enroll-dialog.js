@@ -50,7 +50,19 @@
     serverSaid: { en: 'Something failed on our side ({code}). Try again, and if it keeps happening let us know and mention that number.',
                   es: 'Algo falló de nuestro lado ({code}). Intenta de nuevo y, si sigue pasando, avísanos y menciona ese número.' },
     clockOff:   { en: 'This device\'s clock is about {mins} minutes off. Codes are based on the time, so set the clock automatically before continuing.',
-                  es: 'El reloj de este dispositivo tiene unos {mins} minutos de diferencia. Los códigos se basan en la hora, así que pon el reloj en automático antes de continuar.' }
+                  es: 'El reloj de este dispositivo tiene unos {mins} minutos de diferencia. Los códigos se basan en la hora, así que pon el reloj en automático antes de continuar.' },
+    entryNote:  { en: 'Your app will list it as {label}. If older Akore Labs entries are already there, use this one and delete the rest — their codes no longer work.',
+                  es: 'Tu app lo mostrará como {label}. Si ya tienes entradas anteriores de Akore Labs, usa esta y borra las demás: sus códigos ya no funcionan.' },
+    doneTitle:  { en: "You're all set", es: 'Todo listo' },
+    doneBody:   { en: 'Two-step verification is on. From now on your password and a code from the app get you in.',
+                  es: 'La verificación en dos pasos está activada. A partir de ahora entras con tu contraseña y un código de la app.' },
+    recovTitle: { en: 'Save your recovery codes', es: 'Guarda tus códigos de recuperación' },
+    recovBody:  { en: 'If you ever lose the phone, each of these signs you in once, in place of a code. This is the only time they are shown.',
+                  es: 'Si algún día pierdes el teléfono, cada uno de estos te permite entrar una vez, en lugar de un código. Esta es la única vez que se muestran.' },
+    copyCodes:  { en: 'Copy codes', es: 'Copiar códigos' },
+    download:   { en: 'Download', es: 'Descargar' },
+    savedIt:    { en: 'I have saved these somewhere safe', es: 'Ya los guardé en un lugar seguro' },
+    continue:   { en: 'Continue', es: 'Continuar' }
   };
 
   function styles() {
@@ -83,7 +95,15 @@
       '.ae-go{flex:1 1 180px;border:none;background:#6d4fe0;color:#fff;border-radius:9px;padding:12px;font-size:13.5px;font-weight:650;cursor:pointer;font-family:inherit;}',
       '.ae-go[disabled]{opacity:.55;cursor:default;}',
       '.ae-x{flex:0 0 auto;border:1px solid #e3e6ea;background:#fff;color:#757f8f;border-radius:9px;padding:12px 16px;font-size:13px;cursor:pointer;font-family:inherit;}',
-      '@media (max-width:520px){.ae-card{padding:20px 18px 18px;}.ae-code{font-size:19px;letter-spacing:5px;}}'
+      '.ae-note{font-size:11.5px;line-height:1.5;color:#8a6d1f;background:#fdf6e3;border:1px solid #f0e3bd;border-radius:8px;padding:9px 11px;margin-top:10px;}',
+      '.ae-note b{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600;}',
+      '.ae-tick{width:44px;height:44px;border-radius:50%;background:#eefaf4;color:#0f7d5b;display:flex;align-items:center;justify-content:center;font-size:23px;margin-bottom:12px;}',
+      '.ae-rec{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px;background:#f4f2fb;border:1px solid #e3e6ea;border-radius:10px;padding:13px;}',
+      '.ae-rec span{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;letter-spacing:.4px;color:#08090c;text-align:center;padding:3px 0;}',
+      '.ae-rec span.spent{text-decoration:line-through;opacity:.45;}',
+      '.ae-save{display:flex;align-items:flex-start;gap:8px;margin-top:14px;font-size:12.5px;line-height:1.45;color:#3d4653;cursor:pointer;}',
+      '.ae-save input{margin-top:2px;flex:0 0 auto;width:15px;height:15px;accent-color:#6d4fe0;cursor:pointer;}',
+      '@media (max-width:520px){.ae-card{padding:20px 18px 18px;}.ae-code{font-size:19px;letter-spacing:5px;}.ae-rec{grid-template-columns:1fr;}}'
     ].join('');
     document.head.appendChild(el);
   }
@@ -110,6 +130,7 @@
         + '<div class="ae-step"><div class="ae-h" data-k="step1"></div><div class="ae-b" data-k="step1body"></div></div>'
         + '<div class="ae-step"><div class="ae-h" data-k="step2"></div><div class="ae-b" data-k="step2body"></div>'
         + '<div class="ae-qr" id="ae-qr"></div>'
+        + '<div class="ae-note" id="ae-entry" style="display:none;"></div>'
         + '<details class="ae-manual"><summary></summary>'
         + '<div class="ae-b" data-k="manualBody"></div>'
         + '<div class="ae-key"><code id="ae-secret"></code><button type="button" class="ae-copy"></button></div>'
@@ -157,7 +178,7 @@
           if (res.status === 401) return { error: t('wrongPass') };
           return { error: t('serverSaid').replace('{code}', String(res.status)) };
         }
-        return { secret: data.secret, qrSvg: data.qrSvg || '', serverTime: data.serverTime };
+        return { secret: data.secret, qrSvg: data.qrSvg || '', serverTime: data.serverTime, label: data.label || '' };
       }
 
       function failed(message) {
@@ -189,6 +210,22 @@
           qrBox.style.display = 'none';
           const manual = back.querySelector('.ae-manual');
           if (manual) manual.open = true;
+        }
+
+        // Which row to look for in the app. Repeated attempts leave several identical-looking
+        // entries and only the newest is live; naming it is what stops the wrong one being read.
+        const entry = q('#ae-entry');
+        if (started.label) {
+          entry.innerHTML = '';
+          const parts = t('entryNote').split('{label}');
+          entry.appendChild(document.createTextNode(parts[0]));
+          const b = document.createElement('b');
+          b.textContent = started.label;
+          entry.appendChild(b);
+          entry.appendChild(document.createTextNode(parts[1] || ''));
+          entry.style.display = '';
+        } else {
+          entry.style.display = 'none';
         }
 
         // Codes are derived from the clock. If this device is far enough out that every code will
@@ -243,8 +280,92 @@
         }
 
         // Set up, and signed in: the endpoint returns a session because a password and a live code
-        // were both just proved.
-        close(data);
+        // were both just proved. The dialog does NOT close here — it used to, and the page reloaded
+        // straight into a sign-in form with nothing having said the setup worked. It also has the
+        // recovery codes to hand over, and this is the only moment they exist to be shown.
+        succeeded(data);
+      }
+
+      // ── Set up: what the person sees when it worked ──
+      // Everything from here on is display. Nothing can fail in a way that reports the setup as
+      // broken — by this point the server has already saved it.
+      function succeeded(data) {
+        const codes = Array.isArray(data && data.recoveryCodes) ? data.recoveryCodes : [];
+        const card = back.querySelector('.ae-card');
+        card.innerHTML = '';
+
+        const tick = document.createElement('div');
+        tick.className = 'ae-tick'; tick.textContent = '✓';
+        const h = document.createElement('h3'); h.textContent = t('doneTitle');
+        const p1 = document.createElement('p'); p1.className = 'ae-intro'; p1.textContent = t('doneBody');
+        card.appendChild(tick); card.appendChild(h); card.appendChild(p1);
+
+        let tickbox = null;
+        if (codes.length) {
+          const h2 = document.createElement('div');
+          h2.className = 'ae-h'; h2.textContent = t('recovTitle');
+          const b2 = document.createElement('div');
+          b2.className = 'ae-b'; b2.textContent = t('recovBody');
+          const grid = document.createElement('div');
+          grid.className = 'ae-rec';
+          codes.forEach(function (c) {
+            const el = document.createElement('span'); el.textContent = c; grid.appendChild(el);
+          });
+          const row = document.createElement('div');
+          row.className = 'ae-key'; row.style.marginTop = '11px';
+          const copy = document.createElement('button');
+          copy.type = 'button'; copy.className = 'ae-copy'; copy.textContent = t('copyCodes');
+          copy.style.flex = '1 1 auto';
+          copy.onclick = async function () {
+            const text = codes.join('\n');
+            try { await navigator.clipboard.writeText(text); } catch (e) {
+              try {
+                const r = document.createRange(); r.selectNode(grid);
+                const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+              } catch (e2) { /* ignore */ }
+            }
+            copy.textContent = t('copied');
+            setTimeout(function () { copy.textContent = t('copyCodes'); }, 1800);
+          };
+          const dl = document.createElement('button');
+          dl.type = 'button'; dl.className = 'ae-copy'; dl.textContent = t('download');
+          dl.onclick = function () {
+            try {
+              const blob = new Blob(['Akore Labs — ' + username + '\n\n' + codes.join('\n') + '\n'],
+                { type: 'text/plain' });
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = 'akore-recovery-codes-' + username + '.txt';
+              document.body.appendChild(a); a.click(); a.remove();
+              setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+            } catch (e) { /* copying still works */ }
+          };
+          row.appendChild(copy); row.appendChild(dl);
+
+          const label = document.createElement('label');
+          label.className = 'ae-save';
+          tickbox = document.createElement('input');
+          tickbox.type = 'checkbox';
+          const span = document.createElement('span'); span.textContent = t('savedIt');
+          label.appendChild(tickbox); label.appendChild(span);
+
+          const step = document.createElement('div');
+          step.className = 'ae-step';
+          step.appendChild(h2); step.appendChild(b2); step.appendChild(grid); step.appendChild(row);
+          card.appendChild(step); card.appendChild(label);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'ae-actions';
+        const go = document.createElement('button');
+        go.type = 'button'; go.className = 'ae-go'; go.textContent = t('continue');
+        // Gated on the tick only when there is something to lose by clicking past it.
+        go.disabled = !!tickbox;
+        if (tickbox) tickbox.onchange = function () { go.disabled = !tickbox.checked; };
+        go.onclick = function () { close(data); };
+        actions.appendChild(go);
+        card.appendChild(actions);
+        try { go.focus(); } catch (e) { /* ignore */ }
       }
 
       q('.ae-copy').onclick = async function () {

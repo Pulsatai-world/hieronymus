@@ -4,6 +4,7 @@
 //   POST { username, password, code }              finish  -> { session, ...who }   (signed in)
 //   POST { username, password, code, currentCode } replace an active authenticator
 //   POST { action:'reset', username, session }     a staff admin clears someone's authenticator
+//   POST { action:'recovery', session }             a fresh set of recovery codes, shown once
 //
 // Two steps on purpose: a secret is issued and held as *pending*, and only becomes the account's
 // authenticator once a live code proves the app actually holds it. Without that, a mistyped setup key
@@ -14,9 +15,10 @@
 // that come with a second round trip.
 
 import { findAccount } from './lib/accounts.js';
-import { newSecret, verifyCode, otpauthUri, qrSvgFor } from './lib/totp.js';
+import { newSecret, verifyCode, otpauthUri, otpauthLabel, qrSvgFor } from './lib/totp.js';
 import { sessionFor, whoPayload } from './lib/identity.js';
 import { readSession, revokeAllFor } from './lib/session.js';
+import { newRecoveryCodes, recoveryRemaining } from './lib/recovery.js';
 
 // Several recent secrets stay valid rather than each replacing the last.
 //
@@ -31,9 +33,11 @@ const MAX_PENDING = 5;
 const PENDING_TTL_MS = 30 * 60 * 1000;
 
 // Wider than a login's window: setup happens once, while someone reads a number off one device and
-// types it into another, and a phone clock half a minute out would otherwise make it impossible with
-// nothing on screen to explain why.
-const SETUP_DRIFT = 3;
+// types it into another. At three steps a phone whose clock was two minutes out failed every code
+// with nothing on screen to explain why, so this is six — three minutes either side. The cost is
+// thirteen acceptable codes out of a million rather than seven, against a caller who already has
+// the password and gets five attempts.
+const SETUP_DRIFT = 6;
 
 const MAX_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
@@ -72,6 +76,22 @@ export default async (request) => {
     return json({ status: 'ok', enabled: false }, 200);
   }
 
+  // ── A fresh set of recovery codes ──
+  // For someone already signed in who has spent some, or never saved the set they were shown. The
+  // live session is the proof, not the password: a password alone must not be able to mint a way
+  // past the second factor. Issuing a set retires the previous one.
+  if (body.action === 'recovery') {
+    const session = await readSession(body.session);
+    if (!session || session.username !== acct.username) {
+      return json({ error: 'Sign in to get new recovery codes.' }, 403);
+    }
+    if (!acct.enrolled) return json({ error: 'Set up an authenticator first.' }, 409);
+    const fresh = newRecoveryCodes();
+    acct.setAuth({ ...acct.auth, recovery: fresh.stored, recoveryIssuedAt: fresh.issuedAt });
+    await acct.save();
+    return json({ status: 'ok', recoveryCodes: fresh.codes }, 200);
+  }
+
   if (!acct.checkPassword(body.password)) {
     return json({ error: 'Invalid username or password' }, 401);
   }
@@ -95,7 +115,14 @@ export default async (request) => {
   // confirmed with a live code before it becomes the account's second factor.
   //
   // `lastUsedAt` is stamped by /api/login on every successful sign-in.
-  const proven = !!(auth && auth.lastUsedAt);
+  //
+  // And a recovery code stands the gate down for a while. Someone who signed in with one has lost
+  // the authenticator, so demanding a code from it is demanding the impossible — it would leave
+  // them signed in, unable to enroll a new phone, and needing an admin they may themselves be.
+  const RECOVERY_WINDOW_MS = 30 * 60 * 1000;
+  const recentRecovery = !!(auth && auth.recoveryUsedAt
+    && Date.now() - Date.parse(auth.recoveryUsedAt) < RECOVERY_WINDOW_MS);
+  const proven = !!(auth && auth.lastUsedAt) && !recentRecovery;
   if (acct.enrolled && proven && !body.code) {
     const cur = verifyCode(auth.secret, body.currentCode, { drift: 1 });
     if (!cur.ok) {
@@ -139,9 +166,22 @@ export default async (request) => {
     }
 
     // The matched secret becomes the authenticator; every other candidate is dropped.
-    acct.setAuth({ secret: matched, enabledAt: new Date().toISOString(), lastStep: step, failures: 0, lockedUntil: null });
+    //
+    // Recovery codes are issued here and returned exactly once. This is the only moment they exist
+    // in plaintext anywhere — only their hashes are stored — so the dialog has to show them now or
+    // never. Without them, losing the phone means a staff admin must clear the authenticator, and
+    // the last remaining admin has nobody who can do that for them.
+    const recovery = newRecoveryCodes();
+    acct.setAuth({
+      secret: matched, enabledAt: new Date().toISOString(), lastStep: step,
+      failures: 0, lockedUntil: null,
+      recovery: recovery.stored, recoveryIssuedAt: recovery.issuedAt
+    });
     await acct.save();
-    return json({ session: await sessionFor(acct), ...whoPayload(acct) }, 200);
+    return json({
+      session: await sessionFor(acct), ...whoPayload(acct),
+      recoveryCodes: recovery.codes
+    }, 200);
   }
 
   // ── Start: issue a secret and a QR ──
@@ -155,7 +195,9 @@ export default async (request) => {
   acct.setAuth({ ...auth, pending });
   await acct.save();
 
-  const uri = otpauthUri(acct.username, secret);
+  // Dated, so an app already holding entries from earlier attempts shows which one is new.
+  const label = otpauthLabel(acct.username);
+  const uri = otpauthUri(label, secret);
   // The only time a secret leaves the server, to the account it belongs to, during its own setup.
   // serverTime lets the dialog notice a device clock far enough out to make every code look wrong,
   // and say so, rather than leaving someone retyping correct codes.
@@ -164,6 +206,7 @@ export default async (request) => {
     secret,
     otpauth: uri,
     qrSvg: await qrSvgFor(uri),
+    label,
     serverTime: Date.now()
   }, 200);
 };

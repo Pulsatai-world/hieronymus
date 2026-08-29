@@ -16,6 +16,7 @@
 
 import { findAccount } from './lib/accounts.js';
 import { verifyCode } from './lib/totp.js';
+import { consumeRecoveryCode, recoveryRemaining } from './lib/recovery.js';
 import { readSession, revokeSession } from './lib/session.js';
 import { sessionFor, whoPayload } from './lib/identity.js';
 
@@ -99,14 +100,19 @@ export default async (request) => {
     return json({ error: 'Enter the 6-digit code from your authenticator app.', needsCode: true }, 401);
   }
 
-  const res = verifyCode(auth.secret, code, { drift: 1 });
+  // Either the six digits from the app, or one of the recovery codes issued at enrollment. A
+  // recovery code is what gets someone back in when the phone holding the authenticator is gone;
+  // it is single-use, and consuming it mutates `auth` so the save below records it as spent.
+  const sixDigits = /^\d{6}$/.test(code.replace(/\s/g, ''));
+  const res = sixDigits ? verifyCode(auth.secret, code, { drift: 1 }) : { ok: false, step: null };
+  const viaRecovery = sixDigits ? { ok: false } : consumeRecoveryCode(auth.recovery, code);
 
   // Codes move forward and are never reused. Refusing only the exact last one was not enough: the
   // accepted window spans three codes at any moment, so a code seen over someone's shoulder stayed
   // usable whenever the previous sign-in had landed on a neighbouring step.
   const replayed = res.ok && typeof auth.lastStep === 'number' && res.step <= auth.lastStep;
 
-  if (!res.ok || replayed) {
+  if ((!res.ok && !viaRecovery.ok) || replayed) {
     auth.failures = (auth.failures || 0) + 1;
     if (auth.failures >= MAX_ATTEMPTS) {
       auth.lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60000).toISOString();
@@ -122,14 +128,27 @@ export default async (request) => {
 
   auth.failures = 0;
   auth.lockedUntil = null;
-  auth.lastStep = res.step;
+  // Only a real authenticator code advances the replay marker. A recovery code has no time step,
+  // and writing one here would reject the app's own next code.
+  if (res.ok) auth.lastStep = res.step;
   // Marks this authenticator as proven: it has actually been used to sign in. Until that happens it
   // can be replaced by the account holder with their password, because an authenticator nobody has
   // ever signed in with has demonstrated nothing — see the note in enroll.js.
   auth.lastUsedAt = new Date().toISOString();
+  // Someone who just signed in with a recovery code has, by definition, lost the authenticator.
+  // Enrollment reads this to let them set a new one up with their password alone — without it they
+  // would be signed in and permanently unable to restore two-factor, because replacing an
+  // authenticator asks for a code from the one they no longer have.
+  if (viaRecovery.ok) auth.recoveryUsedAt = new Date().toISOString();
+  else delete auth.recoveryUsedAt;     // the app works again; the window closes
   delete auth.pending;                 // any half-finished setup is done with
   acct.setAuth(auth);
   await acct.save();
 
-  return json({ session: await sessionFor(acct), ...whoPayload(acct) }, 200);
+  return json({
+    session: await sessionFor(acct), ...whoPayload(acct),
+    // So the page can say a code was spent and how many are left, rather than letting someone
+    // discover they have run out at the worst possible moment.
+    ...(viaRecovery.ok ? { usedRecoveryCode: true, recoveryRemaining: recoveryRemaining(auth.recovery) } : {})
+  }, 200);
 };

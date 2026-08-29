@@ -108,6 +108,21 @@ function scrypt(pw) {
     return { w, dom, calls, navigations, run };
   }
 
+  // Setup now ends on a success screen carrying the recovery codes, which waits to be acknowledged
+  // rather than vanishing. Anything that submits a correct code has to clear it before the sign-in
+  // promise settles.
+  async function acknowledgeSuccess(w) {
+    for (let i = 0; i < 500 && !w.document.querySelector('.ae-rec'); i++) await new Promise(r => setTimeout(r, 5));
+    const codes = Array.from(w.document.querySelectorAll('.ae-rec span')).map(e => e.textContent);
+    const box = w.document.querySelector('.ae-save input');
+    const go = w.document.querySelector('.ae-actions .ae-go');
+    const gatedBeforeTicking = !!(go && go.disabled);
+    if (box) { box.checked = true; if (box.onchange) box.onchange(); }
+    if (go) go.click();
+    for (let i = 0; i < 500 && w.document.querySelector('.ae-back'); i++) await new Promise(r => setTimeout(r, 5));
+    return { codes, gatedBeforeTicking };
+  }
+
   // Acts as the person at the setup dialog: reads the QR, types the code from it, clicks.
   async function completeSetup(w, { fromQr = true, delaySteps = 0 } = {}) {
     for (let i = 0; i < 400 && !w.document.querySelector('.ae-back'); i++) await new Promise(r => setTimeout(r, 5));
@@ -121,11 +136,29 @@ function scrypt(pw) {
 
     w.document.getElementById('ae-code').value = codeAt(key, nowStep() - delaySteps);
     w.document.querySelector('.ae-go').click();
-    for (let i = 0; i < 500 && w.document.querySelector('.ae-back'); i++) await new Promise(r => setTimeout(r, 5));
+
+    // Three ways this settles: the dialog closes, it swaps to the success screen, or an error
+    // appears under the code field. Waiting only for it to close hangs on the first of those.
+    const settled = () => !w.document.querySelector('.ae-back')
+      || !!w.document.querySelector('.ae-rec')
+      || !!(w.document.getElementById('ae-err') || {}).textContent;
+    for (let i = 0; i < 500 && !settled(); i++) await new Promise(r => setTimeout(r, 5));
+
+    // The success screen holds the recovery codes and waits to be acknowledged, so read them and
+    // then do what a person does: tick the box and press Continue.
+    if (w.document.querySelector('.ae-rec')) {
+      const ack = await acknowledgeSuccess(w);
+      const open2 = !!w.document.querySelector('.ae-back');
+      return { opened: true, key, qr, error: shownError, stillOpen: open2,
+               recoveryCodes: ack.codes, gatedBeforeTicking: ack.gatedBeforeTicking,
+               errorAfter: open2 ? ((w.document.getElementById('ae-err') || {}).textContent || '') : '' };
+    }
+    const recoveryCodes = [];
+
     const stillOpen = !!w.document.querySelector('.ae-back');
     return {
-      opened: true, key, qr, error: shownError, stillOpen,
-      errorAfter: stillOpen ? w.document.getElementById('ae-err').textContent : ''
+      opened: true, key, qr, error: shownError, stillOpen, recoveryCodes,
+      errorAfter: stillOpen ? ((w.document.getElementById('ae-err') || {}).textContent || '') : ''
     };
   }
 
@@ -157,6 +190,10 @@ function scrypt(pw) {
     check('with a QR to scan', setup.qr, 'no QR drawn');
     check('and no error while setting up', !setup.error, '"' + setup.error + '"');
     check('the dialog closes on a correct code', !setup.stillOpen, 'still open: "' + setup.errorAfter + '"');
+    check('the setup is confirmed on screen, not just silently over',
+      setup.recoveryCodes.length === 10, 'shown ' + setup.recoveryCodes.length + ' recovery codes');
+    check('and Continue waits until the codes are acknowledged',
+      setup.gatedBeforeTicking === true, 'it could be clicked straight past');
 
     const attempt = await settle(signingIn);
     check('and they are signed in', attempt && attempt.ok === true, JSON.stringify(attempt));
@@ -264,6 +301,9 @@ function scrypt(pw) {
     check('retrying in place gets a secret', !!key, 'still empty');
     w.document.getElementById('ae-code').value = codeAt(key, nowStep());
     w.document.querySelector('.ae-go').click();
+    const ack = await acknowledgeSuccess(w);
+    check('recovery codes are handed over even on the retry path', ack.codes.length === 10,
+      'shown ' + ack.codes.length);
     const attempt = await settle(signingIn);
     check('and setup then completes', attempt && attempt.ok === true, JSON.stringify(attempt));
   }

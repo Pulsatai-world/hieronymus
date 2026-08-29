@@ -86,7 +86,7 @@ function showPasswordGate() {
       <div style="font-size:12px; color:var(--text-dim); text-align:center; margin-bottom:28px;">${gt('sub')}</div>
       <input class="gate-input" id="user-input" type="text" placeholder="${gt('userPlaceholder')}" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')document.getElementById('pw-input').focus()">
       <input class="gate-input" id="pw-input" type="password" placeholder="${gt('placeholder')}" autocomplete="current-password" style="margin-bottom:16px;" onkeydown="if(event.key==='Enter')tryAuth()">
-      <input class="gate-input" id="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="${gt('codePlaceholder')}" style="margin-bottom:16px; display:none; text-align:center; letter-spacing:6px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;" onkeydown="if(event.key==='Enter')tryAuth()">
+      <input class="gate-input" id="code-input" type="text" autocomplete="one-time-code" maxlength="13" placeholder="${gt('codePlaceholder')}" style="margin-bottom:16px; display:none; text-align:center; letter-spacing:2px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;" onkeydown="if(event.key==='Enter')tryAuth()">
       <button class="btn" onclick="tryAuth()" style="width:100%; justify-content:center; padding:12px; font-size:14px;">${gt('btn')}</button>
       <div class="gate-error" id="pw-error" style="font-size:11px; color:var(--red); text-align:center; margin-top:10px; min-height:16px;"></div>
       <div style="font-size:10px; color:var(--text-dim); text-align:center; margin-top:20px;">${gt('footer')}</div>
@@ -101,7 +101,7 @@ async function tryAuth() {
   const errEl = document.getElementById('pw-error');
   const username = userInput.value.trim().toLowerCase();
   const password = passInput.value.trim();
-  const code = codeInput ? codeInput.value.replace(/\D/g, '') : '';
+  const code = window.akoreCodeValue(codeInput);
   if (!username || !password) return;
   const lang = localStorage.getItem('hieronymus_lang') || 'es';
 
