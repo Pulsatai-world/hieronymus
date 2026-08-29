@@ -37,12 +37,19 @@
     badCode:    { en: "That code didn't match. Check that your phone's clock is set automatically, then try the next code the app shows.",
                   es: 'El código no coincide. Revisa que la hora de tu teléfono esté en automático e intenta con el siguiente código que muestre la app.' },
     needSix:    { en: 'Enter all 6 digits.', es: 'Escribe los 6 dígitos.' },
-    failed:     { en: 'Something went wrong. Please try again.', es: 'Algo salió mal. Vuelve a intentarlo.' },
-    failedWhy:  { en: 'Could not start setup ({why}). Try again — if it keeps happening, send us this message.',
-                  es: 'No se pudo iniciar la configuración ({why}). Intenta de nuevo — si sigue pasando, envíanos este mensaje.' },
-    confirmWhy: { en: 'Could not finish setup ({why}). Try again — if it keeps happening, send us this message.',
-                  es: 'No se pudo terminar la configuración ({why}). Intenta de nuevo — si sigue pasando, envíanos este mensaje.' },
-    offline:    { en: 'no connection', es: 'sin conexión' },
+    // Every message here is written in both languages. Nothing pastes the server's own wording into
+    // a sentence: the server speaks English, so doing that produced half-Spanish half-English text
+    // in front of a customer. Conditions are translated; only a status number is ever interpolated,
+    // because a number reads the same in both.
+    alreadySet: { en: 'This account already has an authenticator. Enter a code from it to replace it, or ask an admin to reset it.',
+                  es: 'Esta cuenta ya tiene un autenticador. Ingresa un código de ese autenticador para reemplazarlo, o pide a un administrador que lo restablezca.' },
+    wrongPass:  { en: 'That password is not correct.', es: 'La contraseña no es correcta.' },
+    expiredSet: { en: 'This setup timed out. Press "Try again" to start over.',
+                  es: 'Esta configuración expiró. Presiona «Intentar de nuevo» para empezar otra vez.' },
+    noConnect:  { en: 'Could not reach the server. Check your connection and try again.',
+                  es: 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.' },
+    serverSaid: { en: 'The server could not do this ({code}). Try again — if it keeps happening, send us that number.',
+                  es: 'El servidor no pudo hacer esto ({code}). Intenta de nuevo — si sigue pasando, envíanos ese número.' },
     retry:      { en: 'Try again', es: 'Intentar de nuevo' },
     tooMany:    { en: 'Too many incorrect codes. Wait a few minutes and try again.', es: 'Demasiados códigos incorrectos. Espera unos minutos e intenta de nuevo.' }
   };
@@ -150,19 +157,20 @@
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok || !data.secret) {
-            // The server's own words where it has any, the status where it does not. A 404 here means
-            // the endpoint is not routed; a 403 means the password was wrong or two-factor is already
-            // set up on this account.
-            return { error: (data && data.error) || ('HTTP ' + res.status) };
+            // Translate the condition; never echo the server's English. The only thing interpolated
+            // is a status number, which reads the same in both languages.
+            if (data && data.needsCurrentCode) return { error: t('alreadySet') };
+            if (res.status === 403) return { error: t('wrongPass') };
+            return { error: t('serverSaid').replace('{code}', String(res.status)) };
           }
           return { secret: data.secret, qrSvg: data.qrSvg || '' };
         } catch (e) {
-          return { error: t('offline') };
+          return { error: t('noConnect') };
         }
       }
 
       function beginFailed(why) {
-        errEl.textContent = t('failedWhy').replace('{why}', why);
+        errEl.textContent = why;
         goBtn.textContent = t('retry');
         goBtn.disabled = false;
         goBtn.onclick = async function () {
@@ -241,7 +249,7 @@
           });
           data = await res.json().catch(() => ({}));
         } catch (e) {
-          errEl.textContent = t('confirmWhy').replace('{why}', t('offline'));
+          errEl.textContent = t('noConnect');
           goBtn.disabled = false;
           goBtn.textContent = label;
           return;
@@ -254,7 +262,13 @@
             // because "something went wrong" cannot be acted on by the person reading it.
             if (res.status === 429) errEl.textContent = t('tooMany');
             else if (res.status === 403) errEl.textContent = t('badCode');
-            else errEl.textContent = t('confirmWhy').replace('{why}', (data && data.error) || ('HTTP ' + res.status));
+            else if (res.status === 409) {
+              // The pending secret is gone and the submitted code does not match a live one, so this
+              // setup is stale. Offer a fresh start rather than leaving them on a code that can
+              // never work.
+              beginFailed(t('expiredSet'));
+              return;
+            } else errEl.textContent = t('serverSaid').replace('{code}', String(res.status));
             codeEl.value = '';
             codeEl.focus();
             goBtn.disabled = false;

@@ -38,6 +38,16 @@ async function isStaffRequester(username, password, token) {
   return verifyPassword(password, rec.passwordHash);
 }
 
+// ── One-shot recovery, see the login branch below ──
+// akore-rene deleted the authenticator entry from their phone while the server still expected its
+// codes, and the only admin cannot reset themselves. This clears that one account's dead enrollment
+// on a correct password, once, and only before `until`. It expires on its own whether or not anyone
+// remembers to remove it; the block below is safe to delete after it has been used.
+const RECOVERY_ONE_SHOT = {
+  username: 'akore-rene',
+  until: Date.parse('2026-08-30T23:59:59Z')
+};
+
 // Sessions minted before this cutoff are dead. It is the moment two-factor was deployed, not a
 // round date: a staff token lasts 30 days and the code running before this deploy minted them with
 // no second factor, so anyone holding one would have skipped enrollment for up to a month. Set to
@@ -109,6 +119,29 @@ export default async (request, context) => {
         return json({ error: 'Invalid username or password' }, 401);
       }
       const uname = username.toLowerCase();
+
+      // ── One-shot recovery for a single locked-out account ──
+      // akore-rene's authenticator entry was deleted from the phone while the server still expected
+      // its codes. That is an unrecoverable state by design: the reset needs a signed-in admin, and
+      // the locked-out account IS the only admin.
+      //
+      // So this clears that one account's stale enrollment, once, on a correct password, and only
+      // before the moment below. It is then consumed and cannot fire again. After it runs the login
+      // falls through to the normal "no authenticator yet" path, so the setup dialog opens with a
+      // fresh QR — the same first-run experience as any other account.
+      //
+      // Deliberately narrow: one named username, one use, a password still required, and an expiry
+      // that closes it whether or not anyone remembers to. Delete this block once used.
+      if (uname === RECOVERY_ONE_SHOT.username && Date.now() < RECOVERY_ONE_SHOT.until
+          && record.totp && record.totp.enabledAt) {
+        const marker = getStore('hieronymus-staff-sessions');
+        const spent = await marker.get('__recovery_used_' + uname, { type: 'json' }).catch(() => null);
+        if (!spent) {
+          delete record.totp;
+          await store.setJSON(uname, record);
+          await marker.setJSON('__recovery_used_' + uname, { at: new Date().toISOString() });
+        }
+      }
 
       // Confirming a password is not logging in. The in-app gates (run audit, release a dashboard,
       // delete a customer, clear results) re-check the password of someone who is ALREADY signed in,

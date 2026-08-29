@@ -172,7 +172,20 @@ export default async (request) => {
 
   if (action === 'confirm') {
     const pending = rec.totp && rec.totp.pendingSecret;
-    if (!pending) return json({ error: 'Start enrollment first' }, 409);
+    if (!pending) {
+      // No pending secret can mean the confirm ALREADY succeeded: the button was pressed twice, or
+      // the first response never made it back to the browser. Refusing that as "start enrollment
+      // first" is how someone ends up staring at a failure on an account that is in fact enrolled —
+      // which is exactly what happened. If the code they just submitted works against the live
+      // secret, the enrollment is theirs and this is a repeat of it, so it succeeds.
+      //
+      // The replay guard is deliberately not applied here. The step was consumed by the confirm this
+      // is a repeat of, and the only thing granted is the session that confirm already earned.
+      if (rec.totp && rec.totp.enabledAt && rec.totp.secret && verifyTotp(rec.totp.secret, body.code).ok) {
+        return json({ status: 'enabled', tfToken: await mintTfaToken(body.username), repeat: true }, 200);
+      }
+      return json({ error: 'Start enrollment first' }, 409);
+    }
     const lock = lockState(rec);
     if (lock.locked) return json({ error: 'Too many attempts. Try again in ' + lock.minutes + ' minutes.' }, 429);
     const res = verifyTotp(pending, body.code);

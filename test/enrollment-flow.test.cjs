@@ -145,6 +145,10 @@ async function completeEnrollment(w, { useQr = true } = {}) {
 (async () => {
   const reset = () => {
     Object.keys(STORES).forEach(k => delete STORES[k]);
+    // The one-shot lockout recovery in staff-users.js is keyed to this very username, so it would
+    // fire mid-test and clear the enrollment the test just made. Marked spent here; the recovery
+    // itself is covered by its own assertions.
+    store('hieronymus-staff-sessions')['__recovery_used_akore-rene'] = { at: '2026-08-29T00:00:00Z' };
     store('hieronymus-staff-users')['akore-rene'] = {
       username: 'akore-rene', role: 'admin', passwordHash: scrypt(PW), createdAt: '2026-01-01T00:00:00Z'
     };
@@ -393,9 +397,11 @@ async function completeEnrollment(w, { useQr = true } = {}) {
     check('the signed-in flag is gone', !w.localStorage.getItem('hieronymus_internal_auth'), 'still set');
     check('the session token is gone', !w.localStorage.getItem('hieronymus_staff_token'), 'still set');
     check('the two-factor ticket is gone', !w.localStorage.getItem('hieronymus_staff_tfa'), 'TICKET SURVIVED LOGOUT');
-    check('the session was revoked server-side too',
-      Object.keys(STORES['hieronymus-staff-sessions'] || {}).length === 0,
-      'sessions left alive: ' + Object.keys(STORES['hieronymus-staff-sessions'] || {}).length);
+    // Count actual sessions, not every key in the store — the one-shot recovery marker lives there
+    // too and is not a session.
+    const liveSessions = Object.values(STORES['hieronymus-staff-sessions'] || {}).filter(v => v && v.username);
+    check('the session was revoked server-side too', liveSessions.length === 0,
+      'sessions left alive: ' + liveSessions.length);
 
     // Logging back in.
     const back = await w.staffGateLogin('akore-rene', PW, '', 'es');

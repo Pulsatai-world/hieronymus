@@ -113,6 +113,10 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
   };
   const reset = () => {
     Object.keys(STORES).forEach(k => delete STORES[k]);
+    // The one-shot lockout recovery in staff-users.js is keyed to this very username, so it would
+    // fire mid-test and clear the enrollment the test just made. Marked spent here; the recovery
+    // itself is covered by its own assertions.
+    store('hieronymus-staff-sessions')['__recovery_used_akore-rene'] = { at: '2026-08-29T00:00:00Z' };
     store('hieronymus-staff-users')['akore-rene'] = { username: 'akore-rene', role: 'admin', passwordHash: scrypt(PW), createdAt: '2026-01-01T00:00:00Z' };
     store('hieronymus-intake-codes')['fiacsa'] = {
       company: 'FIACSA', submittedAt: '2026-02-01T00:00:00Z',
@@ -629,6 +633,62 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     check("another account's authenticator is left alone",
       !!store('hieronymus-intake-codes')['fiacsa'].members[0].totp, 'cleared someone else too');
     delete ENV.TWO_FACTOR_RECOVERY_SECRET;
+  }
+
+  // ── The one-shot lockout recovery ──
+  // akore-rene's account ended up enrolled against a secret their phone no longer had, and the only
+  // admin cannot reset themselves. This clears that ONE account's dead enrollment on a correct
+  // password, once, before a fixed moment — then it is spent.
+  console.log('\nThe one-shot recovery for the locked-out admin:');
+  reset();
+  {
+    // Not marked spent for this block: this is the block that tests it firing.
+    delete STORES['hieronymus-staff-sessions']['__recovery_used_akore-rene'];
+    const b = await (await POST(twoFactor, { action: 'begin', username: 'akore-rene', password: PW })).json();
+    await POST(twoFactor, { action: 'confirm', username: 'akore-rene', password: PW, code: codeAt(b.secret, nowStep() - 1) });
+    check('the account starts out enrolled', !!store('hieronymus-staff-users')['akore-rene'].totp.enabledAt, 'not enrolled');
+
+    const wrong = await GET(staffUsers, 'username=akore-rene&password=not-the-password');
+    check('a wrong password does not trigger it', wrong.status === 401
+      && !!store('hieronymus-staff-users')['akore-rene'].totp, 'fired on a wrong password');
+
+    const first = await GET(staffUsers, 'username=akore-rene&password=' + encodeURIComponent(PW));
+    const fb = await first.json();
+    check('the right password clears the dead authenticator', !store('hieronymus-staff-users')['akore-rene'].totp, 'still enrolled');
+    check('and they are sent to setup, not asked for a code', fb.needsEnrollment === true, JSON.stringify(fb));
+
+    // They enrol again, and the recovery must NOT fire a second time.
+    const b2 = await (await POST(twoFactor, { action: 'begin', username: 'akore-rene', password: PW })).json();
+    await POST(twoFactor, { action: 'confirm', username: 'akore-rene', password: PW, code: codeAt(b2.secret, nowStep() - 1) });
+    const again = await GET(staffUsers, 'username=akore-rene&password=' + encodeURIComponent(PW));
+    check('it is spent and cannot fire again', !!store('hieronymus-staff-users')['akore-rene'].totp, 'CLEARED A SECOND TIME');
+    check('so the new authenticator is required', (await again.json()).needsCode === true, 'not asked for a code');
+
+    // It is scoped to one named account.
+    const cb = await (await POST(twoFactor, { action: 'begin', username: 'fiacsa', password: PW })).json();
+    await POST(twoFactor, { action: 'confirm', username: 'fiacsa', password: PW, code: codeAt(cb.secret, nowStep() - 1) });
+    await GET(intakeCodes, 'username=fiacsa&password=' + encodeURIComponent(PW));
+    check('no other account is touched by it',
+      !!store('hieronymus-intake-codes')['fiacsa'].members[0].totp.enabledAt, 'cleared a customer');
+
+    // And it closes on its own.
+    const src = fs.readFileSync('netlify/functions/staff-users.js', 'utf8');
+    const m = /until: Date\.parse\('([^']+)'\)/.exec(src);
+    check('it has a fixed expiry rather than living forever', !!m, 'no expiry');
+    check('and that expiry is a real date', !!m && !Number.isNaN(Date.parse(m[1])), m ? m[1] : '');
+  }
+
+  // ── Nothing shows a customer a sentence in two languages ──
+  console.log('\nThe setup dialog never mixes languages:');
+  {
+    const setup = fs.readFileSync('js/two-factor-setup.js', 'utf8');
+    check("no message pastes the server's own words into a sentence",
+      !/replace\('\{why\}'/.test(setup) && !/data\.error\)/.test(setup),
+      "server text is still interpolated into user-facing copy");
+    const keys = [...setup.matchAll(/^    (\w+):\s*\{ en: ([\s\S]*?)\},$/gm)];
+    const missing = keys.filter(m => !m[2].includes('es:')).map(m => m[1]);
+    check('every string has both languages', missing.length === 0, 'missing Spanish: ' + missing.join(', '));
+    check('the only thing interpolated is a status number', /\{code\}/.test(setup), 'no {code} placeholder');
   }
 
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all assertions passed'));
