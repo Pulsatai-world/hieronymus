@@ -10,6 +10,7 @@
 
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
+import { totpGate, verifyTotp, newSecret, otpauthUri, mintTfaToken } from './lib/two-factor-gate.js';
 
 const SESSION_DAYS = 30;
 
@@ -44,10 +45,17 @@ export default async (request) => {
   const password = (body && body.password) || '';
   if (!username || !password) return json({ error: 'Missing username or password' }, 400);
 
-  const record = await getStore('hieronymus-staff-users').get(username, { type: 'json' }).catch(() => null);
+  const staffStore = getStore('hieronymus-staff-users');
+  const record = await staffStore.get(username, { type: 'json' }).catch(() => null);
   if (!record || !verifyPassword(password, record.passwordHash)) {
     return json({ error: 'Invalid credentials' }, 403);
   }
+
+  // Password alone is no longer enough for an enrolled account. No token is minted until the code
+  // checks out, so a stolen password cannot produce a session.
+  const gateOpts = { username: username, token: (body && body.tfToken) || '' };
+  const gate = await totpGate(record, body && body.code, () => staffStore.setJSON(username, record), json, gateOpts);
+  if (gate) return gate;
 
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86400000).toISOString();

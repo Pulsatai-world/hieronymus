@@ -7,6 +7,7 @@
 <title>Akore Labs — Intake Responses</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<script src="/js/auth-epoch.js"></script>
 <script>
 const SESSION_KEY = 'hieronymus_internal_auth'; // shared with portal.html/index.html — log in once, stay in across all three
 const USER_KEY = 'hieronymus_internal_user';
@@ -38,6 +39,7 @@ function showPasswordGate() {
       <div style="font-size:12px; color:var(--text-dim); text-align:center; margin-bottom:28px;">Akore Labs — Restricted Access</div>
       <input class="gate-input" id="user-input" type="text" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')document.getElementById('pw-input').focus()">
       <input class="gate-input" id="pw-input" type="password" placeholder="Password" autocomplete="current-password" style="margin-bottom:16px;" onkeydown="if(event.key==='Enter')tryAuth()">
+      <input class="gate-input" id="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" style="margin-bottom:16px; display:none; text-align:center; letter-spacing:6px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;" onkeydown="if(event.key==='Enter')tryAuth()">
       <button class="gate-btn" onclick="tryAuth()">Access →</button>
       <div class="gate-error" id="pw-error" style="font-size:11px; color:var(--red); text-align:center; margin-top:10px; min-height:16px;"></div>
       <div style="font-size:10px; color:var(--text-dim); text-align:center; margin-top:20px;">Akore Labs — Internal Use Only</div>
@@ -52,27 +54,21 @@ async function tryAuth() {
   const password = passInput.value.trim();
   if (!username || !password) return;
   const errEl = document.getElementById('pw-error');
+  const codeInput = document.getElementById('code-input');
+  const typedCode = codeInput ? codeInput.value.replace(/\D/g, '') : '';
+  const gateLang = localStorage.getItem('hieronymus_lang') || 'es';
   try {
-    let res = await fetch('/api/staff-users?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
-    if (!res.ok) {
-      // Login failed — if no staff accounts exist anywhere yet, this is the very first visit:
-      // create the founding admin account with whatever was just typed, instead of erroring.
-      const listData = await (await fetch('/api/staff-users')).json().catch(() => ({ items: [] }));
-      if ((listData.items || []).length === 0) {
-        const createRes = await fetch('/api/staff-users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password, role: 'admin' })
-        });
-        if (!createRes.ok) {
-          const createData = await createRes.json().catch(() => ({}));
-          throw new Error(createData.error || 'bootstrap failed');
-        }
-        res = await fetch('/api/staff-users?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
-      }
-      if (!res.ok) throw new Error('bad credentials');
+    // Login, first-visit bootstrap, mandatory enrollment and the code step all live in
+    // js/results-auth.js so the three internal pages cannot drift apart on them.
+    const attempt = await window.staffGateLogin(username, password, typedCode, gateLang);
+    if (attempt.cancelled) { errEl.textContent = ''; return; }
+    if (attempt.needsCode) {
+      if (codeInput) codeInput.style.display = '';
+      errEl.textContent = window.showGateCode(attempt, gateLang, !!typedCode);
+      return;
     }
-    const data = await res.json();
+    if (!attempt.ok) throw new Error(attempt.error || 'bad credentials');
+    const data = attempt.data;
     localStorage.setItem(SESSION_KEY, 'true');
     localStorage.setItem(USER_KEY, data.username);
     localStorage.setItem(ROLE_KEY, data.role);
@@ -159,6 +155,7 @@ body { font-family: var(--mono); background: var(--bg); color: var(--text); min-
 </style>
 <script src="/js/confirm-gate.js"></script>
 <script src="/js/results-auth.js"></script>
+<script src="/js/two-factor-setup.js"></script>
 </head>
 <body>
 

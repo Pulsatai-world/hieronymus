@@ -5,8 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
 <!-- Shared staff password gate — used here only for the internal review/release step. -->
+<script src="/js/auth-epoch.js"></script>
 <script src="/js/confirm-gate.js"></script>
 <script src="/js/results-auth.js"></script>
+<script src="/js/two-factor-setup.js"></script>
 <title>GEO Audit — Review Prompts | Akore Labs</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
@@ -118,6 +120,7 @@ textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-
     <p id="gate-desc">Enter the username and password from your invitation to review your GEO audit prompts.</p>
     <input type="text" id="gate-username-input" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')document.getElementById('gate-password-input').focus()">
     <input type="password" id="gate-password-input" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitGate()">
+    <input type="text" id="gate-code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" style="display:none" onkeydown="if(event.key==='Enter')submitGate()">
     <button class="btn-accent" id="gate-continue-btn" onclick="submitGate()">Continue</button>
     <div id="gate-error" class="access-gate-error"></div>
   </div>
@@ -223,10 +226,24 @@ async function submitGate() {
     errEl.textContent = t('enterCreds');
     return;
   }
+  const codeEl = document.getElementById('gate-code-input');
+  const typedCode = codeEl ? codeEl.value.trim() : '';
+  const attempt = await window.clientLogin(username, password, typedCode);
+  if (!attempt.ok && attempt.needsEnrollment) {
+    // Two-factor is mandatory: walk them through setup, then retry the login. The token issued on
+    // confirmation is already stored, so the retry goes through without asking for another code.
+    const done = await window.startTwoFactorSetup({ username: username, password: password, lang: lang, audience: 'client' });
+    if (done) return submitGate();
+    errEl.textContent = window.showGateCode({ }, lang, false);
+    return;
+  }
+  if (!attempt.ok && attempt.needsCode) {
+    errEl.textContent = window.showGateCode(attempt, lang, !!typedCode);
+    return;
+  }
   try {
-    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
-    if (!res.ok) throw new Error('bad credentials');
-    const data = await res.json();
+    if (!attempt.ok) throw new Error('bad credentials');
+    const data = attempt.data;
     clientCompany = data.company || '';
     clientUsername = username;
     clientPassword = password;

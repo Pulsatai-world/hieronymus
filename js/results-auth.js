@@ -17,20 +17,33 @@
   }
 
   const TOKEN_KEY = 'hieronymus_staff_token';
+  const STAFF_TFA_KEY = 'hieronymus_staff_tfa';
+  window.rememberStaffTfaToken = function (token) { if (token) writeLocal(STAFF_TFA_KEY, token); };
+
   let mintTried = false;
 
   // Exchanges a verified username and password for a session token, so the password itself never
   // has to be kept anywhere. Called wherever staff prove who they are — the portal login form and
   // the just-in-time password dialog both mint one, and from then on nothing asks again.
-  window.staffSignIn = async function (username, password) {
+  // Returns true on success. When the account has an authenticator enrolled and no code was given
+  // (or the code was wrong), returns a descriptive object instead so the caller can ask for one —
+  // callers that only test truthiness still correctly treat that as "not signed in".
+  window.staffSignIn = async function (username, password, code) {
     try {
       const res = await fetch('/api/staff-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username, password: password })
+        body: JSON.stringify({
+          username: username, password: password, code: code || '',
+          // A two-factor token from this browser's earlier login means no second code is needed.
+          tfToken: readLocal(STAFF_TFA_KEY) || ''
+        })
       });
-      if (!res.ok) return false;
-      const data = await res.json();
+      const data = await res.json().catch(function () { return {}; });
+      if (!res.ok) {
+        if (data && data.needsCode) return { needsCode: true, error: data.error || '', locked: res.status === 429 };
+        return false;
+      }
       if (!data || !data.token) return false;
       writeLocal(TOKEN_KEY, data.token);
       return true;
@@ -44,6 +57,67 @@
     if (token) {
       try { await fetch('/api/staff-session?staffToken=' + encodeURIComponent(token), { method: 'DELETE' }); } catch (e) { /* offline */ }
     }
+  };
+
+  // ── The internal staff gate login ──
+  // portal.html, index.html and intake-view.html all showed the same gate and carried three
+  // byte-identical copies of this logic. Two-factor would have made that three copies of a security
+  // decision, so it lives here once. Returns a plain result; the pages only decide where to go next.
+  //
+  //   { ok: true, data }                  signed in
+  //   { needsCode: true, locked, error }  correct password, waiting on a 6-digit code
+  //   { cancelled: true }                 enrollment dialog dismissed
+  //   { ok: false }                       wrong username or password
+  window.staffGateLogin = async function (username, password, code, lang) {
+    function loginUrl() {
+      let u = '/api/staff-users?username=' + encodeURIComponent(username)
+        + '&password=' + encodeURIComponent(password);
+      const held = readLocal(STAFF_TFA_KEY);
+      if (held) u += '&tfToken=' + encodeURIComponent(held);
+      if (code) u += '&code=' + encodeURIComponent(String(code).replace(/\D/g, ''));
+      return u;
+    }
+
+    let res = await fetch(loginUrl());
+    let body = res.ok ? null : await res.json().catch(function () { return {}; });
+
+    // First visit to a brand-new install: no staff accounts exist at all, so the first person to
+    // arrive becomes the founding admin rather than being told their password is wrong. Only
+    // attempted when the account genuinely does not exist — a two-factor refusal means it does.
+    if (!res.ok && !(body && (body.needsEnrollment || body.needsCode))) {
+      const listData = await fetch('/api/staff-users').then(function (r) { return r.json(); }).catch(function () { return { items: [] }; });
+      if ((listData.items || []).length === 0) {
+        const createRes = await fetch('/api/staff-users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: username, password: password, role: 'admin' })
+        });
+        if (!createRes.ok) {
+          const createData = await createRes.json().catch(function () { return {}; });
+          return { ok: false, error: createData.error || '' };
+        }
+        res = await fetch(loginUrl());
+        body = res.ok ? null : await res.json().catch(function () { return {}; });
+      }
+    }
+
+    // Two-factor is required for every staff login, so a fresh account — including the founding
+    // admin just created above — is sent through setup before it can get in.
+    if (!res.ok && body && body.needsEnrollment) {
+      if (typeof window.startTwoFactorSetup !== 'function') return { ok: false };
+      const done = await window.startTwoFactorSetup({ username: username, password: password, lang: lang, audience: 'staff' });
+      if (!done) return { cancelled: true };
+      return await window.staffGateLogin(username, password, '', lang);   // the new token gets it in
+    }
+    if (!res.ok && body && (body.needsCode || res.status === 429)) {
+      return { needsCode: true, locked: res.status === 429, error: body.error || '' };
+    }
+    if (!res.ok) return { ok: false };
+
+    const data = await res.json().catch(function () { return null; });
+    if (!data) return { ok: false };
+    if (data.tfToken) writeLocal(STAFF_TFA_KEY, data.tfToken);
+    return { ok: true, data: data };
   };
 
   // Async because a persistent staff login (localStorage) can outlive the password cached for the
@@ -165,12 +239,72 @@
     'geo_portal_username', 'geo_portal_password',
     'geo_review_username', 'geo_review_password',
     'geo_intake_username', 'geo_intake_password',
+    // Logging out has to surrender the two-factor session too, or the next visitor in the same tab
+    // reaches the account with a password alone.
+    'geo_2fa_token',
   ];
   window.clientLogoutAll = function () {
     CLIENT_SESSION_KEYS.forEach(k => { try { sessionStorage.removeItem(k); } catch (e) { /* ignore */ } });
     try { sessionStorage.setItem('geo_bypass_suppressed', '1'); } catch (e) { /* ignore */ }
     // Drop ?username= so a reload cannot re-seed the session from the URL.
     location.href = location.pathname;
+  };
+
+  // The single customer login call. All three client-facing pages re-validate through the same
+  // endpoint on load, so the two-factor token is held here and replayed automatically — otherwise a
+  // customer would type a fresh code walking from the intake form to their dashboard.
+  const TFA_TOKEN_KEY = 'geo_2fa_token';
+  window.clientLogin = async function (username, password, code) {
+    let url = '/api/intake-codes?username=' + encodeURIComponent(username)
+      + '&password=' + encodeURIComponent(password);
+    const held = readSession([TFA_TOKEN_KEY]);
+    if (held) url += '&tfToken=' + encodeURIComponent(held);
+    if (code) url += '&code=' + encodeURIComponent(String(code).replace(/\D/g, ''));
+    let res, data;
+    try {
+      res = await fetch(url);
+      data = await res.json().catch(function () { return {}; });
+    } catch (e) {
+      return { ok: false, error: '' };
+    }
+    if (res.ok) {
+      if (data && data.tfToken) { try { sessionStorage.setItem(TFA_TOKEN_KEY, data.tfToken); } catch (e) { /* private mode */ } }
+      return { ok: true, data: data || {} };
+    }
+    return {
+      ok: false,
+      needsCode: !!(data && data.needsCode),
+      locked: res.status === 429,
+      error: (data && data.error) || ''
+    };
+  };
+
+  // Reveals the six-digit field on a client gate and returns the message to show beside it. All
+  // three client pages use the same markup, so this lives here once rather than three times. The
+  // wording is built locally instead of echoing the server's English so both languages read right.
+  window.showGateCode = function (attempt, lang, hadCode) {
+    const el = document.getElementById('gate-code-input');
+    if (el) {
+      el.style.display = '';
+      el.value = '';
+      setTimeout(function () { try { el.focus(); } catch (e) { /* ignore */ } }, 0);
+    }
+    const es = lang === 'es';
+    if (attempt && attempt.locked) {
+      const m = /(\d+)/.exec(attempt.error || '');
+      const mins = m ? m[1] : '15';
+      return es
+        ? 'Demasiados códigos incorrectos. Intenta de nuevo en ' + mins + ' minutos.'
+        : 'Too many incorrect codes. Try again in ' + mins + ' minutes.';
+    }
+    if (hadCode) {
+      return es
+        ? 'Código incorrecto. Verifica la hora de tu teléfono e intenta con el siguiente código.'
+        : 'Incorrect code. Check your phone\u2019s clock and try the next code.';
+    }
+    return es
+      ? 'Ingresa el código de 6 dígitos de tu app de autenticación.'
+      : 'Enter the 6-digit code from your authenticator app.';
   };
 
   // True when the visitor has just logged out of a client page. The staff bypass must honour this or

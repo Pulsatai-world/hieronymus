@@ -21,11 +21,16 @@ function verifyPassword(password, stored) {
 // A signed-in staff session presents an opaque token instead of the password. Checked first so a
 // restored session never has to ask for the password again; the password path below is unchanged
 // and still answers for anything that has not adopted tokens.
+// Sessions minted before this cutoff are dead: two-factor became mandatory, and a token issued
+// under the old password-only login would otherwise let someone skip enrollment for up to 30 days.
+const SESSION_EPOCH = Date.parse('2026-08-28T00:00:00Z');
+
 async function staffFromToken(token) {
   if (!token) return null;
   const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
   if (!s || !s.username) return null;
   if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
+  if (s.createdAt && Date.parse(s.createdAt) < SESSION_EPOCH) return null;
   return s.username;
 }
 

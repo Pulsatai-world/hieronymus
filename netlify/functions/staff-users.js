@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
+import { totpGate, verifyTotp, newSecret, otpauthUri, mintTfaToken } from './lib/two-factor-gate.js';
 
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
@@ -22,8 +23,10 @@ function verifyPassword(password, stored) {
 
 function stripHash(record) {
   if (!record) return record;
-  const { passwordHash, ...rest } = record;
-  return rest;
+  // `totp` holds the shared secret. Anyone who reads it can generate valid codes forever, so it is
+  // stripped alongside the password hash; only the enrolled/not-enrolled fact goes out.
+  const { passwordHash, totp, ...rest } = record;
+  return { ...rest, twoFactorEnabled: !!(totp && totp.enabledAt) };
 }
 
 // Every mutating action here (create/delete/role change) requires the caller to already be an
@@ -77,7 +80,13 @@ export default async (request, context) => {
       if (!record || !password || !verifyPassword(password, record.passwordHash)) {
         return json({ error: 'Invalid username or password' }, 401);
       }
-      return json(stripHash(record), 200);
+      const uname = username.toLowerCase();
+      const gateOpts = { username: uname, token: url.searchParams.get('tfToken') };
+      const gate = await totpGate(record, url.searchParams.get('code'), () => store.setJSON(uname, record), json, gateOpts);
+      if (gate) return gate;
+      // Carries the two-factor token onward so signing in does not ask for a second code when the
+      // page trades this login for a longer-lived session token.
+      return json({ ...stripHash(record), ...(gateOpts.issued ? { tfToken: gateOpts.issued } : {}) }, 200);
     }
     const { blobs } = await store.list();
     // store.list() can momentarily include a key whose store.get() hasn't caught up yet

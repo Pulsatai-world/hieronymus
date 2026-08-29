@@ -796,8 +796,10 @@ select {
 }
 
 </style>
+<script src="/js/auth-epoch.js"></script>
 <script src="/js/confirm-gate.js"></script>
 <script src="/js/results-auth.js"></script>
+<script src="/js/two-factor-setup.js"></script>
 </head>
 <body>
 
@@ -826,6 +828,7 @@ select {
     <p data-en="Enter the username and password from your invitation to begin your GEO intake questionnaire." data-es="Ingresa el usuario y la contraseña de tu invitación para comenzar tu cuestionario inicial de GEO.">Enter the username and password from your invitation to begin your GEO intake questionnaire.</p>
     <input type="text" id="gate-username-input" class="gate-field-normal" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')document.getElementById('gate-password-input').focus()">
     <input type="password" id="gate-password-input" class="gate-field-normal" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')window.submitGateCode()">
+    <input type="text" id="gate-code-input" class="gate-field-normal" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6-digit code" style="display:none" onkeydown="if(event.key==='Enter')window.submitGateCode()">
     <button class="btn-accent" id="gate-submit-btn" onclick="window.submitGateCode()">
       <span data-en="Continue" data-es="Continuar">Continue</span>
     </button>
@@ -1622,7 +1625,22 @@ window.submitGateCode = async function() {
     errEl.textContent = lang === 'es' ? 'Ingresa tu usuario y contraseña.' : 'Enter your username and password.';
     return;
   }
-  const data = await validateGateCode(username, password);
+  const codeEl = document.getElementById('gate-code-input');
+  const typedCode = codeEl ? codeEl.value.trim() : '';
+  const attempt = await validateGateCode(username, password, typedCode);
+  if (!attempt.ok && attempt.needsEnrollment) {
+    // Two-factor is mandatory: walk them through setup, then retry the login. The token issued on
+    // confirmation is already stored, so the retry goes through without asking for another code.
+    const done = await window.startTwoFactorSetup({ username: username, password: password, lang: lang, audience: 'client' });
+    if (done) return window.submitGateCode();
+    errEl.textContent = window.showGateCode({ }, lang, false);
+    return;
+  }
+  if (!attempt.ok && attempt.needsCode) {
+    errEl.textContent = window.showGateCode(attempt, lang, !!typedCode);
+    return;
+  }
+  const data = attempt.ok ? attempt.data : null;
   if (!data) {
     errEl.textContent = lang === 'es' ? 'Usuario o contraseña inválidos. Verifica e intenta de nuevo.' : 'Invalid username or password. Please check and try again.';
     passInput.classList.add('error');
@@ -1640,14 +1658,10 @@ window.submitGateCode = async function() {
   await restoreSavedProgress();
 };
 
-async function validateGateCode(username, password) {
-  try {
-    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
-    return null;
-  }
+// Returns the shared login attempt rather than just the data, because a refused login now has two
+// distinct meanings — bad credentials, or a correct password still awaiting its 6-digit code.
+async function validateGateCode(username, password, code) {
+  return await window.clientLogin(username, password, code);
 }
 
 async function restoreSavedProgress() {
@@ -1844,8 +1858,21 @@ function populateForm(d) {
     if (userInput) userInput.value = usernameFromUrl;
   }
   if (!usernameToTry || !passwordToTry) return;
-  const data = await validateGateCode(usernameToTry, passwordToTry);
-  if (data) {
+  const restored = await validateGateCode(usernameToTry, passwordToTry);
+  if (restored.needsCode) {
+    // The two-factor session expired mid-visit. Put them back at the gate with the credentials
+    // filled in, needing only a fresh code — not a full re-login.
+    const u = document.getElementById('gate-username-input');
+    const pw = document.getElementById('gate-password-input');
+    if (u) u.value = usernameToTry;
+    if (pw) pw.value = passwordToTry;
+    const errEl = document.getElementById('gate-error');
+    const msg = window.showGateCode(restored, lang, false);
+    if (errEl) errEl.textContent = msg;
+    return;
+  }
+  if (restored.ok) {
+    const data = restored.data;
     clientUsername = usernameToTry;
     clientPassword = passwordToTry;
     clientCompany = data.company || '';

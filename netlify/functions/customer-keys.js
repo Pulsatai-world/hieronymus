@@ -12,11 +12,16 @@ function verifyPassword(password, stored) {
 // A signed-in staff session presents an opaque token instead of the password. Checked first so a
 // restored session never has to ask for the password again; the password path below is unchanged
 // and still answers for anything that has not adopted tokens.
+// Sessions minted before this cutoff are dead: two-factor became mandatory, and a token issued
+// under the old password-only login would otherwise let someone skip enrollment for up to 30 days.
+const SESSION_EPOCH = Date.parse('2026-08-28T00:00:00Z');
+
 async function staffFromToken(token) {
   if (!token) return null;
   const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
   if (!s || !s.username) return null;
   if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
+  if (s.createdAt && Date.parse(s.createdAt) < SESSION_EPOCH) return null;
   return s.username;
 }
 
@@ -59,6 +64,16 @@ export default async (request, context) => {
     }
     const company = (body.company || '').trim();
     if (!company) return json({ error: 'Missing company name' }, 400);
+
+    // Staff only. This POST sets the engine API keys a customer's audit runs are billed against, and
+    // it answered anyone who named a company — so a stranger could swap in their own key, point a
+    // customer's runs at it, or blank an engine out. Same rule POST /api/results already follows:
+    // every caller here is an internal page, so there is nobody legitimate to lock out.
+    if (!await isStaff(body.staffUsername || url.searchParams.get('staffUsername'),
+                       body.staffPassword || url.searchParams.get('staffPassword'),
+                       body.staffToken || url.searchParams.get('staffToken'))) {
+      return json({ error: 'Staff credentials required' }, 403);
+    }
 
     const key = slugify(company);
     const existing = (await store.get(key, { type: 'json' })) || { company };

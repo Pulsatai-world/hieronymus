@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
+import { totpGate, verifyTotp, newSecret, otpauthUri, mintTfaToken } from './lib/two-factor-gate.js';
 
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
@@ -68,7 +69,15 @@ async function loadGroup(store, key) {
 function stripHashes(record) {
   if (!record) return record;
   const { members, ...rest } = record;
-  return { ...rest, members: (members || []).map(({ passwordHash, ...m }) => m) };
+  // `totp` holds the authenticator's shared secret — anyone who reads it can mint valid codes for
+  // that account forever. It is removed here alongside the password hash, and replaced by the only
+  // thing a caller legitimately needs: whether the person has finished setting one up.
+  return {
+    ...rest,
+    members: (members || []).map(({ passwordHash, totp, ...m }) => ({
+      ...m, twoFactorEnabled: !!(totp && totp.enabledAt)
+    }))
+  };
 }
 
 function findMember(record, username) {
@@ -96,11 +105,16 @@ async function requireStaffAdmin(requestingUsername, requestingPassword) {
 // A signed-in staff session presents an opaque token instead of the password. Checked first so a
 // restored session never has to ask for the password again; the password path below is unchanged
 // and still answers for anything that has not adopted tokens.
+// Sessions minted before this cutoff are dead: two-factor became mandatory, and a token issued
+// under the old password-only login would otherwise let someone skip enrollment for up to 30 days.
+const SESSION_EPOCH = Date.parse('2026-08-28T00:00:00Z');
+
 async function staffFromToken(token) {
   if (!token) return null;
   const s = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
   if (!s || !s.username) return null;
   if (s.expiresAt && Date.parse(s.expiresAt) < Date.now()) return null;
+  if (s.createdAt && Date.parse(s.createdAt) < SESSION_EPOCH) return null;
   return s.username;
 }
 
@@ -192,6 +206,13 @@ export default async (request, context) => {
       if (!group || !member || !password || !verifyPassword(password, member.passwordHash)) {
         return json({ error: 'Invalid username or password' }, 401);
       }
+
+      // Same gate as staff. This endpoint is the login for all three client-facing pages, so putting
+      // it here covers every customer entry point at once.
+      const groupKey = slugify(group.company);
+      const gateOpts = { username: member.username, token: url.searchParams.get('tfToken') };
+      const gate = await totpGate(member, url.searchParams.get('code'), () => store.setJSON(groupKey, group), json, gateOpts);
+      if (gate) return gate;
       // This trimmed payload is the ONLY thing client-portal.html sees on a real customer login, so
       // anything that page renders from must be here. The dashboard release flags were missing, which
       // meant a released dashboard stayed hidden for the customer while looking fine through the staff
@@ -201,7 +222,12 @@ export default async (request, context) => {
         company: group.company, submittedAt: group.submittedAt,
         monitoringEnabled: !!group.monitoringEnabled,
         diagnosisReleased: !!group.diagnosisReleased,
-        monitoringReleased: !!group.monitoringReleased
+        monitoringReleased: !!group.monitoringReleased,
+        // Lets client-portal.html show the customer whether two-factor is on for their account.
+        twoFactorEnabled: !!(member.totp && member.totp.enabledAt),
+        // Present only on the request that actually verified a code; the pages keep it for the rest
+        // of the session so page-to-page navigation doesn't ask again.
+        ...(gateOpts.issued ? { tfToken: gateOpts.issued } : {})
       }, 200);
     }
 
