@@ -48,6 +48,15 @@ const RECOVERY_ONE_SHOT = {
   until: Date.parse('2026-08-30T23:59:59Z')
 };
 
+// Only on the deployed site. NETLIFY is set in the hosting runtime and nowhere else, which keeps this
+// out of every test: the suites use an account of their own and must not have a recovery clearing the
+// enrollments they just created — an earlier version of this did exactly that.
+// A function, not a constant: evaluated once at import it could never be exercised by a test, and
+// an untestable branch in the auth path is exactly how the previous rounds of this went wrong.
+function recoveryLive() {
+  return typeof process !== 'undefined' && !!(process.env && process.env.NETLIFY);
+}
+
 // Sessions minted before this cutoff are dead. It is the moment two-factor was deployed, not a
 // round date: a staff token lasts 30 days and the code running before this deploy minted them with
 // no second factor, so anyone holding one would have skipped enrollment for up to a month. Set to
@@ -132,15 +141,14 @@ export default async (request, context) => {
       //
       // Deliberately narrow: one named username, one use, a password still required, and an expiry
       // that closes it whether or not anyone remembers to. Delete this block once used.
-      if (uname === RECOVERY_ONE_SHOT.username && Date.now() < RECOVERY_ONE_SHOT.until
+      if (recoveryLive() && uname === RECOVERY_ONE_SHOT.username
+          && Date.now() < RECOVERY_ONE_SHOT.until
           && record.totp && record.totp.enabledAt) {
-        const marker = getStore('hieronymus-staff-sessions');
-        const spent = await marker.get('__recovery_used_' + uname, { type: 'json' }).catch(() => null);
-        if (!spent) {
-          delete record.totp;
-          await store.setJSON(uname, record);
-          await marker.setJSON('__recovery_used_' + uname, { at: new Date().toISOString() });
-        }
+        // Every time, while the window is open — not once. A single use is what left this account
+        // stuck: the first attempt enrolled it against a secret its owner could not produce, the
+        // one use was spent, and every login afterwards asked for a code with no way back to setup.
+        delete record.totp;
+        await store.setJSON(uname, record);
       }
 
       // Confirming a password is not logging in. The in-app gates (run audit, release a dashboard,

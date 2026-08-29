@@ -72,7 +72,29 @@
   //   { needsCode: true, locked, error }  correct password, waiting on a 6-digit code
   //   { cancelled: true }                 enrollment dialog dismissed
   //   { ok: false }                       wrong username or password
-  window.staffGateLogin = async function (username, password, code, lang, opts) {
+  // ── One login per action ──
+  // The gates call their login from three places at once: the button's onclick, Enter in the password
+  // field, and Enter in the code field. Nothing stopped two from running together, and each one that
+  // needed setup asked the server for a fresh secret — two QR codes for one action, only one of them
+  // stored, and no way for the person to tell which they had scanned.
+  //
+  // A second attempt with the same credentials while one is in flight joins the first instead.
+  const inFlight = {};
+  function dedupe(key, run) {
+    if (inFlight[key]) return inFlight[key];
+    const p = run();
+    inFlight[key] = p;
+    const clear = function () { delete inFlight[key]; };
+    p.then(clear, clear);
+    return p;
+  }
+
+  window.staffGateLogin = function (username, password, code, lang, opts) {
+    return dedupe('staff:' + username + ':' + (code || ''),
+      function () { return staffGateLoginOnce(username, password, code, lang, opts); });
+  };
+
+  async function staffGateLoginOnce(username, password, code, lang, opts) {
     function loginUrl() {
       let u = '/api/staff-users?username=' + encodeURIComponent(username)
         + '&password=' + encodeURIComponent(password);
@@ -117,7 +139,10 @@
       if (!done) return { cancelled: true };
       // The code they just typed during setup is spent, so this single hop rides the ticket setup
       // stored rather than asking for a second code 30 seconds later.
-      return await window.staffGateLogin(username, password, '', lang, { useTicket: true });
+      // Calls the inner function directly, NOT the deduped wrapper: this runs while the outer attempt
+      // is still in flight, so going through the wrapper would hand back the very promise we are
+      // inside and hang the sign-in forever.
+      return await staffGateLoginOnce(username, password, '', lang, { useTicket: true });
     }
     if (!res.ok && body && (body.needsCode || res.status === 429)) {
       return { needsCode: true, locked: res.status === 429, error: body.error || '' };
@@ -340,7 +365,13 @@
   // opts.useTicket — true only when continuing an existing session (restoring on page load, or the
   // hop straight after enrollment). NEVER for a password typed into the gate: that must ask for a
   // code every time, which is the whole point of the feature.
-  window.clientLogin = async function (username, password, code, opts) {
+  window.clientLogin = function (username, password, code, opts) {
+    // Same reason as the staff gate: the button and both Enter handlers can fire together.
+    return dedupe('client:' + username + ':' + (code || '') + ':' + !!(opts && opts.useTicket),
+      function () { return clientLoginOnce(username, password, code, opts); });
+  };
+
+  async function clientLoginOnce(username, password, code, opts) {
     let url = '/api/intake-codes?username=' + encodeURIComponent(username)
       + '&password=' + encodeURIComponent(password);
     const held = opts && opts.useTicket ? readSession([TFA_TOKEN_KEY]) : '';
@@ -366,7 +397,7 @@
       locked: res.status === 429,
       error: (data && data.error) || ''
     };
-  };
+  }
 
   // Reveals the six-digit field on a client gate and returns the message to show beside it. All
   // three client pages use the same markup, so this lives here once rather than three times. The

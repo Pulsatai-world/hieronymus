@@ -13,6 +13,30 @@ import crypto from 'node:crypto';
 import QRCode from 'qrcode';
 import { verifyTotp, newSecret, otpauthUri, mintTfaToken, lockState, registerFailure, requireTwoFactorProof } from './lib/two-factor-gate.js';
 
+// Same window as the one-shot recovery in staff-users.js. While it is open, an account may set up a
+// new authenticator on a correct password even if the record still shows an old one — the two
+// endpoints are separate invocations and cannot rely on reading each other's writes instantly.
+// Both close at this moment whether or not anyone remembers to remove them.
+const RECOVERY_WINDOW_UNTIL = Date.parse('2026-08-30T23:59:59Z');
+
+// How many recently-issued setup secrets stay valid, and for how long. More than one because a
+// single user action could issue several; short-lived because a pending secret grants nothing until
+// a live code proves an authenticator holds it, and there is no reason to keep them beyond one
+// sitting.
+const MAX_PENDING = 5;
+const PENDING_TTL_MS = 30 * 60 * 1000;
+
+// Enrollment tolerates a wider clock difference than a login does — one-time step, two devices.
+const CONFIRM_DRIFT_STEPS = 3;
+
+// Only on the deployed site. NETLIFY is set in the hosting runtime and nowhere else, so this cannot
+// weaken any test — a test that wants the recovery behaviour sets it deliberately.
+// A function, not a constant: evaluated once at import it could never be exercised by a test, and
+// an untestable branch in the auth path is exactly how the previous rounds of this went wrong.
+function recoveryLive() {
+  return typeof process !== 'undefined' && !!(process.env && process.env.NETLIFY);
+}
+
 function verifyPassword(password, stored) {
   const [salt, hash] = String(stored || '').split(':');
   if (!salt || !hash) return false;
@@ -148,7 +172,13 @@ export default async (request) => {
     // this, a stolen password was enough to enroll a new phone and take the account over — the
     // password would have been the only thing standing in the way, which is what two-factor exists
     // to prevent. Someone who has genuinely lost their phone goes through an admin reset instead.
-    if (rec.totp && rec.totp.enabledAt && rec.totp.secret) {
+    // During the lockout-recovery window the login has just cleared this account's dead enrollment,
+    // but Blobs does not guarantee that this separate invocation reads the cleared copy immediately.
+    // Without this the two requests disagree — the login says "you need to set up", and then setup
+    // says "you are already set up" — which is precisely the loop that trapped the locked-out admin.
+    // The password has already been verified above, and the window closes on its own.
+    const inRecoveryWindow = recoveryLive() && Date.now() < RECOVERY_WINDOW_UNTIL;
+    if (!inRecoveryWindow && rec.totp && rec.totp.enabledAt && rec.totp.secret) {
       const lock = lockState(rec);
       if (lock.locked) return json({ error: 'Too many attempts. Try again in ' + lock.minutes + ' minutes.' }, 429);
       const cur = verifyTotp(rec.totp.secret, body.currentCode);
@@ -162,17 +192,62 @@ export default async (request) => {
       }
     }
     const secret = newSecret();
-    rec.totp = { ...(rec.totp || {}), pendingSecret: secret, pendingAt: new Date().toISOString() };
+    const nowIso = new Date().toISOString();
+
+    // Every secret issued recently stays valid, rather than each one replacing the last.
+    //
+    // This is the defect that made setup fail over and over. Nothing stopped a single user action
+    // from asking for setup twice — pressing Enter and clicking both call the login — so two QR
+    // codes were issued, the second overwrote the first in storage, and both landed in the
+    // authenticator under an identical label. Scanning either was reasonable; only one could work,
+    // and the person had no way to tell which. Same for the retry button, and for two requests
+    // whose writes land out of order.
+    //
+    // Keeping the recent ones means whichever QR was actually scanned is accepted. They are
+    // short-lived and none of them grants anything until a live code proves the app holds it.
+    const prior = (rec.totp && Array.isArray(rec.totp.pending)) ? rec.totp.pending.slice() : [];
+    if (rec.totp && rec.totp.pendingSecret) {
+      // Carry a secret issued by the older single-slot version forward, so anyone mid-setup across
+      // this deploy is not stranded.
+      prior.push({ secret: rec.totp.pendingSecret, at: rec.totp.pendingAt || nowIso });
+    }
+    const pending = [{ secret, at: nowIso }]
+      .concat(prior)
+      .filter(p => p && typeof p.secret === 'string'
+        && Date.now() - Date.parse(p.at || 0) < PENDING_TTL_MS)
+      .filter((p, i, all) => all.findIndex(q => q.secret === p.secret) === i)
+      .slice(0, MAX_PENDING);
+
+    rec.totp = { ...(rec.totp || {}), pending, pendingSecret: secret, pendingAt: nowIso };
     await found.save();
     const uri = otpauthUri(String(body.username).toLowerCase(), secret);
     // The only time a secret is ever returned. Nothing reads it back out afterwards — and the QR
     // below encodes the same secret, so it is exactly as sensitive as the key beside it.
-    return json({ status: 'pending', secret, otpauth: uri, qrSvg: await qrFor(uri) }, 200);
+    //
+    // serverTime lets the dialog notice a device clock that is out by enough to make every code
+    // look wrong, and say so, instead of the person retyping correct codes indefinitely.
+    return json({
+      status: 'pending', secret, otpauth: uri, qrSvg: await qrFor(uri),
+      serverTime: Date.now()
+    }, 200);
   }
 
   if (action === 'confirm') {
-    const pending = rec.totp && rec.totp.pendingSecret;
-    if (!pending) {
+    // Every secret issued to this account recently is a candidate, newest first — see the note in
+    // `begin`. A code is checked against all of them, so the QR the person actually scanned is
+    // accepted even if another was issued after it.
+    const candidates = [];
+    if (rec.totp) {
+      for (const p of (Array.isArray(rec.totp.pending) ? rec.totp.pending : [])) {
+        if (p && typeof p.secret === 'string' && Date.now() - Date.parse(p.at || 0) < PENDING_TTL_MS) {
+          candidates.push(p.secret);
+        }
+      }
+      if (typeof rec.totp.pendingSecret === 'string' && !candidates.includes(rec.totp.pendingSecret)) {
+        candidates.push(rec.totp.pendingSecret);
+      }
+    }
+    if (!candidates.length) {
       // No pending secret can mean the confirm ALREADY succeeded: the button was pressed twice, or
       // the first response never made it back to the browser. Refusing that as "start enrollment
       // first" is how someone ends up staring at a failure on an account that is in fact enrolled —
@@ -188,13 +263,22 @@ export default async (request) => {
     }
     const lock = lockState(rec);
     if (lock.locked) return json({ error: 'Too many attempts. Try again in ' + lock.minutes + ' minutes.' }, 429);
-    const res = verifyTotp(pending, body.code);
-    if (!res.ok) {
+
+    // A wider window here than at login: this happens once, while the person reads a number off one
+    // device and types it into another, and a phone clock out by half a minute would otherwise make
+    // setup impossible with nothing to explain why.
+    let matched = null, res = { ok: false, step: null };
+    for (const candidate of candidates) {
+      const attempt = verifyTotp(candidate, body.code, Date.now(), CONFIRM_DRIFT_STEPS);
+      if (attempt.ok) { matched = candidate; res = attempt; break; }
+    }
+    if (!matched) {
       registerFailure(rec);
       await found.save();
       return json({ error: 'That code is not valid. Check the time on your phone and try again.' }, 403);
     }
-    rec.totp = { secret: pending, enabledAt: new Date().toISOString(), lastStep: res.step, failures: 0, lockedUntil: null };
+    // The matched secret becomes the account's authenticator and every other candidate is dropped.
+    rec.totp = { secret: matched, enabledAt: new Date().toISOString(), lastStep: res.step, failures: 0, lockedUntil: null };
     await found.save();
     // Hand back a session token. The code just used is burnt by the replay guard, so without this the
     // user would finish setup and then wait 30 seconds for a fresh code before they could log in.

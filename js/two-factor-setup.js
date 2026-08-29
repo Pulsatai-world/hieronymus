@@ -41,8 +41,11 @@
     // a sentence: the server speaks English, so doing that produced half-Spanish half-English text
     // in front of a customer. Conditions are translated; only a status number is ever interpolated,
     // because a number reads the same in both.
-    alreadySet: { en: 'This account already has an authenticator. Enter a code from it to replace it, or ask an admin to reset it.',
-                  es: 'Esta cuenta ya tiene un autenticador. Ingresa un código de ese autenticador para reemplazarlo, o pide a un administrador que lo restablezca.' },
+    // Reaching this during setup means the account became enrolled while this dialog was open — the
+    // setup very likely already completed. Telling them to ask an admin is unhelpful when reloading
+    // and signing in is what actually resolves it.
+    alreadySet: { en: 'This setup is out of date — the account is already set up. Close this, reload the page and sign in again.',
+                  es: 'Esta configuración quedó desactualizada — la cuenta ya está configurada. Cierra esto, recarga la página e inicia sesión de nuevo.' },
     wrongPass:  { en: 'That password is not correct.', es: 'La contraseña no es correcta.' },
     expiredSet: { en: 'This setup timed out. Press "Try again" to start over.',
                   es: 'Esta configuración expiró. Presiona «Intentar de nuevo» para empezar otra vez.' },
@@ -94,7 +97,25 @@
   }
 
   // audience: 'staff' | 'client' — decides only where the resulting token is remembered.
+  // One dialog at a time, and one setup per person.
+  //
+  // Nothing prevented this from being entered twice: pressing Enter in the password field and
+  // clicking the button both call the page's login, each login asked for setup, and each asked the
+  // server for a NEW secret. Two QR codes, two entries in the authenticator under an identical
+  // label, and only one of them stored. Whichever the person scanned, they had a coin-flip chance of
+  // being told the code was wrong — which is exactly what kept happening.
+  //
+  // A second call now joins the dialog already on screen instead of opening another.
+  let openSetup = null;
+
   window.startTwoFactorSetup = function (opts) {
+    if (openSetup) return openSetup;
+    openSetup = startSetup(opts);
+    openSetup.then(function () { openSetup = null; }, function () { openSetup = null; });
+    return openSetup;
+  };
+
+  function startSetup(opts) {
     const lang = opts.lang === 'es' ? 'es' : 'en';
     const t = k => T[k][lang];
     injectStyles();

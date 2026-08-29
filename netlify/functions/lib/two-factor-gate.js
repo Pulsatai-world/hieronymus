@@ -50,10 +50,16 @@ function codeForStep(secretB32, step) {
 }
 
 // Returns the matched time step, so a caller can refuse to accept the same code twice.
-export function verifyTotp(secretB32, code, nowMs = Date.now()) {
+//
+// driftSteps widens the accepted window. Logins use the default ±1 (a code lives about 60-90
+// seconds). Enrollment passes a wider window: it happens once, the person is switching between two
+// devices while reading a number off a screen, and a phone clock that is half a minute out would
+// otherwise make setup impossible with no way to tell why.
+export function verifyTotp(secretB32, code, nowMs = Date.now(), driftSteps = DRIFT_STEPS) {
   const clean = String(code || '').replace(/\D/g, '');
   if (!secretB32 || clean.length !== 6) return { ok: false, step: null };
   const current = Math.floor(nowMs / 1000 / STEP_SECONDS);
+  const DRIFT_STEPS = Math.max(0, Math.min(4, Number(driftSteps) || 0));
   for (let d = -DRIFT_STEPS; d <= DRIFT_STEPS; d++) {
     // Constant-time compare; both sides are fixed-length six-digit strings.
     if (crypto.timingSafeEqual(Buffer.from(codeForStep(secretB32, current + d)), Buffer.from(clean))) {

@@ -642,8 +642,8 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
   console.log('\nThe one-shot recovery for the locked-out admin:');
   reset();
   {
-    // Not marked spent for this block: this is the block that tests it firing.
-    delete STORES['hieronymus-staff-sessions']['__recovery_used_akore-rene'];
+    // The recovery is live only on the deployed site, so this block opts in.
+    ENV.NETLIFY = 'true';
     const b = await (await POST(twoFactor, { action: 'begin', username: 'akore-rene', password: PW })).json();
     await POST(twoFactor, { action: 'confirm', username: 'akore-rene', password: PW, code: codeAt(b.secret, nowStep() - 1) });
     check('the account starts out enrolled', !!store('hieronymus-staff-users')['akore-rene'].totp.enabledAt, 'not enrolled');
@@ -661,8 +661,12 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     const b2 = await (await POST(twoFactor, { action: 'begin', username: 'akore-rene', password: PW })).json();
     await POST(twoFactor, { action: 'confirm', username: 'akore-rene', password: PW, code: codeAt(b2.secret, nowStep() - 1) });
     const again = await GET(staffUsers, 'username=akore-rene&password=' + encodeURIComponent(PW));
-    check('it is spent and cannot fire again', !!store('hieronymus-staff-users')['akore-rene'].totp, 'CLEARED A SECOND TIME');
-    check('so the new authenticator is required', (await again.json()).needsCode === true, 'not asked for a code');
+    // Repeatable while the window is open, deliberately. A single use is what left this account
+    // stuck: the first attempt enrolled it against a secret its owner could not produce, the one use
+    // was spent, and every login afterwards asked for a code with no route back to setup.
+    check('it works again while the window is open', !store('hieronymus-staff-users')['akore-rene'].totp,
+      'refused to clear a second time, which is how the lockout persisted');
+    check('so they are sent to setup again', (await again.json()).needsEnrollment === true, 'not sent to setup');
 
     // It is scoped to one named account.
     const cb = await (await POST(twoFactor, { action: 'begin', username: 'fiacsa', password: PW })).json();
@@ -676,6 +680,14 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     const m = /until: Date\.parse\('([^']+)'\)/.exec(src);
     check('it has a fixed expiry rather than living forever', !!m, 'no expiry');
     check('and that expiry is a real date', !!m && !Number.isNaN(Date.parse(m[1])), m ? m[1] : '');
+
+    // It must not exist anywhere but the deployed site.
+    delete ENV.NETLIFY;
+    const b3 = await (await POST(twoFactor, { action: 'begin', username: 'akore-rene', password: PW })).json();
+    await POST(twoFactor, { action: 'confirm', username: 'akore-rene', password: PW, code: codeAt(b3.secret, nowStep() - 1) });
+    const offSite = await GET(staffUsers, 'username=akore-rene&password=' + encodeURIComponent(PW));
+    check('with the hosting runtime absent it does nothing', (await offSite.json()).needsCode === true,
+      'the recovery fired outside the deployed site');
   }
 
   // ── Nothing shows a customer a sentence in two languages ──
