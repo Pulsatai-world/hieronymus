@@ -38,6 +38,12 @@
                   es: 'El código no coincide. Revisa que la hora de tu teléfono esté en automático e intenta con el siguiente código que muestre la app.' },
     needSix:    { en: 'Enter all 6 digits.', es: 'Escribe los 6 dígitos.' },
     failed:     { en: 'Something went wrong. Please try again.', es: 'Algo salió mal. Vuelve a intentarlo.' },
+    failedWhy:  { en: 'Could not start setup ({why}). Try again — if it keeps happening, send us this message.',
+                  es: 'No se pudo iniciar la configuración ({why}). Intenta de nuevo — si sigue pasando, envíanos este mensaje.' },
+    confirmWhy: { en: 'Could not finish setup ({why}). Try again — if it keeps happening, send us this message.',
+                  es: 'No se pudo terminar la configuración ({why}). Intenta de nuevo — si sigue pasando, envíanos este mensaje.' },
+    offline:    { en: 'no connection', es: 'sin conexión' },
+    retry:      { en: 'Try again', es: 'Intentar de nuevo' },
     tooMany:    { en: 'Too many incorrect codes. Wait a few minutes and try again.', es: 'Demasiados códigos incorrectos. Espera unos minutos e intenta de nuevo.' }
   };
 
@@ -125,19 +131,57 @@
       q('.tfa-x').onclick = () => close(false);
 
       // Ask the server for a secret. It is held as pending until a live code proves the app has it.
+      //
+      // If this fails the dialog must not become a dead end. It used to return from inside the
+      // promise without resolving it, so the caller awaited forever and the page sat on an error it
+      // could not leave — the only way out was Cancel. Now the reason is shown and a retry offered.
       let secret = '', qrSvg = '';
-      try {
-        const res = await fetch('/api/two-factor', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'begin', username: opts.username, password: opts.password })
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.secret) { errEl.textContent = t('failed'); goBtn.disabled = true; return; }
-        secret = data.secret;
-        qrSvg = data.qrSvg || '';
-      } catch (e) {
-        errEl.textContent = t('failed'); goBtn.disabled = true; return;
+      async function begin() {
+        try {
+          const res = await fetch('/api/two-factor', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'begin', username: opts.username, password: opts.password })
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.secret) {
+            // The server's own words where it has any, the status where it does not. A 404 here means
+            // the endpoint is not routed; a 403 means the password was wrong or two-factor is already
+            // set up on this account.
+            return { error: (data && data.error) || ('HTTP ' + res.status) };
+          }
+          return { secret: data.secret, qrSvg: data.qrSvg || '' };
+        } catch (e) {
+          return { error: t('offline') };
+        }
       }
+
+      function beginFailed(why) {
+        errEl.textContent = t('failedWhy').replace('{why}', why);
+        goBtn.textContent = t('retry');
+        goBtn.disabled = false;
+        goBtn.onclick = async function () {
+          goBtn.disabled = true;
+          goBtn.textContent = t('working');
+          const again = await begin();
+          if (again.error) { beginFailed(again.error); return; }
+          secret = again.secret;
+          qrSvg = again.qrSvg;
+          render();
+        };
+      }
+
+      const started = await begin();
+      if (started.error) { beginFailed(started.error); return; }
+      secret = started.secret;
+      qrSvg = started.qrSvg;
+      // Puts the dialog into its ready state. It must re-enable the button as well as re-bind it:
+      // the retry path disables it while it is working, and nothing else turns it back on — so
+      // after a retry a person could scan the QR, type their code, and find the button dead.
+      function render() {
+        goBtn.textContent = t('enable');
+        goBtn.onclick = confirmCode;
+        goBtn.disabled = false;
+        errEl.textContent = '';
       // Grouped in fours for the fallback, where it gets typed by hand on a phone.
       q('#tfa-secret').textContent = secret.replace(/(.{4})/g, '$1 ').trim();
 
@@ -164,6 +208,8 @@
         setTimeout(() => { this.textContent = t('copy'); }, 1800);
       };
 
+      }
+
       codeEl.addEventListener('input', function () {
         this.value = this.value.replace(/\D/g, '').slice(0, 6);
         errEl.textContent = '';
@@ -171,7 +217,7 @@
       codeEl.addEventListener('keydown', e => { if (e.key === 'Enter') goBtn.click(); });
       setTimeout(() => { try { codeEl.focus(); } catch (e) { /* ignore */ } }, 60);
 
-      goBtn.onclick = async function () {
+      async function confirmCode() {
         const code = codeEl.value.replace(/\D/g, '');
         if (code.length !== 6) { errEl.textContent = t('needSix'); return; }
         goBtn.disabled = true;
@@ -184,7 +230,12 @@
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) {
-            errEl.textContent = res.status === 429 ? t('tooMany') : t('badCode');
+            // A wrong code is the ordinary case and gets the plain explanation. Anything else — the
+            // endpoint missing, the enrollment having expired, a server error — says what it was,
+            // because "something went wrong" cannot be acted on by the person reading it.
+            if (res.status === 429) errEl.textContent = t('tooMany');
+            else if (res.status === 403) errEl.textContent = t('badCode');
+            else errEl.textContent = t('confirmWhy').replace('{why}', (data && data.error) || ('HTTP ' + res.status));
             codeEl.value = '';
             codeEl.focus();
             return;
@@ -199,12 +250,14 @@
           }
           close(true);
         } catch (e) {
-          errEl.textContent = t('failed');
+          errEl.textContent = t('confirmWhy').replace('{why}', t('offline'));
         } finally {
           goBtn.disabled = false;
           goBtn.textContent = label;
         }
-      };
+      }
+
+      render();
     });
   };
 })();

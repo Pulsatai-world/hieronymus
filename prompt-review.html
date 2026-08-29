@@ -215,7 +215,10 @@ if (window.wireLogoHome) window.wireLogoHome(typeof clientCompany !== 'undefined
   if (document.getElementById('main-content').style.display === 'block') loadPrompts();
 }
 
-async function submitGate() {
+// opts.useTicket distinguishes restoring a session on page load from a person typing their
+// password. A typed password always requires a code; a restore does not, or every hop between the
+// customer's pages would ask for one.
+async function submitGate(opts) {
   const userInput = document.getElementById('gate-username-input');
   const passInput = document.getElementById('gate-password-input');
   const errEl = document.getElementById('gate-error');
@@ -228,12 +231,12 @@ async function submitGate() {
   }
   const codeEl = document.getElementById('gate-code-input');
   const typedCode = codeEl ? codeEl.value.trim() : '';
-  const attempt = await window.clientLogin(username, password, typedCode);
+  const attempt = await window.clientLogin(username, password, typedCode, opts);
   if (!attempt.ok && attempt.needsEnrollment) {
     // Two-factor is mandatory: walk them through setup, then retry the login. The token issued on
     // confirmation is already stored, so the retry goes through without asking for another code.
     const done = await window.startTwoFactorSetup({ username: username, password: password, lang: lang, audience: 'client' });
-    if (done) return submitGate();
+    if (done) return submitGate({ useTicket: true });
     errEl.textContent = window.showGateCode({ }, lang, false);
     return;
   }
@@ -550,7 +553,7 @@ applyStaticLang();
   if (usernameToTry && passwordToTry) {
     document.getElementById('gate-username-input').value = usernameToTry;
     document.getElementById('gate-password-input').value = passwordToTry;
-    submitGate();
+    submitGate({ useTicket: true });
   }
 })();
 </script>

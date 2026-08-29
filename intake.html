@@ -1614,7 +1614,9 @@ window.clientLogout = function() {
   location.href = location.pathname;
 };
 
-window.submitGateCode = async function() {
+// opts.useTicket is set only when continuing a session (after enrollment, or a restore) — a
+// password typed into the gate always requires a code.
+window.submitGateCode = async function(opts) {
   const userInput = document.getElementById('gate-username-input');
   const passInput = document.getElementById('gate-password-input');
   const errEl = document.getElementById('gate-error');
@@ -1627,12 +1629,12 @@ window.submitGateCode = async function() {
   }
   const codeEl = document.getElementById('gate-code-input');
   const typedCode = codeEl ? codeEl.value.trim() : '';
-  const attempt = await validateGateCode(username, password, typedCode);
+  const attempt = await validateGateCode(username, password, typedCode, opts);
   if (!attempt.ok && attempt.needsEnrollment) {
     // Two-factor is mandatory: walk them through setup, then retry the login. The token issued on
     // confirmation is already stored, so the retry goes through without asking for another code.
     const done = await window.startTwoFactorSetup({ username: username, password: password, lang: lang, audience: 'client' });
-    if (done) return window.submitGateCode();
+    if (done) return window.submitGateCode({ useTicket: true });
     errEl.textContent = window.showGateCode({ }, lang, false);
     return;
   }
@@ -1660,8 +1662,8 @@ window.submitGateCode = async function() {
 
 // Returns the shared login attempt rather than just the data, because a refused login now has two
 // distinct meanings — bad credentials, or a correct password still awaiting its 6-digit code.
-async function validateGateCode(username, password, code) {
-  return await window.clientLogin(username, password, code);
+async function validateGateCode(username, password, code, opts) {
+  return await window.clientLogin(username, password, code, opts);
 }
 
 async function restoreSavedProgress() {
@@ -1858,7 +1860,7 @@ function populateForm(d) {
     if (userInput) userInput.value = usernameFromUrl;
   }
   if (!usernameToTry || !passwordToTry) return;
-  const restored = await validateGateCode(usernameToTry, passwordToTry);
+  const restored = await validateGateCode(usernameToTry, passwordToTry, '', { useTicket: true });
   if (restored.needsEnrollment) {
     // Their authenticator was reset (a lost phone, most likely). Set a new one up and carry on
     // rather than dropping them at a blank gate with no explanation.

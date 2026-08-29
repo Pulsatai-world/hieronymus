@@ -53,6 +53,9 @@
 
   // Ends the session server-side as well, which a stored password could never do.
   window.staffSignOut = async function () {
+    // The two-factor ticket has to go with the session. Left behind, it would let the next sign-in
+    // in this browser skip the code.
+    writeLocal(STAFF_TFA_KEY, '');
     const token = readLocal(TOKEN_KEY);
     writeLocal(TOKEN_KEY, '');
     if (token) {
@@ -69,11 +72,13 @@
   //   { needsCode: true, locked, error }  correct password, waiting on a 6-digit code
   //   { cancelled: true }                 enrollment dialog dismissed
   //   { ok: false }                       wrong username or password
-  window.staffGateLogin = async function (username, password, code, lang) {
+  window.staffGateLogin = async function (username, password, code, lang, opts) {
     function loginUrl() {
       let u = '/api/staff-users?username=' + encodeURIComponent(username)
         + '&password=' + encodeURIComponent(password);
-      const held = readLocal(STAFF_TFA_KEY);
+      // Only when continuing from enrollment. A password typed at the gate always needs a code —
+      // reading the stored ticket here is what let a sign-in skip the second factor entirely.
+      const held = opts && opts.useTicket ? readLocal(STAFF_TFA_KEY) : '';
       if (held) u += '&tfToken=' + encodeURIComponent(held);
       if (code) u += '&code=' + encodeURIComponent(String(code).replace(/\D/g, ''));
       return u;
@@ -110,7 +115,9 @@
       if (typeof window.startTwoFactorSetup !== 'function') return { ok: false };
       const done = await window.startTwoFactorSetup({ username: username, password: password, lang: lang, audience: 'staff' });
       if (!done) return { cancelled: true };
-      return await window.staffGateLogin(username, password, '', lang);   // the new token gets it in
+      // The code they just typed during setup is spent, so this single hop rides the ticket setup
+      // stored rather than asking for a second code 30 seconds later.
+      return await window.staffGateLogin(username, password, '', lang, { useTicket: true });
     }
     if (!res.ok && body && (body.needsCode || res.status === 429)) {
       return { needsCode: true, locked: res.status === 429, error: body.error || '' };
@@ -270,10 +277,13 @@
   // The single customer login call. All three client-facing pages re-validate through the same
   // endpoint on load, so the two-factor token is held here and replayed automatically — otherwise a
   // customer would type a fresh code walking from the intake form to their dashboard.
-  window.clientLogin = async function (username, password, code) {
+  // opts.useTicket — true only when continuing an existing session (restoring on page load, or the
+  // hop straight after enrollment). NEVER for a password typed into the gate: that must ask for a
+  // code every time, which is the whole point of the feature.
+  window.clientLogin = async function (username, password, code, opts) {
     let url = '/api/intake-codes?username=' + encodeURIComponent(username)
       + '&password=' + encodeURIComponent(password);
-    const held = readSession([TFA_TOKEN_KEY]);
+    const held = opts && opts.useTicket ? readSession([TFA_TOKEN_KEY]) : '';
     if (held) url += '&tfToken=' + encodeURIComponent(held);
     if (code) url += '&code=' + encodeURIComponent(String(code).replace(/\D/g, ''));
     let res, data;
@@ -289,6 +299,9 @@
     }
     return {
       ok: false,
+      // Without this the pages cannot tell "wrong password" from "you have no authenticator yet",
+      // and the setup dialog never opens.
+      needsEnrollment: !!(data && data.needsEnrollment),
       needsCode: !!(data && data.needsCode),
       locked: res.status === 429,
       error: (data && data.error) || ''
