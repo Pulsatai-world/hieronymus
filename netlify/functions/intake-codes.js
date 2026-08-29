@@ -1,6 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { totpGate, verifyTotp, newSecret, otpauthUri, mintTfaToken } from './lib/two-factor-gate.js';
+import { totpGate } from './lib/two-factor-gate.js';
 
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
@@ -201,7 +201,8 @@ export default async (request, context) => {
       const password = url.searchParams.get('password');
       const { blobs } = await store.list();
       const groups = await Promise.all(blobs.map(b => loadGroup(store, b.key)));
-      const group = groups.find(g => findMember(g, username.toLowerCase()));
+      const idx = groups.findIndex(g => findMember(g, username.toLowerCase()));
+      const group = idx === -1 ? null : groups[idx];
       const member = group && findMember(group, username.toLowerCase());
       if (!group || !member || !password || !verifyPassword(password, member.passwordHash)) {
         return json({ error: 'Invalid username or password' }, 401);
@@ -209,7 +210,9 @@ export default async (request, context) => {
 
       // Same gate as staff. This endpoint is the login for all three client-facing pages, so putting
       // it here covers every customer entry point at once.
-      const groupKey = slugify(group.company);
+      // The key this group was actually read from — not slugify(company), which on any divergence
+      // would write a second shadow record and silently drop the replay guard with it.
+      const groupKey = blobs[idx].key;
       const gateOpts = { username: member.username, token: url.searchParams.get('tfToken') };
       const gate = await totpGate(member, url.searchParams.get('code'), () => store.setJSON(groupKey, group), json, gateOpts);
       if (gate) return gate;

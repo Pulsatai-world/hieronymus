@@ -239,7 +239,8 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     const cb = await (await POST(twoFactor, { action: 'begin', username: 'fiacsa', password: PW })).json();
     await POST(twoFactor, { action: 'confirm', username: 'fiacsa', password: PW, code: codeAt(cb.secret, nowStep() - 1) });
 
-    const list = await (await GET(staffUsers, '')).text();
+    // The listing is staff-only now, so it is read the way the Portal reads it.
+    const list = await (await GET(staffUsers, 'staffUsername=akore-rene&staffPassword=' + encodeURIComponent(PW))).text();
     check('staff listing carries no secret', !list.includes(sb.secret) && !list.includes('totp'), list.slice(0, 200));
     check('staff listing reports enrollment instead', list.includes('twoFactorEnabled'), list.slice(0, 200));
 
@@ -251,8 +252,10 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     check('customer record carries no secret', !rec.includes(cb.secret) && !rec.includes('pendingSecret'), rec.slice(0, 300));
     check('customer record reports enrollment instead', rec.includes('twoFactorEnabled'), rec.slice(0, 300));
 
-    const status = await (await GET(twoFactor, 'username=fiacsa')).json();
-    check('the status endpoint reports only the fact', status.enabled === true && !('secret' in status), JSON.stringify(status));
+    // The GET status endpoint was removed outright: it was never called, and answering 404 for an
+    // unknown name versus 200 for a real one let anyone enumerate usernames.
+    const gone = await GET(twoFactor, 'username=fiacsa');
+    check('the account-status endpoint is gone', gone.status === 405, 'status ' + gone.status);
   }
 
   // ── Recovery ──
@@ -292,6 +295,104 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     ['hieronymus_internal_auth', 'hieronymus_staff_token', 'geo_portal_password', 'geo_2fa_token'].forEach(k => {
       check('the browser wipe clears ' + k, epoch.includes(k), 'not listed');
     });
+  }
+
+  // ── Findings from the line-by-line audit ──
+  console.log('\nA stolen password must not be able to replace the authenticator:');
+  reset();
+  {
+    const b = await (await POST(twoFactor, { action: 'begin', username: 'fiacsa', password: PW })).json();
+    await POST(twoFactor, { action: 'confirm', username: 'fiacsa', password: PW, code: codeAt(b.secret, nowStep() - 1) });
+
+    // The attack: password only, enroll a new phone, own the account.
+    const takeover = await POST(twoFactor, { action: 'begin', username: 'fiacsa', password: PW });
+    const tbody = await takeover.json();
+    check('re-enrolling with the password alone is refused', takeover.status === 403, 'status ' + takeover.status);
+    check('and it says a current code is needed', tbody.needsCurrentCode === true, JSON.stringify(tbody));
+    check('no new pending secret was issued', !tbody.secret, JSON.stringify(tbody));
+    check("the original authenticator still works",
+      (await GET(intakeCodes, 'username=fiacsa&password=' + encodeURIComponent(PW) + '&code=' + codeAt(b.secret, nowStep()))).status === 200, 'locked out');
+
+    // The legitimate case — switching phones — works with a code from the current authenticator.
+    const legit = await POST(twoFactor, { action: 'begin', username: 'fiacsa', password: PW, currentCode: codeAt(b.secret, nowStep() + 1) });
+    check('switching phones works with a current code', legit.status === 200 && !!(await legit.json()).secret, 'status ' + legit.status);
+  }
+
+  console.log('\nCodes must move forward, never repeat or go back:');
+  reset();
+  {
+    const b = await (await POST(twoFactor, { action: 'begin', username: 'fiacsa', password: PW })).json();
+    await POST(twoFactor, { action: 'confirm', username: 'fiacsa', password: PW, code: codeAt(b.secret, nowStep() - 1) });
+    const q = c => 'username=fiacsa&password=' + encodeURIComponent(PW) + '&code=' + c;
+
+    // Enrollment consumed step-1. The ±1 window still offers step-1 as valid, so an earlier step
+    // must be refused outright, not just the exact one used last.
+    const earlier = await GET(intakeCodes, q(codeAt(b.secret, nowStep() - 1)));
+    check('the code just used at enrollment is refused', earlier.status === 403, 'status ' + earlier.status);
+    const current = await GET(intakeCodes, q(codeAt(b.secret, nowStep())));
+    check('the current code works', current.status === 200, 'status ' + current.status);
+    const back = await GET(intakeCodes, q(codeAt(b.secret, nowStep() - 1)));
+    check('and stepping backwards afterwards is refused', back.status === 403, 'status ' + back.status);
+  }
+
+  console.log('\nThe internal directory and account names:');
+  reset();
+  {
+    const open = await GET(staffUsers, '');
+    check('listing staff accounts requires credentials', open.status === 403, 'status ' + open.status);
+    const body = await open.json();
+    check('the refusal leaks no usernames', !JSON.stringify(body).includes('akore-rene'), JSON.stringify(body));
+
+    const probe = await GET(staffUsers, 'bootstrap=1');
+    const pbody = await probe.json();
+    check('the bootstrap probe answers one boolean', probe.status === 200 && pbody.empty === false && Object.keys(pbody).length === 1, JSON.stringify(pbody));
+
+    const asStaff = await GET(staffUsers, 'staffUsername=akore-rene&staffPassword=' + encodeURIComponent(PW));
+    check('staff can still list accounts', asStaff.status === 200 && (await asStaff.json()).items.length === 1, 'status ' + asStaff.status);
+
+    // The status endpoint that answered 404-vs-200 for any name is gone.
+    const enumr = await GET(twoFactor, 'username=akore-rene');
+    check('there is no unauthenticated account-status endpoint', enumr.status === 405, 'status ' + enumr.status);
+  }
+
+  console.log('\nThrottle and replay state survive being saved:');
+  reset();
+  {
+    // The login endpoint used to save under slugify(company) rather than the key the record was read
+    // from. This record's key and its company name deliberately disagree.
+    STORES['hieronymus-intake-codes']['legacy-key'] = {
+      company: 'Renamed Co. S.A.', submittedAt: null,
+      members: [{ username: 'renamed-user', role: 'full', passwordHash: scrypt(PW) }]
+    };
+    const b = await (await POST(twoFactor, { action: 'begin', username: 'renamed-user', password: PW })).json();
+    await POST(twoFactor, { action: 'confirm', username: 'renamed-user', password: PW, code: codeAt(b.secret, nowStep() - 1) });
+    const keysBefore = Object.keys(STORES['hieronymus-intake-codes']).length;
+    await GET(intakeCodes, 'username=renamed-user&password=' + encodeURIComponent(PW) + '&code=' + codeAt(b.secret, nowStep()));
+    check('no shadow record is created', Object.keys(STORES['hieronymus-intake-codes']).length === keysBefore,
+      Object.keys(STORES['hieronymus-intake-codes']).join(', '));
+    check('the replay guard was actually persisted',
+      typeof STORES['hieronymus-intake-codes']['legacy-key'].members[0].totp.lastStep === 'number', 'lastStep missing');
+    const replay = await GET(intakeCodes, 'username=renamed-user&password=' + encodeURIComponent(PW) + '&code=' + codeAt(b.secret, nowStep()));
+    check('so a replayed code is refused', replay.status === 403, 'status ' + replay.status);
+  }
+
+  console.log('\nThe forced sign-out when the browser refuses to remember it:');
+  {
+    const src = fs.readFileSync('js/auth-epoch.js', 'utf8');
+    let sess = { geo_portal_username: 'fiacsa', geo_portal_password: 'pw', geo_2fa_token: 'T' };
+    // Reads allowed, writes throw — private windows and storage-blocked settings behave this way.
+    const ctx = {
+      localStorage: { getItem: () => null, setItem: () => { throw new Error('QuotaExceeded'); }, removeItem: () => {} },
+      sessionStorage: { getItem: k => (k in sess ? sess[k] : null), setItem: (k, v) => { sess[k] = v; }, removeItem: k => { delete sess[k]; } },
+      console
+    };
+    ctx.window = ctx;
+    vm.createContext(ctx);
+    vm.runInContext(src, ctx);
+    check('the first load signs them out', !sess.geo_portal_password, JSON.stringify(sess));
+    sess.geo_portal_username = 'fiacsa'; sess.geo_portal_password = 'pw'; sess.geo_2fa_token = 'T2';
+    vm.runInContext(src, ctx);
+    check('a second load does NOT wipe the new session again', sess.geo_portal_password === 'pw', JSON.stringify(sess));
   }
 
   // ── Two-factor at the door, password behind it ──

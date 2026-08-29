@@ -10,7 +10,7 @@
 
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { totpGate, verifyTotp, newSecret, otpauthUri, mintTfaToken } from './lib/two-factor-gate.js';
+import { totpGate } from './lib/two-factor-gate.js';
 
 const SESSION_DAYS = 30;
 

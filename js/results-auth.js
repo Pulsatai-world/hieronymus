@@ -85,8 +85,10 @@
     // arrive becomes the founding admin rather than being told their password is wrong. Only
     // attempted when the account genuinely does not exist — a two-factor refusal means it does.
     if (!res.ok && !(body && (body.needsEnrollment || body.needsCode))) {
-      const listData = await fetch('/api/staff-users').then(function (r) { return r.json(); }).catch(function () { return { items: [] }; });
-      if ((listData.items || []).length === 0) {
+      // Asks only whether this install has any staff account yet — the directory itself is now
+      // staff-only, and a visitor at the login screen has nothing to prove.
+      const probe = await fetch('/api/staff-users?bootstrap=1').then(function (r) { return r.json(); }).catch(function () { return {}; });
+      if (probe.empty === true) {
         const createRes = await fetch('/api/staff-users', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

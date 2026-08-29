@@ -60,17 +60,9 @@ async function isStaffAdmin(username, password) {
 export default async (request) => {
   const url = new URL(request.url);
 
-  // Status: is 2FA on for this account? Never exposes the secret.
-  if (request.method === 'GET') {
-    const found = await locate(url.searchParams.get('username'));
-    if (!found) return json({ error: 'Unknown account' }, 404);
-    return json({
-      kind: found.kind,
-      enabled: !!(found.record.totp && found.record.totp.enabledAt),
-      pending: !!(found.record.totp && found.record.totp.pendingSecret),
-      enabledAt: (found.record.totp && found.record.totp.enabledAt) || null
-    }, 200);
-  }
+  // There is deliberately no GET here. A status endpoint that answered 404 for an unknown name and
+  // 200 for a real one let anyone enumerate every staff and customer username, and nothing in the
+  // app ever called it — the login response already reports twoFactorEnabled to the account itself.
 
   if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
 
@@ -98,6 +90,23 @@ export default async (request) => {
   }
 
   if (action === 'begin') {
+    // Replacing an authenticator that is already active needs a code from the CURRENT one. Without
+    // this, a stolen password was enough to enroll a new phone and take the account over — the
+    // password would have been the only thing standing in the way, which is what two-factor exists
+    // to prevent. Someone who has genuinely lost their phone goes through an admin reset instead.
+    if (rec.totp && rec.totp.enabledAt && rec.totp.secret) {
+      const lock = lockState(rec);
+      if (lock.locked) return json({ error: 'Too many attempts. Try again in ' + lock.minutes + ' minutes.' }, 429);
+      const cur = verifyTotp(rec.totp.secret, body.currentCode);
+      if (!cur.ok) {
+        registerFailure(rec);
+        await found.save();
+        return json({
+          error: 'Two-factor is already set up on this account. Enter a code from your current authenticator to replace it, or ask an admin to reset it.',
+          needsCurrentCode: true
+        }, 403);
+      }
+    }
     const secret = newSecret();
     rec.totp = { ...(rec.totp || {}), pendingSecret: secret, pendingAt: new Date().toISOString() };
     await found.save();

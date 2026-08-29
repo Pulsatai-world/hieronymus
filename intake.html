@@ -1859,6 +1859,17 @@ function populateForm(d) {
   }
   if (!usernameToTry || !passwordToTry) return;
   const restored = await validateGateCode(usernameToTry, passwordToTry);
+  if (restored.needsEnrollment) {
+    // Their authenticator was reset (a lost phone, most likely). Set a new one up and carry on
+    // rather than dropping them at a blank gate with no explanation.
+    const u = document.getElementById('gate-username-input');
+    const pw = document.getElementById('gate-password-input');
+    if (u) u.value = usernameToTry;
+    if (pw) pw.value = passwordToTry;
+    const done = await window.startTwoFactorSetup({ username: usernameToTry, password: passwordToTry, lang: lang, audience: 'client' });
+    if (done) return window.submitGateCode();
+    return;
+  }
   if (restored.needsCode) {
     // The two-factor session expired mid-visit. Put them back at the gate with the credentials
     // filled in, needing only a fresh code — not a full re-login.

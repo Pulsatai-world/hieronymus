@@ -21,10 +21,21 @@
     'geo_intake_username', 'geo_intake_password',
     'geo_2fa_token'
   ];
+  function mark(store) {
+    try { store.setItem('hieronymus_auth_epoch', AUTH_EPOCH); return true; } catch (e) { return false; }
+  }
+  function marked(store) {
+    try { return store.getItem('hieronymus_auth_epoch') === AUTH_EPOCH; } catch (e) { return false; }
+  }
   try {
-    if (localStorage.getItem('hieronymus_auth_epoch') === AUTH_EPOCH) return;
+    // Either marker counts. Some browsers (private windows, storage blocked by a setting) allow
+    // reads but throw on WRITING localStorage. With only the localStorage marker the wipe would
+    // never record that it had run, so it fired on every page load — clearing the session the
+    // customer had just used a code to establish, and logging them out on every navigation. The
+    // sessionStorage fallback keeps it to at most once per tab.
+    if (marked(localStorage) || marked(sessionStorage)) return;
     LOCAL.forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } });
     SESSION.forEach(function (k) { try { sessionStorage.removeItem(k); } catch (e) { /* ignore */ } });
-    localStorage.setItem('hieronymus_auth_epoch', AUTH_EPOCH);
-  } catch (e) { /* private mode: nothing was stored to clear, the gate just asks again */ }
+    if (!mark(localStorage)) mark(sessionStorage);
+  } catch (e) { /* nothing readable or writable: the gate just asks again */ }
 })();

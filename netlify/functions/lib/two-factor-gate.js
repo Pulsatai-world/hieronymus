@@ -89,7 +89,9 @@ export async function tfaTokenValid(token, username) {
   if (!token) return false;
   const rec = await getStore('hieronymus-2fa-sessions').get(String(token), { type: 'json' }).catch(() => null);
   if (!rec || rec.username !== String(username).toLowerCase()) return false;
-  return !(rec.expiresAt && Date.parse(rec.expiresAt) < Date.now());
+  // A record with no expiry is treated as invalid rather than eternal — fail closed.
+  if (!rec.expiresAt) return false;
+  return Date.parse(rec.expiresAt) >= Date.now();
 }
 
 // Enrollment's confirm step throttles the same way a login does — shared so the two cannot disagree
@@ -133,9 +135,11 @@ export async function totpGate(rec, code, save, json, opts = {}) {
   if (!code) return json({ error: 'Enter the 6-digit code from your authenticator app.', needsCode: true }, 401);
 
   const res = verifyTotp(t.secret, code);
-  // A reused step is refused as well: a code read over someone's shoulder is otherwise good for the
-  // rest of its 30-second window.
-  if (!res.ok || res.step === t.lastStep) {
+  // Codes must move forward, never repeat and never go back. Refusing only the exact step used last
+  // was not enough: the ±1 drift window keeps three codes live at once, so someone who saw a code
+  // could still use it whenever the account's last login happened to land on a neighbouring step.
+  // RFC 6238 is explicit — do not accept the same or an earlier time step twice.
+  if (!res.ok || (typeof t.lastStep === 'number' && res.step <= t.lastStep)) {
     t.failures = (t.failures || 0) + 1;
     if (t.failures >= MAX_ATTEMPTS) {
       t.lockedUntil = new Date(Date.now() + LOCK_MINUTES * 60000).toISOString();

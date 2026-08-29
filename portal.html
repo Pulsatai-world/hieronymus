@@ -1150,7 +1150,7 @@ async function renderStaffList() {
   const list = document.getElementById('staff-list');
   list.innerHTML = t('loading') || 'Loading…';
   try {
-    const res = await fetch('/api/staff-users');
+    const res = await fetch(await window.apiQuery('/api/staff-users', {}));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     const me = localStorage.getItem(USER_KEY);

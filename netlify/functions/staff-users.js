@@ -1,6 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { totpGate, verifyTotp, newSecret, otpauthUri, mintTfaToken } from './lib/two-factor-gate.js';
+import { totpGate } from './lib/two-factor-gate.js';
 
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
@@ -20,6 +20,27 @@ function verifyPassword(password, stored) {
   const check = crypto.scryptSync(password, salt, 64).toString('hex');
   return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(check, 'hex'));
 }
+
+// Same staff check every other endpoint performs: a signed-in session token, or a username and
+// password verified against this store.
+async function isStaffRequester(username, password, token) {
+  if (token) {
+    const sess = await getStore('hieronymus-staff-sessions').get(String(token), { type: 'json' }).catch(() => null);
+    if (sess && sess.username
+        && !(sess.expiresAt && Date.parse(sess.expiresAt) < Date.now())
+        && !(sess.createdAt && Date.parse(sess.createdAt) < SESSION_EPOCH)) {
+      return true;
+    }
+  }
+  if (!username || !password) return false;
+  const rec = await getStore('hieronymus-staff-users').get(String(username).toLowerCase(), { type: 'json' }).catch(() => null);
+  if (!rec) return false;
+  return verifyPassword(password, rec.passwordHash);
+}
+
+// Sessions minted before this cutoff are dead: two-factor became mandatory, and a token issued
+// under the old password-only login would otherwise let someone skip enrollment for up to 30 days.
+const SESSION_EPOCH = Date.parse('2026-08-28T00:00:00Z');
 
 function stripHash(record) {
   if (!record) return record;
@@ -96,6 +117,20 @@ export default async (request, context) => {
       // page trades this login for a longer-lived session token.
       return json({ ...stripHash(record), ...(gateOpts.issued ? { tfToken: gateOpts.issued } : {}) }, 200);
     }
+    // The only thing a not-yet-signed-in visitor may learn: whether this install has any staff
+    // account at all. Without it the first-run bootstrap cannot tell a fresh install from a wrong
+    // password, and it discloses a single boolean rather than the directory.
+    if (url.searchParams.get('bootstrap')) {
+      const { blobs } = await store.list();
+      return json({ empty: blobs.length === 0 }, 200);
+    }
+
+    // Listing every internal account is staff-only. It answered anyone, and it names each staff
+    // member, their role, and now whether they have a second factor configured.
+    if (!await isStaffRequester(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'))) {
+      return json({ error: 'Listing staff accounts requires staff credentials' }, 403);
+    }
+
     const { blobs } = await store.list();
     // store.list() can momentarily include a key whose store.get() hasn't caught up yet
     // (Netlify Blobs eventual consistency, most visible right after creating a new account) —
