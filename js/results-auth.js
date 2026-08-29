@@ -219,6 +219,20 @@
     return endpoint + (p.toString() ? '?' + p.toString() : '');
   };
 
+  // The whole staff sign-out, in one place. portal.html, index.html and intake-view.html each had
+  // their own copy and intake-view's was missing the server-side revoke entirely — so signing out
+  // there left the session valid for the API and left the two-factor ticket in the browser. Signing
+  // out has to mean the same thing on every page.
+  window.staffLogoutAll = async function (destination) {
+    ['hieronymus_internal_auth', 'hieronymus_internal_user', 'hieronymus_internal_role']
+      .forEach(function (k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } });
+    try { sessionStorage.removeItem('geo_staff_password'); } catch (e) { /* ignore */ }
+    // Revokes the session token server-side and drops the two-factor ticket. Without the ticket
+    // going, the next sign-in in this browser could skip the code.
+    await window.staffSignOut();
+    if (destination === 'reload') location.reload(); else location.href = destination || '/portal.html';
+  };
+
   // Pages that send credentials in a request body (saving an intake, approving prompts) need the
   // same ticket the query-string paths attach. Exposed here so no page reads the storage key itself.
   window.twoFactorTicket = function () {

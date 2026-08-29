@@ -127,7 +127,13 @@
       const goBtn = q('.tfa-go');
       const codeEl = q('#tfa-code');
 
-      function close(result) { back.remove(); resolve(result); }
+      // Resolve FIRST, then tidy up. The other order meant a DOM error while removing the dialog
+      // would strand the calling page waiting on a promise that never settled — the person would sit
+      // on a dialog that had already done its job.
+      function close(result) {
+        resolve(result);
+        try { back.remove(); } catch (e) { /* already detached */ }
+      }
       q('.tfa-x').onclick = () => close(false);
 
       // Ask the server for a secret. It is held as pending until a live code proves the app has it.
@@ -223,12 +229,25 @@
         goBtn.disabled = true;
         const label = goBtn.textContent;
         goBtn.textContent = t('working');
+        // Only the request itself is allowed to fail here. Everything after a successful response
+        // is outside this try on purpose: the account is enrolled the moment the server says so, and
+        // no later hiccup — storing a token, touching the DOM — may render that as a failure. That
+        // is what happened in production: enrollment had completed, and the dialog said it had not.
+        let res, data;
         try {
-          const res = await fetch('/api/two-factor', {
+          res = await fetch('/api/two-factor', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'confirm', username: opts.username, password: opts.password, code: code })
           });
-          const data = await res.json().catch(() => ({}));
+          data = await res.json().catch(() => ({}));
+        } catch (e) {
+          errEl.textContent = t('confirmWhy').replace('{why}', t('offline'));
+          goBtn.disabled = false;
+          goBtn.textContent = label;
+          return;
+        }
+
+        {
           if (!res.ok) {
             // A wrong code is the ordinary case and gets the plain explanation. Anything else — the
             // endpoint missing, the enrollment having expired, a server error — says what it was,
@@ -238,22 +257,25 @@
             else errEl.textContent = t('confirmWhy').replace('{why}', (data && data.error) || ('HTTP ' + res.status));
             codeEl.value = '';
             codeEl.focus();
+            goBtn.disabled = false;
+            goBtn.textContent = label;
             return;
           }
-          // Remember the token where this page's login looks for it, so it goes straight in.
-          if (data.tfToken) {
-            if (opts.audience === 'staff') {
-              if (window.rememberStaffTfaToken) window.rememberStaffTfaToken(data.tfToken);
-            } else {
-              try { sessionStorage.setItem('geo_2fa_token', data.tfToken); } catch (e) { /* private mode */ }
+
+          // Enrolled. From here the only job is to let them through.
+          // Remembering the token is a convenience — if storage refuses it, the login that follows
+          // simply asks for a code, which is a working outcome, not an error.
+          try {
+            if (data && data.tfToken) {
+              if (opts.audience === 'staff') {
+                if (window.rememberStaffTfaToken) window.rememberStaffTfaToken(data.tfToken);
+              } else {
+                sessionStorage.setItem('geo_2fa_token', data.tfToken);
+              }
             }
-          }
+          } catch (e) { /* storage unavailable — the next step asks for a code instead */ }
+
           close(true);
-        } catch (e) {
-          errEl.textContent = t('confirmWhy').replace('{why}', t('offline'));
-        } finally {
-          goBtn.disabled = false;
-          goBtn.textContent = label;
         }
       }
 

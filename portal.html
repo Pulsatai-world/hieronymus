@@ -46,14 +46,8 @@ function isAdmin() {
   return localStorage.getItem(ROLE_KEY) === 'admin';
 }
 async function staffLogout() {
-  localStorage.removeItem(SESSION_KEY);
-  localStorage.removeItem(USER_KEY);
-  localStorage.removeItem(ROLE_KEY);
-  sessionStorage.removeItem('geo_staff_password');
-  // Revokes the token server-side, so signing out actually ends the session rather than only
-  // forgetting it on this machine.
-  if (typeof window.staffSignOut === 'function') await window.staffSignOut();
-  location.reload();
+  // Everything sign-out means lives in js/results-auth.js — see staffLogoutAll.
+  await window.staffLogoutAll('reload');
 }
 
 function setGateLang(newLang) {

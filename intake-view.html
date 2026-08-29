@@ -88,12 +88,9 @@ async function tryAuth() {
   }
 }
 
-function staffLogout() {
-  localStorage.removeItem(SESSION_KEY);
-  localStorage.removeItem(USER_KEY);
-  localStorage.removeItem(ROLE_KEY);
-  sessionStorage.removeItem('geo_staff_password');
-  location.href = '/portal.html';
+async function staffLogout() {
+  // Everything sign-out means lives in js/results-auth.js — see staffLogoutAll.
+  await window.staffLogoutAll('/portal.html');
 }
 
 if (!checkAuth()) {

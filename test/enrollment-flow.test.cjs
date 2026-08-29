@@ -11,7 +11,7 @@
 const fs = require('fs');
 const vm = require('vm');
 const crypto = require('crypto');
-const { JSDOM } = require('jsdom');
+const { JSDOM, VirtualConsole } = require('jsdom');
 
 // Never await a promise that might not settle. A hung await drains the event loop and node exits
 // quietly with status 0 — the failure disappears instead of being reported.
@@ -84,12 +84,16 @@ function scrypt(pw) {
 
 // ── A browser ──
 function browser() {
+  const navigations = [];
+  const vc = new VirtualConsole();
+  vc.on('jsdomError', e => { if (/navigation/i.test(e.message)) navigations.push(e.message); });
+  vc.on('error', () => {});
   const dom = new JSDOM(`<!doctype html><body>
     <input id="user-input"><input id="pw-input"><input id="code-input" style="display:none">
     <div id="pw-error"></div>
     <input id="gate-username-input"><input id="gate-password-input">
     <input id="gate-code-input" style="display:none"><div id="gate-error"></div>
-  </body>`, { url: 'https://test.local/portal.html', runScripts: 'outside-only' });
+  </body>`, { url: 'https://test.local/portal.html', runScripts: 'outside-only', virtualConsole: vc });
   const w = dom.window;
 
   const calls = [];
@@ -105,7 +109,7 @@ function browser() {
   for (const f of ['js/results-auth.js', 'js/two-factor-setup.js']) {
     vm.runInContext(fs.readFileSync(f, 'utf8'), dom.getInternalVMContext(), { filename: f });
   }
-  return { w, calls, dom };
+  return { w, calls, dom, navigations };
 }
 
 // Acts as the person: waits for the dialog, reads the secret it shows, types the code, clicks.
@@ -314,6 +318,125 @@ async function completeEnrollment(w, { useQr = true } = {}) {
     check('the dialog stays open to try the next code', !!w.document.querySelector('.tfa-backdrop'), 'closed');
     w.document.querySelector('.tfa-x').click();
     await settle(enrolling);
+  }
+
+  // ── Once the server has enrolled the account, the person MUST get in ──
+  // This is the failure that was actually reported: enrollment had completed — it was possible to
+  // log in afterwards — and the dialog still showed an error. Anything that goes wrong after the
+  // server says "enabled" is not the person's problem and must not be shown to them as one.
+  console.log('\nWhen something breaks AFTER the server has enrolled the account:');
+  reset();
+  {
+    // Browser storage refuses writes: private windows and storage-blocked settings behave this way,
+    // and the token-remembering step used to run inside the request's own try/catch.
+    const { w } = browser();
+    Object.defineProperty(w.localStorage, 'setItem', { value: () => { throw new Error('QuotaExceeded'); } });
+    Object.defineProperty(w.sessionStorage, 'setItem', { value: () => { throw new Error('QuotaExceeded'); } });
+
+    const enrolling = w.startTwoFactorSetup({ username: 'akore-rene', password: PW, lang: 'es', audience: 'staff' });
+    const flow = await completeEnrollment(w);
+    const done = await settle(enrolling);
+
+    check('the dialog closes', !flow.stillOpen, 'stayed open showing: "' + flow.errorAfter + '"');
+    check('no error is shown', !flow.errorAfter, '"' + flow.errorAfter + '"');
+    check('enrollment reports success', !!done && !done.__hung, JSON.stringify(done));
+    check('and the account really is enrolled', !!store('hieronymus-staff-users')['akore-rene'].totp.enabledAt, 'not enrolled');
+    // Without a stored ticket the next step asks for a code — a working outcome, not an error.
+    const secret = store('hieronymus-staff-users')['akore-rene'].totp.secret;
+    const after = await w.staffGateLogin('akore-rene', PW, codeAt(secret, nowStep() + 1), 'es');
+    check('and they can sign in with a code', after && after.ok === true, JSON.stringify(after));
+  }
+
+  console.log('\nWhen removing the dialog itself throws:');
+  reset();
+  {
+    const { w } = browser();
+    const enrolling = w.startTwoFactorSetup({ username: 'fiacsa', password: PW, lang: 'es', audience: 'client' });
+    for (let i = 0; i < 300 && !w.document.getElementById('tfa-secret').textContent; i++) await new Promise(r => setTimeout(r, 5));
+    const secret = w.document.getElementById('tfa-secret').textContent.replace(/\s/g, '');
+    // The dialog is resolved before it is torn down, so a broken teardown cannot strand the caller.
+    const backdrop = w.document.querySelector('.tfa-backdrop');
+    backdrop.remove = () => { throw new Error('detached'); };
+    w.document.getElementById('tfa-code').value = codeAt(secret, nowStep());
+    w.document.querySelector('.tfa-go').click();
+    const done = await settle(enrolling);
+    check('the calling page is still let through', !!done && !done.__hung,
+      done && done.__hung ? 'the promise never resolved — the page would hang forever' : JSON.stringify(done));
+    check('and the account is enrolled', !!store('hieronymus-intake-codes')['fiacsa'].members[0].totp.enabledAt, 'not enrolled');
+  }
+
+  // ── THE REPORTED FAILURE, EXACTLY ──
+  // "I logged out, and when I logged back in, it let me in without the authentication."
+  // Driven through the real sign-out, in one browser, the way a person does it.
+  console.log('\nEnrol, LOG OUT, log back in — a code must be required:');
+  reset();
+  {
+    // jsdom cannot navigate and its location cannot be replaced, so the attempt is observed on the
+    // virtual console instead — which is what jsdom reports when a page sets location.
+    const { w, navigations } = browser();
+
+    const enrolling = w.staffGateLogin('akore-rene', PW, '', 'es');
+    await completeEnrollment(w);
+    const first = await settle(enrolling);
+    check('enrollment gets them in', !!first && first.ok === true, JSON.stringify(first));
+
+    // The pages set these on a successful login; sign-out must clear them.
+    w.localStorage.setItem('hieronymus_internal_auth', 'true');
+    w.localStorage.setItem('hieronymus_internal_user', 'akore-rene');
+    await w.staffSignIn('akore-rene', PW);           // the token the Portal trades for
+    check('a session token was minted', !!w.localStorage.getItem('hieronymus_staff_token'), 'none');
+    check('and a two-factor ticket is held', !!w.localStorage.getItem('hieronymus_staff_tfa'), 'none');
+
+    // The real sign-out, the one the Log out button calls.
+    await w.staffLogoutAll('reload');
+    check('signing out navigates away', navigations.length > 0, 'no navigation attempted');
+    check('the signed-in flag is gone', !w.localStorage.getItem('hieronymus_internal_auth'), 'still set');
+    check('the session token is gone', !w.localStorage.getItem('hieronymus_staff_token'), 'still set');
+    check('the two-factor ticket is gone', !w.localStorage.getItem('hieronymus_staff_tfa'), 'TICKET SURVIVED LOGOUT');
+    check('the session was revoked server-side too',
+      Object.keys(STORES['hieronymus-staff-sessions'] || {}).length === 0,
+      'sessions left alive: ' + Object.keys(STORES['hieronymus-staff-sessions'] || {}).length);
+
+    // Logging back in.
+    const back = await w.staffGateLogin('akore-rene', PW, '', 'es');
+    check('logging back in DEMANDS a code', !!(back && back.needsCode),
+      'LET IN WITHOUT AUTHENTICATION: ' + JSON.stringify(back));
+    check('and does not silently re-enrol them', !(back && back.cancelled), JSON.stringify(back));
+
+    const secret = store('hieronymus-staff-users')['akore-rene'].totp.secret;
+    const withCode = await w.staffGateLogin('akore-rene', PW, codeAt(secret, nowStep() + 1), 'es');
+    check('the code lets them back in', withCode && withCode.ok === true, JSON.stringify(withCode));
+  }
+
+  console.log('\nSame for a customer: log out, log back in:');
+  reset();
+  {
+    const { w } = browser();
+
+
+    const enroll = w.startTwoFactorSetup({ username: 'fiacsa', password: PW, lang: 'es', audience: 'client' });
+    await completeEnrollment(w);
+    await settle(enroll);
+    w.sessionStorage.setItem('geo_portal_username', 'fiacsa');
+    w.sessionStorage.setItem('geo_portal_password', PW);
+    check('a ticket is held for their session', !!w.sessionStorage.getItem('geo_2fa_token'), 'none');
+
+    w.clientLogoutAll();
+    check('logging out clears their ticket', !w.sessionStorage.getItem('geo_2fa_token'), 'TICKET SURVIVED LOGOUT');
+    check('and their stored password', !w.sessionStorage.getItem('geo_portal_password'), 'still stored');
+
+    const back = await w.clientLogin('fiacsa', PW);
+    check('logging back in DEMANDS a code', !!back.needsCode, 'LET IN WITHOUT AUTHENTICATION: ' + JSON.stringify(back));
+  }
+
+  console.log('\nAll three internal pages sign out the same way:');
+  {
+    const auth = fs.readFileSync('js/results-auth.js', 'utf8');
+    check('there is one implementation', auth.includes('window.staffLogoutAll'), 'missing');
+    for (const f of ['portal.html', 'index.html', 'intake-view.html']) {
+      const src = fs.readFileSync(f, 'utf8');
+      check(f + ' delegates to it', /staffLogout\(\)\s*\{[\s\S]{0,200}staffLogoutAll\(/.test(src), 'has its own copy');
+    }
   }
 
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
