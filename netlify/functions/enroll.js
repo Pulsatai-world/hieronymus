@@ -195,9 +195,9 @@ export default async (request) => {
   acct.setAuth({ ...auth, pending });
   await acct.save();
 
-  // Dated, so an app already holding entries from earlier attempts shows which one is new.
-  const label = otpauthLabel(acct.username);
-  const uri = otpauthUri(label, secret);
+  // Dated, so an app already holding entries from earlier attempts shows which one is new — the
+  // app's own row is where that belongs, not a warning box over the QR.
+  const uri = otpauthUri(otpauthLabel(acct.username), secret);
   // The only time a secret leaves the server, to the account it belongs to, during its own setup.
   // serverTime lets the dialog notice a device clock far enough out to make every code look wrong,
   // and say so, rather than leaving someone retyping correct codes.
@@ -206,7 +206,6 @@ export default async (request) => {
     secret,
     otpauth: uri,
     qrSvg: await qrSvgFor(uri),
-    label,
     serverTime: Date.now()
   }, 200);
 };
