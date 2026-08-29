@@ -38,13 +38,15 @@ async function isStaffRequester(username, password, token) {
   return verifyPassword(password, rec.passwordHash);
 }
 
-// ── One-shot recovery, see the login branch below ──
-// akore-rene deleted the authenticator entry from their phone while the server still expected its
-// codes, and the only admin cannot reset themselves. This clears that one account's dead enrollment
-// on a correct password, once, and only before `until`. It expires on its own whether or not anyone
-// remembers to remove it; the block below is safe to delete after it has been used.
+// ── Lockout recovery window, see the login branch below ──
+// An authenticator entry was deleted from a phone while the server still expected its codes, and the
+// only admin cannot reset themselves — the reset needs an admin who is signed in. Until the moment
+// below, a STAFF account presenting a correct password has its dead enrollment cleared and is sent
+// through setup again with a fresh QR.
+//
+// This is temporary scaffolding and it closes on its own. Delete the block in the login branch once
+// everyone is back in.
 const RECOVERY_ONE_SHOT = {
-  username: 'akore-rene',
   until: Date.parse('2026-08-30T23:59:59Z')
 };
 
@@ -141,7 +143,15 @@ export default async (request, context) => {
       //
       // Deliberately narrow: one named username, one use, a password still required, and an expiry
       // that closes it whether or not anyone remembers to. Delete this block once used.
-      if (recoveryLive() && uname === RECOVERY_ONE_SHOT.username
+      // Applies to any STAFF account while the window is open, not one named one. Keying it to a
+      // single username meant that the moment the person tried a different account — or the moment
+      // the state differed from what I assumed — they were asked for a code they could not produce,
+      // with no way forward. Guessing which account is locked out is not something this should
+      // depend on.
+      //
+      // A correct password is still required, it applies only on the deployed site, it only touches
+      // STAFF accounts (no customer's second factor is affected), and it closes on its own.
+      if (recoveryLive()
           && Date.now() < RECOVERY_ONE_SHOT.until
           && record.totp && record.totp.enabledAt) {
         // Every time, while the window is open — not once. A single use is what left this account

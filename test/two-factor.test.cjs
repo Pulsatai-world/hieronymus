@@ -668,12 +668,15 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
       'refused to clear a second time, which is how the lockout persisted');
     check('so they are sent to setup again', (await again.json()).needsEnrollment === true, 'not sent to setup');
 
-    // It is scoped to one named account.
+    // It touches staff accounts only — no customer's second factor is affected by it.
     const cb = await (await POST(twoFactor, { action: 'begin', username: 'fiacsa', password: PW })).json();
     await POST(twoFactor, { action: 'confirm', username: 'fiacsa', password: PW, code: codeAt(cb.secret, nowStep() - 1) });
     await GET(intakeCodes, 'username=fiacsa&password=' + encodeURIComponent(PW));
-    check('no other account is touched by it',
+    check('no customer is touched by it',
       !!store('hieronymus-intake-codes')['fiacsa'].members[0].totp.enabledAt, 'cleared a customer');
+    check('a customer login still asks that customer for a code',
+      (await (await GET(intakeCodes, 'username=fiacsa&password=' + encodeURIComponent(PW))).json()).needsCode === true,
+      'customer sent to setup by the staff recovery');
 
     // And it closes on its own.
     const src = fs.readFileSync('netlify/functions/staff-users.js', 'utf8');
