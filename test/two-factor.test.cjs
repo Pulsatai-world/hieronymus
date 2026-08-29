@@ -50,7 +50,7 @@ function load(file) {
     .matchAll(/^export (?:async )?function (\w+)/gm)].map(m => m[1]);
   src += '\n' + named.map(n => 'EXPORTS.' + n + ' = ' + n + ';').join('\n');
   const ctx = { getStore, crypto, URL, URLSearchParams, Response, Request, Buffer, Date, JSON,
-                console, EXPORTS: {} };
+                console, EXPORTS: {}, QRCode: require('qrcode') };
   ctx.globalThis = ctx;
   vm.createContext(ctx);
   vm.runInContext(src, ctx, { filename: file });
@@ -306,6 +306,85 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     ['hieronymus_internal_auth', 'hieronymus_staff_token', 'geo_portal_password', 'geo_2fa_token'].forEach(k => {
       check('the browser wipe clears ' + k, epoch.includes(k), 'not listed');
     });
+  }
+
+  // ── The QR code ──
+  // The risk worth testing is not "is there an image" but "does the image agree with the key printed
+  // beside it". If they disagreed, someone would scan, get a working-looking entry, and then fail
+  // every code forever — or worse, half the users would enroll against one secret and half another.
+  console.log('\nThe setup QR:');
+  reset();
+  {
+    const QRCode = require('qrcode');
+    const res = await POST(twoFactor, { action: 'begin', username: 'fiacsa', password: PW });
+    const body = await res.json();
+
+    check('enrollment returns a QR', typeof body.qrSvg === 'string' && body.qrSvg.startsWith('<svg'), String(body.qrSvg).slice(0, 60));
+    check('it is a complete SVG', body.qrSvg.includes('</svg>'), 'truncated');
+    check('and it draws something', /<path|<rect/.test(body.qrSvg), 'empty image');
+
+    // The URI the app will read.
+    check('the otpauth URI names the issuer', body.otpauth.includes('issuer=Akore%20Labs'), body.otpauth);
+    check('carries the secret', body.otpauth.includes('secret=' + body.secret), body.otpauth);
+    check('and states the algorithm, digits and period',
+      /algorithm=SHA1/.test(body.otpauth) && /digits=6/.test(body.otpauth) && /period=30/.test(body.otpauth), body.otpauth);
+    check('the label is the account, so the app shows who it is for', body.otpauth.includes('fiacsa'), body.otpauth);
+
+    // The QR must encode exactly the URI built from the secret shown beside it.
+    const expected = await QRCode.toString(body.otpauth, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
+    check('the QR encodes the same secret as the printed key', body.qrSvg === expected, 'QR and key disagree');
+
+    // And the secret in both is the one the server is actually waiting on.
+    const pending = store('hieronymus-intake-codes')['fiacsa'].members[0].totp.pendingSecret;
+    check('which is the secret the server will check against', pending === body.secret, pending + ' vs ' + body.secret);
+
+    // "Valid SVG" is not "a phone can read it". This walks the drawn path back into a module grid
+    // and compares it to the matrix the encoder computed, so a rendering change that shifts, inverts
+    // or truncates the image fails here instead of in a customer's camera.
+    {
+      const qr = QRCode.create(body.otpauth, { errorCorrectionLevel: 'M' });
+      const size = qr.modules.size, margin = 1;
+      const vb = /viewBox="0 0 (\d+) (\d+)"/.exec(body.qrSvg);
+      check('the image leaves a quiet zone around the code',
+        vb && Number(vb[1]) === size + 2 * margin, vb ? vb[1] + ' for size ' + size : 'no viewBox');
+
+      const d = /stroke="#000000" d="([^"]+)"/.exec(body.qrSvg);
+      const grid = Array.from({ length: size }, () => new Uint8Array(size));
+      let x = 0, y = 0;
+      for (const tk of (d ? d[1].match(/[MmHhVvLl][^MmHhVvLl]*/g) || [] : [])) {
+        const nums = (tk.slice(1).match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+        if (tk[0] === 'M') { x = nums[0]; y = nums[1]; }
+        else if (tk[0] === 'm') { x += nums[0]; y += nums[1]; }
+        else if (tk[0] === 'h' || tk[0] === 'H') {
+          const n = tk[0] === 'h' ? nums[0] : nums[0] - x;
+          const r = Math.floor(y) - margin;
+          for (let i = 0; i < Math.abs(n); i++) {
+            const c = Math.floor(x) + (n > 0 ? i : -i) - margin;
+            if (r >= 0 && r < size && c >= 0 && c < size) grid[r][c] = 1;
+          }
+          x += n;
+        }
+      }
+      let diff = 0;
+      for (let r = 0; r < size; r++) for (let c = 0; c < size; c++) {
+        if ((qr.modules.data[r * size + c] ? 1 : 0) !== grid[r][c]) diff++;
+      }
+      check('every module in the image matches the encoded matrix', diff === 0, diff + ' modules wrong');
+    }
+
+    // Scanning it and entering the resulting code must complete enrollment.
+    const code = codeAt(body.secret, nowStep());
+    const done = await POST(twoFactor, { action: 'confirm', username: 'fiacsa', password: PW, code });
+    check('a code from that secret completes setup', done.status === 200, 'status ' + done.status);
+
+    // A QR is no help on a desktop password manager or without a camera, so the key stays.
+    const setup = fs.readFileSync('js/two-factor-setup.js', 'utf8');
+    check('the dialog still offers the key by hand', setup.includes('manualToggle') && setup.includes('tfa-secret'), 'fallback gone');
+    check('and opens that fallback if the QR is missing', /qrBox\.remove\(\)[\s\S]{0,200}manual\.open = true/.test(setup), 'no fallback path');
+    check('the QR is never fetched from a third party',
+      !/qrserver|chart\.googleapis|api\.qrcode|https?:\/\/[^"'\s]*qr/i.test(setup), 'external QR reference');
+    check('it is placed on a white plate so it scans in dark mode', setup.includes(".tfa-qr{") && setup.includes('background:#fff'), 'no plate');
+    check('both languages describe scanning', /step2:\s*\{ en: '2\. Scan[\s\S]{0,120}es: '2\. Escanea/.test(setup), 'copy not bilingual');
   }
 
   // ── Findings from the line-by-line audit ──

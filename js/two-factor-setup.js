@@ -7,9 +7,10 @@
 // server issues on confirmation is stored where that page's login will find it, so finishing setup
 // drops them straight in instead of asking for a second code.
 //
-// There is deliberately no QR code: drawing one needs a library the site doesn't ship, and the usual
-// shortcut — an image URL from a QR service — would hand the shared secret to a third party. Manual
-// entry with a copyable key costs the user one extra tap and keeps the secret on our side.
+// The QR is drawn by our own endpoint and delivered in the enrollment response, never fetched from a
+// QR service — the usual shortcut of an external image URL would hand the shared secret to whoever
+// runs that service. The typed setup key is still there underneath, because a QR is no use on a
+// desktop password manager, to someone without a working camera, or when the image fails to load.
 (function () {
   const T = {
     title:      { en: 'Set up two-step verification', es: 'Activa la verificación en dos pasos' },
@@ -18,13 +19,16 @@
     step1:      { en: '1. Install an authenticator app', es: '1. Instala una app de autenticación' },
     step1body:  { en: "If you don't have one, Google Authenticator or Microsoft Authenticator are free and work fine. If you use a password manager like 1Password, it can do this too.",
                   es: 'Si no tienes una, Google Authenticator o Microsoft Authenticator son gratuitas y funcionan bien. Si usas un gestor de contraseñas como 1Password, también sirve.' },
-    step2:      { en: '2. Add this key to the app', es: '2. Agrega esta clave en la app' },
-    step2body:  { en: 'In the app choose "Add account", then "Enter a setup key", and paste this:',
-                  es: 'En la app elige «Agregar cuenta» y luego «Ingresar una clave de configuración», y pega esto:' },
+    step2:      { en: '2. Scan this with the app', es: '2. Escanea esto con la app' },
+    step2body:  { en: 'In the app choose "Add account", then "Scan a QR code", and point your camera here.',
+                  es: 'En la app elige «Agregar cuenta» y luego «Escanear código QR», y apunta la cámara aquí.' },
+    manualToggle: { en: "Can't scan it? Enter the key by hand", es: '¿No puedes escanearla? Ingresa la clave a mano' },
+    manualBody: { en: 'In the app choose "Enter a setup key" instead, and use this:',
+                  es: 'En la app elige «Ingresar una clave de configuración» y usa esta:' },
     copy:       { en: 'Copy key', es: 'Copiar clave' },
     copied:     { en: 'Copied', es: 'Copiada' },
-    keep:       { en: 'Keep this key somewhere safe. If you lose your phone, ask us to reset it for you — nobody can read it back to you afterwards.',
-                  es: 'Guarda esta clave en un lugar seguro. Si pierdes tu teléfono, pídenos que la restablezcamos: después de este paso ya no se puede volver a mostrar.' },
+    keep:       { en: 'This code is only shown while you set it up. If you lose your phone, ask us to reset it for you.',
+                  es: 'Este código solo se muestra durante la configuración. Si pierdes tu teléfono, pídenos que lo restablezcamos.' },
     step3:      { en: '3. Enter the 6-digit code the app shows', es: '3. Escribe el código de 6 dígitos que muestra la app' },
     codePlace:  { en: '000000', es: '000000' },
     enable:     { en: 'Turn on and continue', es: 'Activar y continuar' },
@@ -49,6 +53,16 @@
       '.tfa-step{margin-bottom:18px;}',
       '.tfa-step-h{font-size:13px;font-weight:650;margin-bottom:5px;color:#08090c;}',
       '.tfa-step-b{font-size:12.5px;line-height:1.5;color:#757f8f;}',
+      // The QR sits on its own white plate with a quiet zone, so it still scans when the page is
+      // being viewed in dark mode — a QR inverted by a dark background will not read.
+      '.tfa-qr{margin-top:11px;background:#fff;border:1px solid #e3e6ea;border-radius:10px;padding:12px;display:flex;justify-content:center;}',
+      '.tfa-qr svg{display:block;width:100%;height:auto;max-width:210px;shape-rendering:crispEdges;}',
+      '.tfa-manual{margin-top:12px;}',
+      '.tfa-manual summary{font-size:12.5px;color:#6d4fe0;cursor:pointer;list-style:none;}',
+      '.tfa-manual summary::-webkit-details-marker{display:none;}',
+      '.tfa-manual summary::before{content:"+ ";}',
+      '.tfa-manual[open] summary::before{content:"\\2212 ";}',
+      '.tfa-manual-body{font-size:12.5px;line-height:1.5;color:#757f8f;margin-top:8px;}',
       '.tfa-key{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap;}',
       '.tfa-key code{flex:1 1 220px;min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;letter-spacing:.5px;background:#f4f2fb;border:1px solid #e3e6ea;border-radius:8px;padding:10px 11px;word-break:break-all;line-height:1.4;}',
       '.tfa-copy{flex:0 0 auto;border:1px solid #e3e6ea;background:#fff;border-radius:8px;padding:9px 13px;font-size:12px;font-weight:600;cursor:pointer;color:#3d4653;font-family:inherit;}',
@@ -79,7 +93,11 @@
         + '<h3></h3><p class="tfa-intro"></p>'
         + '<div class="tfa-step"><div class="tfa-step-h" data-k="step1"></div><div class="tfa-step-b" data-k="step1body"></div></div>'
         + '<div class="tfa-step"><div class="tfa-step-h" data-k="step2"></div><div class="tfa-step-b" data-k="step2body"></div>'
+        + '<div class="tfa-qr" id="tfa-qr"></div>'
+        + '<details class="tfa-manual"><summary></summary>'
+        + '<div class="tfa-manual-body" data-k="manualBody"></div>'
         + '<div class="tfa-key"><code id="tfa-secret"></code><button type="button" class="tfa-copy"></button></div>'
+        + '</details>'
         + '<div class="tfa-keep"></div></div>'
         + '<div class="tfa-step"><div class="tfa-step-h" data-k="step3"></div>'
         + '<input class="tfa-code" id="tfa-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" spellcheck="false"></div>'
@@ -94,6 +112,7 @@
       back.querySelectorAll('[data-k]').forEach(el => { el.textContent = t(el.getAttribute('data-k')); });
       q('.tfa-keep').textContent = t('keep');
       q('.tfa-copy').textContent = t('copy');
+      q('.tfa-manual summary').textContent = t('manualToggle');
       q('.tfa-go').textContent = t('enable');
       q('.tfa-x').textContent = t('cancel');
       q('#tfa-code').placeholder = t('codePlace');
@@ -106,7 +125,7 @@
       q('.tfa-x').onclick = () => close(false);
 
       // Ask the server for a secret. It is held as pending until a live code proves the app has it.
-      let secret = '';
+      let secret = '', qrSvg = '';
       try {
         const res = await fetch('/api/two-factor', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -115,11 +134,26 @@
         const data = await res.json().catch(() => ({}));
         if (!res.ok || !data.secret) { errEl.textContent = t('failed'); goBtn.disabled = true; return; }
         secret = data.secret;
+        qrSvg = data.qrSvg || '';
       } catch (e) {
         errEl.textContent = t('failed'); goBtn.disabled = true; return;
       }
-      // Grouped in fours: this gets typed by hand on a phone.
+      // Grouped in fours for the fallback, where it gets typed by hand on a phone.
       q('#tfa-secret').textContent = secret.replace(/(.{4})/g, '$1 ').trim();
+
+      // The QR comes from our own endpoint, drawn by a QR encoder — it contains nothing but path and
+      // rect elements. Checked for the opening tag rather than trusted blindly, and if it is missing
+      // the manual key opens instead so setup is never blocked on it.
+      const qrBox = q('#tfa-qr');
+      if (typeof qrSvg === 'string' && qrSvg.trim().startsWith('<svg')) {
+        qrBox.innerHTML = qrSvg;
+        qrBox.setAttribute('role', 'img');
+        qrBox.setAttribute('aria-label', t('step2'));
+      } else {
+        qrBox.remove();
+        const manual = back.querySelector('.tfa-manual');
+        if (manual) manual.open = true;
+      }
 
       q('.tfa-copy').onclick = async function () {
         try { await navigator.clipboard.writeText(secret); } catch (e) {

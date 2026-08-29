@@ -10,6 +10,7 @@
 
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
+import QRCode from 'qrcode';
 import { verifyTotp, newSecret, otpauthUri, mintTfaToken, lockState, registerFailure, requireTwoFactorProof } from './lib/two-factor-gate.js';
 
 function verifyPassword(password, stored) {
@@ -95,6 +96,17 @@ export default async (request) => {
     return json({ error: 'Invalid password' }, 403);
   }
 
+  // Rendered here rather than in the browser so the encoding comes from a proven implementation
+  // instead of one written by hand. Failing to draw it is not fatal: the setup key is shown too, and
+  // the dialog falls back to that.
+  async function qrFor(uri) {
+    try {
+      return await QRCode.toString(uri, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
+    } catch (e) {
+      return '';
+    }
+  }
+
   if (action === 'begin') {
     // Replacing an authenticator that is already active needs a code from the CURRENT one. Without
     // this, a stolen password was enough to enroll a new phone and take the account over — the
@@ -116,8 +128,10 @@ export default async (request) => {
     const secret = newSecret();
     rec.totp = { ...(rec.totp || {}), pendingSecret: secret, pendingAt: new Date().toISOString() };
     await found.save();
-    // The only time a secret is ever returned. Nothing reads it back out afterwards.
-    return json({ status: 'pending', secret, otpauth: otpauthUri(String(body.username).toLowerCase(), secret) }, 200);
+    const uri = otpauthUri(String(body.username).toLowerCase(), secret);
+    // The only time a secret is ever returned. Nothing reads it back out afterwards — and the QR
+    // below encodes the same secret, so it is exactly as sensitive as the key beside it.
+    return json({ status: 'pending', secret, otpauth: uri, qrSvg: await qrFor(uri) }, 200);
   }
 
   if (action === 'confirm') {
