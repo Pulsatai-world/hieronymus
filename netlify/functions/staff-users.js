@@ -38,9 +38,11 @@ async function isStaffRequester(username, password, token) {
   return verifyPassword(password, rec.passwordHash);
 }
 
-// Sessions minted before this cutoff are dead: two-factor became mandatory, and a token issued
-// under the old password-only login would otherwise let someone skip enrollment for up to 30 days.
-const SESSION_EPOCH = Date.parse('2026-08-28T00:00:00Z');
+// Sessions minted before this cutoff are dead. It is the moment two-factor was deployed, not a
+// round date: a staff token lasts 30 days and the code running before this deploy minted them with
+// no second factor, so anyone holding one would have skipped enrollment for up to a month. Set to
+// the deploy itself so every session that predates two-factor ends with it.
+const SESSION_EPOCH = Date.parse('2026-08-29T14:11:51Z');
 
 function stripHash(record) {
   if (!record) return record;
