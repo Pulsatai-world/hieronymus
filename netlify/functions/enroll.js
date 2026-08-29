@@ -83,10 +83,20 @@ export default async (request) => {
     return json({ error: 'Too many incorrect codes. Try again in ' + mins + ' minutes.', locked: true }, 429);
   }
 
-  // Replacing an authenticator that is already active needs a code from the CURRENT one — otherwise
-  // a stolen password would be enough to swap in a new phone and own the account. Someone who has
-  // genuinely lost their phone goes through the admin reset above.
-  if (acct.enrolled && !body.code) {
+  // Replacing an authenticator needs a code from the CURRENT one — otherwise a stolen password would
+  // be enough to swap in a new phone and own the account.
+  //
+  // Except when that authenticator has never completed a sign-in. Setting one up and then finding it
+  // does not work is a real state and it happened repeatedly: the app ends up holding an entry from
+  // an earlier attempt, or the entry gets deleted, and the account is then enrolled against a secret
+  // nobody can produce codes for — locked out, with the reset needing an admin who may be the locked
+  // out person. An unused authenticator has proved nothing, so allowing the account holder to replace
+  // it with the same password that created it takes nothing away; the replacement still has to be
+  // confirmed with a live code before it becomes the account's second factor.
+  //
+  // `lastUsedAt` is stamped by /api/login on every successful sign-in.
+  const proven = !!(auth && auth.lastUsedAt);
+  if (acct.enrolled && proven && !body.code) {
     const cur = verifyCode(auth.secret, body.currentCode, { drift: 1 });
     if (!cur.ok) {
       return json({

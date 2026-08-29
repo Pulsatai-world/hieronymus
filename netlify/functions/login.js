@@ -123,6 +123,10 @@ export default async (request) => {
   auth.failures = 0;
   auth.lockedUntil = null;
   auth.lastStep = res.step;
+  // Marks this authenticator as proven: it has actually been used to sign in. Until that happens it
+  // can be replaced by the account holder with their password, because an authenticator nobody has
+  // ever signed in with has demonstrated nothing — see the note in enroll.js.
+  auth.lastUsedAt = new Date().toISOString();
   delete auth.pending;                 // any half-finished setup is done with
   acct.setAuth(auth);
   await acct.save();

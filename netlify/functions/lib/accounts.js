@@ -18,8 +18,16 @@ const GROUP_STORE = 'hieronymus-intake-codes';
 // to start over. Reading a new field means every account is simply "not enrolled yet" and sets up
 // cleanly on its next login — no bulk operation, no reach into storage, and no recovery scaffolding
 // to remember to delete. Any old value is ignored and dropped the next time the record is written.
-const FIELD = 'authenticator';
-const LEGACY_FIELDS = ['totp'];
+// ── Resetting every account ──
+// Bumping this name voids every authenticator on the platform at once: nothing reads the old field,
+// so every account is simply "not enrolled yet" and sets up cleanly on its next sign-in. No bulk
+// operation, nothing to reach into storage for, and no half-finished state left to reason about.
+// Every older name goes in LEGACY_FIELDS and is deleted the next time a record is written.
+//
+// Bumped now because repeated failed setup attempts left accounts enrolled against secrets nobody
+// could produce codes for, and a full reset was asked for.
+const FIELD = 'authenticator_v2';
+const LEGACY_FIELDS = ['totp', 'authenticator'];
 
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');

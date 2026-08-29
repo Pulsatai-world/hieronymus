@@ -70,6 +70,11 @@ function scrypt(pw) {
   const enroll = await load('enroll.js');
   const confirmPassword = await load('confirm-password.js');
 
+  // Read the field name from the code rather than hardcoding it: bumping that name is how every
+  // account on the platform gets reset, and a suite that hardcoded it would fail for the wrong
+  // reason every time that happens.
+  const AUTH = (await import(pathToFileURL(require('path').resolve('netlify/functions/lib/accounts.js')).href)).AUTH_FIELD;
+
   const POST = (fn, body) => fn(new Request('https://x/api/x', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
   }), {});
@@ -124,7 +129,7 @@ function scrypt(pw) {
     check('the QR encodes that same secret', scanned(started) === started.secret, 'QR and key disagree');
     check('the app is told the issuer and the account', /issuer=Akore%20Labs/.test(started.otpauth) && started.otpauth.includes('akore-roy'), started.otpauth);
     check('the server sends its clock so a skewed device can be told', typeof started.serverTime === 'number', 'no serverTime');
-    check('it is not active yet', !(store('hieronymus-staff-users')['akore-roy'].authenticator || {}).enabledAt, 'active too early');
+    check('it is not active yet', !(store('hieronymus-staff-users')['akore-roy'][AUTH] || {}).enabledAt, 'active too early');
 
     const wrong = await POST(enroll, { username: 'akore-roy', password: PW, code: '000000' });
     check('a wrong code does not activate it', wrong.status === 403 || codeAt(started.secret, nowStep()) === '000000', 'status ' + wrong.status);
@@ -134,7 +139,7 @@ function scrypt(pw) {
     check('the right code activates it', done.status === 200, 'status ' + done.status);
     check('and signs them in immediately', !!body.session, 'no session returned');
     check('the payload says who they are', body.username === 'akore-roy' && body.kind === 'staff' && body.role === 'user', JSON.stringify(body));
-    check('the secret is stored', !!store('hieronymus-staff-users')['akore-roy'].authenticator.secret, 'not stored');
+    check('the secret is stored', !!store('hieronymus-staff-users')['akore-roy'][AUTH].secret, 'not stored');
     check('under the new field, so every old enrollment is void',
       !store('hieronymus-staff-users')['akore-roy'].totp, 'the old field is still in use');
   }
@@ -150,7 +155,7 @@ function scrypt(pw) {
     const res = await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(scanned(a), nowStep()) });
     check('a code from the FIRST QR is accepted', res.status === 200, 'status ' + res.status);
     check('and that is the secret kept',
-      store('hieronymus-staff-users')['akore-roy'].authenticator.secret === scanned(a), 'kept the other one');
+      store('hieronymus-staff-users')['akore-roy'][AUTH].secret === scanned(a), 'kept the other one');
   }
   reset();
   {
@@ -192,7 +197,7 @@ function scrypt(pw) {
     const started = await (await POST(enroll, { username: 'akore-roy', password: PW })).json();
     // Age every pending secret past its life.
     const rec = store('hieronymus-staff-users')['akore-roy'];
-    rec.authenticator.pending = rec.authenticator.pending.map(p => ({ ...p, at: '2020-01-01T00:00:00Z' }));
+    rec[AUTH].pending = rec[AUTH].pending.map(p => ({ ...p, at: '2020-01-01T00:00:00Z' }));
     const res = await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(scanned(started), nowStep()) });
     check('it says the setup expired rather than blaming the code', res.status === 409, 'status ' + res.status);
     check('and the browser is told to start over', (await res.json()).expired === true, 'no expired flag');
@@ -318,7 +323,7 @@ function scrypt(pw) {
 
     const ok = await POST(enroll, { action: 'reset', username: 'fiacsa', session: admin.body.session });
     check('a signed-in admin can', ok.status === 200, 'status ' + ok.status);
-    check('the authenticator is gone', !store('hieronymus-intake-codes')['fiacsa'].members[0].authenticator, 'still enrolled');
+    check('the authenticator is gone', !store('hieronymus-intake-codes')['fiacsa'].members[0][AUTH], 'still enrolled');
     check("and that person's sessions are revoked too",
       (await GET(login, 'session=' + victim.body.session)).status === 401, 'their session survived the reset');
     const next = await POST(login, { username: 'fiacsa', password: PW });
@@ -330,15 +335,66 @@ function scrypt(pw) {
   {
     const { started } = await enrolAndSignIn('akore-roy');
     const secret = scanned(started);
+    // Signing in is what proves an authenticator. Until then its owner may replace it with their
+    // password, because it has demonstrated nothing — see "set up but never used" above.
+    await POST(login, { username: 'akore-roy', password: PW, code: codeAt(secret, nowStep() + 1) });
 
     const noCurrent = await POST(enroll, { username: 'akore-roy', password: PW });
-    check('a password alone cannot replace an active authenticator', noCurrent.status === 403, 'status ' + noCurrent.status);
+    check('a password alone cannot replace a PROVEN authenticator', noCurrent.status === 403, 'status ' + noCurrent.status);
     check('and it says a current code is needed', (await noCurrent.json()).needsCurrentCode === true, '');
     check('the existing authenticator is untouched',
-      store('hieronymus-staff-users')['akore-roy'].authenticator.secret === secret, 'it was replaced');
+      store('hieronymus-staff-users')['akore-roy'][AUTH].secret === secret, 'it was replaced');
 
     const withCurrent = await POST(enroll, { username: 'akore-roy', password: PW, currentCode: codeAt(secret, nowStep()) });
     check('a code from the current one allows it', withCurrent.status === 200 && !!(await withCurrent.json()).secret, 'status ' + withCurrent.status);
+  }
+
+  // ── An authenticator that was set up but never worked ──
+  // The state that trapped the account repeatedly: enrolled server-side, but the app holds an entry
+  // from an earlier attempt, so no code it produces is accepted. The reset needs an admin, and the
+  // locked-out person may BE the only admin. An authenticator nobody has ever signed in with has
+  // proved nothing, so its owner can replace it with the same password that created it.
+  console.log('\nAn authenticator that was set up but never used:');
+  reset();
+  {
+    const started = await (await POST(enroll, { username: 'akore-roy', password: PW })).json();
+    await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(scanned(started), nowStep()) });
+    const rec = () => store('hieronymus-staff-users')['akore-roy'][AUTH];
+    check('it is enrolled', !!rec().enabledAt, 'not enrolled');
+    check('but not yet proven', !rec().lastUsedAt, 'marked as used too early');
+
+    // Their app cannot produce a code for it, so they start over with their password.
+    const again = await POST(enroll, { username: 'akore-roy', password: PW });
+    const body = await again.json();
+    check('starting over is allowed', again.status === 200 && !!body.secret, 'status ' + again.status);
+    check('the old secret is still in place until the new one is confirmed',
+      rec().secret === scanned(started), 'replaced before being confirmed');
+
+    const done = await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(scanned(body), nowStep()) });
+    check('the new one takes over once a live code proves it', done.status === 200, 'status ' + done.status);
+    check('and it is the scanned secret that is kept', rec().secret === scanned(body), 'kept the old one');
+  }
+
+  console.log('\nOnce an authenticator has actually been used:');
+  reset();
+  {
+    const started = await (await POST(enroll, { username: 'akore-roy', password: PW })).json();
+    await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(scanned(started), nowStep()) });
+    const secret = scanned(started);
+    // A real sign-in is what proves it.
+    const signedIn = await POST(login, { username: 'akore-roy', password: PW, code: codeAt(secret, nowStep() + 1) });
+    check('signing in works', signedIn.status === 200, 'status ' + signedIn.status);
+    check('and marks it proven', !!store('hieronymus-staff-users')['akore-roy'][AUTH].lastUsedAt, 'not marked');
+
+    const swap = await POST(enroll, { username: 'akore-roy', password: PW });
+    check('a password alone can no longer replace it', swap.status === 403, 'status ' + swap.status);
+    check('it asks for a code from the current one', (await swap.json()).needsCurrentCode === true, '');
+    check('and the authenticator is untouched',
+      store('hieronymus-staff-users')['akore-roy'][AUTH].secret === secret, 'it was replaced');
+
+    // Within the accepted window: a login uses ±1 step, so +2 would legitimately be refused.
+    const withCurrent = await POST(enroll, { username: 'akore-roy', password: PW, currentCode: codeAt(secret, nowStep()) });
+    check('a code from the current one still allows a swap', withCurrent.status === 200, 'status ' + withCurrent.status);
   }
 
   // ── 8. Confirming a password mid-session ──

@@ -59,6 +59,9 @@ function scrypt(pw) {
 
 (async () => {
   const load = async f => (await import(pathToFileURL(path.resolve('netlify/functions/' + f)).href)).default;
+  // Read from the code rather than hardcoded: bumping the field name is how every account gets reset,
+  // and a suite that hardcodes it would fail for the wrong reason every time that happens.
+  const AUTH = (await import(pathToFileURL(path.resolve('netlify/functions/lib/accounts.js')).href)).AUTH_FIELD;
   const HANDLERS = {
     '/api/login': await load('login.js'),
     '/api/enroll': await load('enroll.js'),
@@ -162,7 +165,7 @@ function scrypt(pw) {
     check('a session is held', !!w.akoreAuth.session(), 'none');
     check('and no password was stored anywhere',
       !JSON.stringify(w.localStorage).includes(PW) && !JSON.stringify(w.sessionStorage).includes(PW), 'a password is in storage');
-    staffKey = store('hieronymus-staff-users')['akore-rene'].authenticator.secret;
+    staffKey = store('hieronymus-staff-users')['akore-rene'][AUTH].secret;
     check('the key in the app is the one the server kept', setup.key === staffKey, 'they differ');
     afterFirstVisit = snapshot(w);
   }
@@ -223,7 +226,7 @@ function scrypt(pw) {
     check('both sign-ins succeed', ra && ra.ok === true && rb && rb.ok === true,
       JSON.stringify([ra && ra.ok, rb && rb.ok]));
     check('and the code from the shown QR was the one accepted',
-      setup.key === store('hieronymus-staff-users')['akore-rene'].authenticator.secret, 'a different secret was kept');
+      setup.key === store('hieronymus-staff-users')['akore-rene'][AUTH].secret, 'a different secret was kept');
   }
 
   console.log("\nA person who takes 90 seconds to type the code:");

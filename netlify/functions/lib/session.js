@@ -37,7 +37,10 @@ const IDLE_MS = 12 * 60 * 60 * 1000;
 const MAX_MS = 24 * 60 * 60 * 1000;
 
 // Sessions minted before two-factor was deployed are dead. Same instant every endpoint uses.
-const EPOCH = Date.parse('2026-08-29T14:11:51Z');
+// The moment this was deployed, so every session that predates it is dead. It must never be a
+// future time: a cutoff ahead of the clock kills sessions as fast as they are issued, and nobody
+// can stay signed in at all. Caught by the suites doing exactly that.
+const EPOCH = Date.parse('2026-08-29T19:11:30Z');
 
 function newToken() {
   return crypto.randomBytes(32).toString('hex');
