@@ -145,6 +145,17 @@ export default async (request, context) => {
       return json({ error: 'Invalid JSON body' }, 400);
     }
 
+    // Creating customers and adding users to them are staff actions. Neither branch below checked
+    // anything at all. `addMember` was the worst hole in the app: anyone could add a user with a
+    // password of their choosing to any existing customer, log in as it, and be walked through
+    // enrolling their own authenticator — arriving as a fully legitimate user of that customer, with
+    // two-factor, having started with nothing.
+    const createDenied = await requireTwoFactorProof(url, body, json);
+    if (createDenied) return createDenied;
+    if (!await requireStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword)) {
+      return json({ error: 'Only a staff admin can create a customer or add a user' }, 403);
+    }
+
     // Adding a member to an EXISTING company group.
     if (body.addMember) {
       const groupKey = slugify(body.company || '');
@@ -358,6 +369,21 @@ export default async (request, context) => {
       }
       if (typeof body.defaultLanguage === 'string' && ['en', 'es'].includes(body.defaultLanguage)) {
         member.defaultLanguage = body.defaultLanguage;
+      }
+    }
+
+    // These two fell off the end of the branch chain with nothing checking them. Marking an intake
+    // submitted is the customer's own action; turning monthly monitoring on is a staff one that
+    // spends API credit every month, and the real caller in index.html sends a cadence and so lands
+    // in the guarded branch above — but a bare request could reach here and flip it for anyone.
+    if (body.markSubmitted || typeof body.monitoringEnabled === 'boolean') {
+      const asMember = verifyPassword(body.requestingPassword || body.currentPassword || '', member.passwordHash);
+      const asStaffAdmin = await requireStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword);
+      if (typeof body.monitoringEnabled === 'boolean' && !asStaffAdmin) {
+        return json({ error: 'Only a staff admin can change monthly monitoring' }, 403);
+      }
+      if (body.markSubmitted && !asMember && !asStaffAdmin) {
+        return json({ error: 'Not authorised to mark this intake submitted' }, 403);
       }
     }
 

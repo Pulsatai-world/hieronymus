@@ -208,6 +208,12 @@ export async function requireTwoFactorProof(url, body, json) {
     if (!await tfaTokenValid(q.get('tfToken'), rq)) return refuse();
   }
 
+  // Self-service account changes (own password, own language) prove themselves with the current
+  // password. A stolen one could otherwise change the password and lock the real customer out.
+  if (body && body.username && body.currentPassword) {
+    if (!await tfaTokenValid(body.tfToken, body.username)) return refuse();
+  }
+
   // Admin actions name themselves this way: creating or deleting a staff account, resetting someone
   // else's password, releasing a dashboard, deleting a customer, clearing another account's
   // two-factor. Every one of them is reachable with a password, so every one of them needs the

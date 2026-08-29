@@ -322,7 +322,10 @@ async function savePassword() {
     const res = await fetch('/api/intake-codes', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: sessionStorage.getItem('geo_portal_username'), currentPassword: cur, newPassword: next })
+      body: JSON.stringify({
+        username: sessionStorage.getItem('geo_portal_username'), currentPassword: cur, newPassword: next,
+        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+      })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -356,7 +359,10 @@ async function saveDefaultLanguage(newLang) {
     const res = await fetch('/api/intake-codes', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: sessionStorage.getItem('geo_portal_username'), currentPassword: clientPassword, defaultLanguage: newLang })
+      body: JSON.stringify({
+        username: sessionStorage.getItem('geo_portal_username'), currentPassword: clientPassword, defaultLanguage: newLang,
+        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+      })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);

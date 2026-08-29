@@ -207,9 +207,23 @@ export default async (request, context) => {
       return json({ error: 'These prompts are still in internal review and cannot be approved yet' }, 409);
     }
 
-    // Approval is one-way for the customer. Staff requests carry no member credentials (the same
-    // convention isBlockedViewer relies on) and are still allowed through, so staff can revise and
-    // re-approve on a customer's behalf.
+    // As with the intake, "no member credentials means staff" made an unauthenticated request the
+    // most privileged kind: anyone could approve a customer's prompt set, or replace the questions
+    // in it, without holding any credential at all. Staff now identify themselves explicitly.
+    const asMember = body.requestingUsername
+      ? await memberOfCompany(company, body.requestingUsername, body.requestingPassword)
+      : false;
+    const asStaff = await isStaff(
+      body.requestingStaffUsername || url.searchParams.get('staffUsername'),
+      body.requestingStaffPassword || url.searchParams.get('staffPassword'),
+      body.staffToken || url.searchParams.get('staffToken')
+    );
+    if (!asMember && !asStaff) {
+      return json({ error: 'Not authorised to approve prompts for this customer' }, 403);
+    }
+
+    // Approval is one-way for the customer. A staff request is still allowed through so they can
+    // revise and re-approve on a customer's behalf — but it now has to be a proven staff request.
     if (data.approvedAt && body.requestingUsername) {
       return json({ error: 'These prompts have already been approved and cannot be approved again' }, 409);
     }

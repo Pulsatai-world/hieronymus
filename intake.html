@@ -1910,7 +1910,7 @@ window.submitIntake = async function() {
   statusEl.style.color = '';
   statusEl.textContent = lang === 'es' ? 'Enviando...' : 'Submitting...';
   try {
-    const res = await fetch('/api/intake', {
+    const res = await fetch(await window.apiQuery('/api/intake', {}), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ company, intake: data, requestingUsername: isStaffBypass ? '' : clientUsername, requestingPassword: clientPassword, tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '' })
@@ -1923,7 +1923,14 @@ window.submitIntake = async function() {
       fetch('/api/intake-codes', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: clientUsername, markSubmitted: true })
+        // Says who is asking: the customer themselves, or staff correcting on their behalf.
+        body: JSON.stringify({
+          username: clientUsername || '', markSubmitted: true,
+          requestingPassword: clientPassword,
+          requestingStaffUsername: isStaffBypass ? (localStorage.getItem('hieronymus_internal_user') || '') : '',
+          requestingStaffPassword: isStaffBypass ? (sessionStorage.getItem('geo_staff_password') || '') : '',
+          tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
+        })
       }).catch(() => {});
     }
     document.getElementById('pre-submit-screen').style.display = 'none';
@@ -1951,7 +1958,7 @@ window.saveProgress = async function() {
   const orig = btn.textContent;
   btn.textContent = lang === 'es' ? '⏳ Guardando...' : '⏳ Saving...';
   try {
-    const res = await fetch('/api/intake', {
+    const res = await fetch(await window.apiQuery('/api/intake', {}), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ company, intake: data, requestingUsername: isStaffBypass ? '' : clientUsername, requestingPassword: clientPassword, tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '' })

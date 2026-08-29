@@ -264,6 +264,82 @@ const send = (fn, method, qs, body) => fn(new Request('https://x/api/x' + (qs ? 
     check('and the customer is gone', !STORES['hieronymus-intake-codes']['fiacsa'], 'still there');
   }
 
+  // ── The empty-handed request ──
+  // "No member credentials means staff" made a request carrying NOTHING the most privileged kind,
+  // and anyone can send one. Worst of all was adding a user: the attacker got a real account on a
+  // real customer, and because enrollment is mandatory for a new account the app then walked them
+  // through setting up their own authenticator. A full takeover starting from nothing.
+  console.log("\nA request carrying no credentials at all:");
+  setup();
+  {
+    const bare = await send(intakeCodes, 'POST', '', {
+      addMember: true, company: 'FIACSA', username: 'attacker', password: 'chosen-pw', role: 'full'
+    });
+    check('adding a user to a customer is refused', bare.status === 403 || bare.status === 401, 'status ' + bare.status);
+    check('no such user exists', !STORES['hieronymus-intake-codes']['fiacsa'].members.some(m => m.username === 'attacker'),
+      JSON.stringify(STORES['hieronymus-intake-codes']['fiacsa'].members.map(m => m.username)));
+
+    const create = await send(intakeCodes, 'POST', '', { company: 'Brand New Co' });
+    check('creating a customer is refused', create.status === 403 || create.status === 401, 'status ' + create.status);
+    check('no record was created', !STORES['hieronymus-intake-codes']['brand-new-co'], 'created');
+
+    const overwrite = await send(intake, 'POST', '', { company: 'FIACSA', intake: { general: { company: 'FIACSA' }, wiped: true } });
+    check("overwriting a customer's intake is refused", overwrite.status === 403, 'status ' + overwrite.status);
+    check('their answers are untouched', !STORES['hieronymus-intake']['fiacsa'].intake.wiped, 'overwritten');
+
+    const approve = await send(prompts, 'PATCH', '', { company: 'FIACSA', promptsText: 'REPLACED' });
+    check('approving/rewriting a prompt set is refused', approve.status === 403, 'status ' + approve.status);
+    check('the prompt text is untouched', STORES['hieronymus-prompts']['fiacsa'].promptsText !== 'REPLACED',
+      STORES['hieronymus-prompts']['fiacsa'].promptsText);
+    check('and it is not marked approved', !STORES['hieronymus-prompts']['fiacsa'].approvedAt, 'approved');
+
+    const mon = await send(intakeCodes, 'PATCH', '', { username: 'fiacsa', monitoringEnabled: true });
+    check('turning on monthly monitoring is refused', mon.status === 403, 'status ' + mon.status);
+    check('monitoring stayed off', !STORES['hieronymus-intake-codes']['fiacsa'].monitoringEnabled, 'enabled');
+
+    const sub = await send(intakeCodes, 'PATCH', '', { username: 'fiacsa', markSubmitted: true });
+    check('marking an intake submitted is refused', sub.status === 403, 'status ' + sub.status);
+
+    // A stolen password could otherwise change the password and lock the real customer out.
+    const pwChange = await send(intakeCodes, 'PATCH', '', { username: 'fiacsa', currentPassword: PW, newPassword: 'attacker-pw' });
+    check('changing the password with no ticket is refused', pwChange.status === 401, 'status ' + pwChange.status);
+    const withTicket = await send(intakeCodes, 'PATCH', '', { username: 'fiacsa', currentPassword: PW, newPassword: 'their-new-pw', tfToken: TICKET });
+    check('the real customer can still change their own password', withTicket.status === 200, 'status ' + withTicket.status);
+  }
+
+  console.log("\nBut the people who should be able to do those things still can:");
+  setup();
+  {
+    const staffAdmin = { requestingStaffUsername: 'akore-rene', requestingStaffPassword: PW, tfToken: 'staff-ticket' };
+
+    const addUser = await send(intakeCodes, 'POST', '', { addMember: true, company: 'FIACSA', username: 'newperson', password: 'good-pw', role: 'full', ...staffAdmin });
+    check('a staff admin can add a user', addUser.status === 200, 'status ' + addUser.status);
+
+    const create = await send(intakeCodes, 'POST', '', { company: 'Brand New Co', ...staffAdmin });
+    check('a staff admin can create a customer', create.status === 200, 'status ' + create.status);
+
+    // The customer saving their own answers.
+    const own = await send(intake, 'POST', '', { company: 'FIACSA', intake: { general: { company: 'FIACSA' } }, requestingUsername: 'fiacsa', requestingPassword: PW, tfToken: TICKET });
+    check('a customer can save their own intake', own.status === 200 || own.status === 409, 'status ' + own.status);
+
+    // Staff correcting it on the customer's behalf — now with credentials, via the query string.
+    const byStaff = await send(intake, 'POST', 'staffUsername=akore-rene&staffToken=STOK', { company: 'FIACSA', intake: { general: { company: 'FIACSA' }, fixed: true } });
+    check('staff can still correct a customer intake', byStaff.status === 200, 'status ' + byStaff.status);
+    check('and the correction was saved', STORES['hieronymus-intake']['fiacsa'].intake.fixed === true, 'not saved');
+
+    const approve = await send(prompts, 'PATCH', '', { company: 'FIACSA', requestingUsername: 'fiacsa', requestingPassword: PW, tfToken: TICKET });
+    check('a customer can approve their own prompts', approve.status === 200, 'status ' + approve.status);
+
+    const staffApprove = await send(prompts, 'PATCH', 'staffUsername=akore-rene&staffToken=STOK', { company: 'FIACSA', promptsText: 'Revised Q1' });
+    check('staff can still revise on their behalf', staffApprove.status === 200, 'status ' + staffApprove.status);
+
+    const mon = await send(intakeCodes, 'PATCH', '', { company: 'FIACSA', monitoringCadence: 'monthly', monitoringEnabled: true, ...staffAdmin });
+    check('a staff admin can turn monitoring on', mon.status === 200, 'status ' + mon.status);
+
+    const sub = await send(intakeCodes, 'PATCH', '', { username: 'fiacsa', markSubmitted: true, requestingPassword: PW, tfToken: TICKET });
+    check('a customer can mark their own intake submitted', sub.status === 200, 'status ' + sub.status);
+  }
+
   // ── Every page must actually send the ticket, or the fix is an outage ──
   console.log("\nThe browser sends the ticket everywhere credentials go:");
   {

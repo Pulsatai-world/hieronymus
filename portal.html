@@ -594,7 +594,10 @@ async function generateCode() {
     const res = await fetch('/api/intake-codes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company })
+      body: JSON.stringify({
+        requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
+        requestingStaffPassword: getStaffPassword(),
+        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '', company })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
@@ -935,7 +938,10 @@ async function addMember() {
     const res = await fetch('/api/intake-codes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ addMember: true, company: manageUsersCompany, username, password, role })
+      body: JSON.stringify({
+        requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
+        requestingStaffPassword: getStaffPassword(),
+        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '', addMember: true, company: manageUsersCompany, username, password, role })
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);

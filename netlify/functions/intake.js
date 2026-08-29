@@ -126,6 +126,23 @@ export default async (request, context) => {
       return json({ error: 'Viewer accounts cannot submit or edit the intake form' }, 403);
     }
 
+    // Somebody has to have proved who they are. This endpoint used to read "no member credentials"
+    // as "must be staff, let it through" — the convention that let staff correct a customer's
+    // answers without holding that customer's password. An empty-handed request was therefore the
+    // most privileged kind, and anyone at all could send one and overwrite any customer's intake.
+    // Staff now identify themselves the same way they do on every other request.
+    const asMember = body.requestingUsername
+      ? await memberOfCompany(company, body.requestingUsername, body.requestingPassword)
+      : false;
+    const asStaff = await isStaff(
+      url.searchParams.get('staffUsername') || body.staffUsername,
+      url.searchParams.get('staffPassword') || body.staffPassword,
+      url.searchParams.get('staffToken') || body.staffToken
+    );
+    if (!asMember && !asStaff) {
+      return json({ error: 'Not authorised to save this intake' }, 403);
+    }
+
     const key = slugify(company);
 
     // Once the customer has approved their prompt set, the intake behind it is frozen for them.
@@ -133,8 +150,9 @@ export default async (request, context) => {
     // prompt set describing a business the form no longer matches — and the audit then runs against
     // a premise nobody actually approved. Staff requests carry no member credentials (the same
     // convention isBlockedViewer relies on) and are still allowed through, so corrections remain
-    // possible on our side.
-    if (body.requestingUsername) {
+    // possible on our side. Keyed on "acting as the customer" rather than on the absence of
+    // credentials, now that the absence of credentials is no longer accepted at all.
+    if (asMember) {
       const lock = await intakeLock(company);
       if (lock.locked) {
         return json({
