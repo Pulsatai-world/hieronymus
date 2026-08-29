@@ -1100,7 +1100,10 @@ async function clearResults() {
     const params = new URLSearchParams({
       company: currentCompany,
       requestingUsername: localStorage.getItem(USER_KEY) || '',
-      requestingPassword: getStaffPassword()
+      requestingPassword: getStaffPassword(),
+      // The password dialog is all the user sees; this ticket rides along so the endpoint can tell
+      // a signed-in staff member from someone who merely knows the password.
+      tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
     });
     const res = await fetch('/api/results?' + params.toString(), { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
@@ -1504,7 +1507,8 @@ async function saveMonitoring() {
         monitoringCadence: cadence,
         monitoringStartDate: startDate,
         requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
-        requestingStaffPassword: getStaffPassword()
+        requestingStaffPassword: getStaffPassword(),
+        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -1564,7 +1568,10 @@ async function deleteRun(snapshotDate) {
       company: currentCompany,
       snapshot_date: snapshotDate,
       requestingUsername: localStorage.getItem(USER_KEY) || '',
-      requestingPassword: getStaffPassword()
+      requestingPassword: getStaffPassword(),
+      // The password dialog is all the user sees; this ticket rides along so the endpoint can tell
+      // a signed-in staff member from someone who merely knows the password.
+      tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
     });
     const res = await fetch('/api/results?' + params.toString(), { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
@@ -1585,7 +1592,8 @@ async function setDashboardRelease(which, release) {
     const body = {
       company: currentCompany,
       requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
-      requestingStaffPassword: getStaffPassword()
+      requestingStaffPassword: getStaffPassword(),
+      tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
     };
     body[which === 'diagnosis' ? 'diagnosisReleased' : 'monitoringReleased'] = release;
     const res = await fetch('/api/intake-codes', {

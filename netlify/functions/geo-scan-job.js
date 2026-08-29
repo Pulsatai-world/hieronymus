@@ -6,6 +6,7 @@
 
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
+import { requireTwoFactorProof } from './lib/two-factor-gate.js';
 
 function verifyPassword(password, stored) {
   const [salt, hash] = String(stored || '').split(':');
@@ -78,6 +79,13 @@ function diff(current, previous) {
 
 export default async (request) => {
   const url = new URL(request.url);
+
+  // Every credential this endpoint accepts must now be backed by two-factor: a customer password
+  // needs the ticket issued when their code was accepted, and a staff password needs the same. A
+  // staff session token is proof on its own. Without this, two-factor guarded the login pages while
+  // this endpoint still answered anyone holding a password.
+  const proofDenied = await requireTwoFactorProof(url, null, json);
+  if (proofDenied) return proofDenied;
   const company = url.searchParams.get('company');
   if (!company) return json({ error: 'Missing company param' }, 400);
   if (!await isStaff(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'))) {

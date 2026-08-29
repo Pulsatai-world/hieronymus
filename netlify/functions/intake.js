@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
+import { requireTwoFactorProof } from './lib/two-factor-gate.js';
 
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
@@ -97,6 +98,13 @@ export default async (request, context) => {
   const store = getStore('hieronymus-intake');
   const url = new URL(request.url);
 
+  // Every credential this endpoint accepts must now be backed by two-factor: a customer password
+  // needs the ticket issued when their code was accepted, and a staff password needs the same. A
+  // staff session token is proof on its own. Without this, two-factor guarded the login pages while
+  // this endpoint still answered anyone holding a password.
+  const proofDenied = await requireTwoFactorProof(url, null, json);
+  if (proofDenied) return proofDenied;
+
   if (request.method === 'POST') {
     let body;
     try {
@@ -104,6 +112,11 @@ export default async (request, context) => {
     } catch {
       return json({ error: 'Invalid JSON body' }, 400);
     }
+
+    // Credentials in the body need the same two-factor proof as those in the query string —
+    // otherwise a stolen password could still overwrite an intake or approve a prompt set.
+    const bodyDenied = await requireTwoFactorProof(url, body, json);
+    if (bodyDenied) return bodyDenied;
 
     const intake = body.intake ?? body;
     const company = (body.company || intake?.general?.company || '').trim();

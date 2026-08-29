@@ -91,7 +91,16 @@ export async function tfaTokenValid(token, username) {
   if (!rec || rec.username !== String(username).toLowerCase()) return false;
   // A record with no expiry is treated as invalid rather than eternal — fail closed.
   if (!rec.expiresAt) return false;
-  return Date.parse(rec.expiresAt) >= Date.now();
+  const left = Date.parse(rec.expiresAt) - Date.now();
+  if (left < 0) return false;
+  // Sliding expiry. Now that every scoped request carries this ticket, a fixed 12 hours would cut
+  // someone off in the middle of a working day. Extended only once it is more than half spent, so
+  // this is not a blob write on every request — and an idle session still lapses.
+  if (left < (TFA_SESSION_HOURS / 2) * 3600 * 1000) {
+    rec.expiresAt = new Date(Date.now() + TFA_SESSION_HOURS * 3600 * 1000).toISOString();
+    await getStore('hieronymus-2fa-sessions').setJSON(String(token), rec).catch(() => {});
+  }
+  return true;
 }
 
 // Enrollment's confirm step throttles the same way a login does — shared so the two cannot disagree
@@ -157,5 +166,69 @@ export async function totpGate(rec, code, save, json, opts = {}) {
   t.lastStep = res.step;
   await save();
   if (opts.username) opts.issued = await mintTfaToken(opts.username);
+  return null;
+}
+
+// ── Proof that a request came from someone who passed two-factor ──
+//
+// The gate above protects the LOGIN. It did not protect the endpoints the pages then call, and those
+// accepted a raw username+password as sufficient — so a stolen password still read and wrote
+// everything over plain HTTP, and two-factor only stopped someone using the UI. This is the other
+// half: on a scoped endpoint, a password must be accompanied by the ticket issued when the code was
+// accepted. A staff session token counts on its own, because one is only ever minted after a code.
+//
+// Fails closed. An account with no ticket gets nothing, which is right: two-factor is mandatory, so
+// there is no legitimate caller holding a password and no ticket.
+export async function requireTwoFactorProof(url, body, json) {
+  const q = url.searchParams;
+
+  async function refuse() {
+    return json({
+      error: 'Your session needs a fresh code. Sign in again.',
+      needsTwoFactor: true
+    }, 401);
+  }
+
+  // A customer naming themselves in the query string (every scoped GET).
+  const cu = q.get('username');
+  if (cu && q.get('password')) {
+    if (!await tfaTokenValid(q.get('tfToken'), cu)) return refuse();
+  }
+
+  // A customer naming themselves in a request body (saving an intake, approving prompts).
+  if (body && body.requestingUsername && body.requestingPassword) {
+    if (!await tfaTokenValid(body.tfToken, body.requestingUsername)) return refuse();
+  }
+
+  // The destructive staff actions (clear results, delete one run) name themselves this way in the
+  // query string. The in-app dialog still asks only for a password — the ticket rides along with it
+  // — so this costs nobody a second code while closing the same hole.
+  const rq = q.get('requestingUsername');
+  if (rq && q.get('requestingPassword')) {
+    if (!await tfaTokenValid(q.get('tfToken'), rq)) return refuse();
+  }
+
+  // Admin actions name themselves this way: creating or deleting a staff account, resetting someone
+  // else's password, releasing a dashboard, deleting a customer, clearing another account's
+  // two-factor. Every one of them is reachable with a password, so every one of them needs the
+  // ticket. Without this, an admin password alone could create a new admin account and enroll a
+  // fresh authenticator on it — two-factor bypassed end to end.
+  if (body && body.requestingStaffUsername && body.requestingStaffPassword) {
+    if (!await tfaTokenValid(body.tfToken, body.requestingStaffUsername)) return refuse();
+  }
+  const rqs = q.get('requestingStaffUsername');
+  if (rqs && q.get('requestingStaffPassword')) {
+    if (!await tfaTokenValid(q.get('tfToken'), rqs)) return refuse();
+  }
+
+  // Staff sending a password rather than a session token. The token is proof by construction; the
+  // password is not, so it needs the ticket alongside it.
+  if (q.get('staffPassword') && !q.get('staffToken')) {
+    if (!await tfaTokenValid(q.get('tfToken'), q.get('staffUsername'))) return refuse();
+  }
+  if (body && body.staffPassword && !body.staffToken) {
+    if (!await tfaTokenValid(body.tfToken, body.staffUsername)) return refuse();
+  }
+
   return null;
 }

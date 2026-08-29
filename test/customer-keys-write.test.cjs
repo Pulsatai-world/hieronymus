@@ -16,7 +16,14 @@ const getStore = name => ({
 });
 
 function load(file) {
-  const src = fs.readFileSync('netlify/functions/' + file, 'utf8')
+  // Sibling ./lib modules are inlined ahead of the handler, the way Netlify's bundler follows the
+  // import — the endpoint now calls into the shared two-factor gate.
+  const raw = fs.readFileSync('netlify/functions/' + file, 'utf8');
+  const libs = [...raw.matchAll(/^import \{[^}]+\} from '\.\/(lib\/[\w.-]+)';$/gm)]
+    .map(m => fs.readFileSync('netlify/functions/' + m[1], 'utf8')
+      .replace(/^import .*?;$/gm, '')
+      .replace(/^export (function|const|async function) /gm, '$1 ')).join('\n');
+  const src = libs + '\n' + raw
     .replace(/^import .*?;$/gm, '')
     .replace(/^export default /m, 'EXPORTS.handler = ');
   const ctx = { getStore, crypto, URL, URLSearchParams, Response, Request, Buffer, console, EXPORTS: {} };
@@ -42,6 +49,10 @@ function scrypt(pw) {
   const keys = load('customer-keys.js');
   store('hieronymus-staff-users')['akore-rene'] = { username: 'akore-rene', role: 'admin', passwordHash: scrypt(PW) };
   store('hieronymus-customer-keys')['fiacsa'] = { company: 'FIACSA', claude: 'sk-real-key' };
+  // A live two-factor ticket, as a real staff login issues. Writes now require it beside the password.
+  store('hieronymus-2fa-sessions')['staff-ticket'] = {
+    username: 'akore-rene', expiresAt: new Date(Date.now() + 11 * 3600 * 1000).toISOString()
+  };
 
   const POST = body => keys(new Request('https://x/api/customer-keys', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -53,14 +64,14 @@ function scrypt(pw) {
   check('the real key is untouched', store('hieronymus-customer-keys')['fiacsa'].claude === 'sk-real-key',
     store('hieronymus-customer-keys')['fiacsa'].claude);
 
-  const badPw = await POST({ company: 'FIACSA', claude: 'x', staffUsername: 'akore-rene', staffPassword: 'wrong' });
+  const badPw = await POST({ company: 'FIACSA', claude: 'x', staffUsername: 'akore-rene', staffPassword: 'wrong', tfToken: 'staff-ticket' });
   check('a wrong staff password is refused', badPw.status === 403, 'status ' + badPw.status);
 
   const nulled = await POST({ company: 'FIACSA', claude: null });
   check('an unauthenticated key-clearing is refused too', nulled.status === 403, 'status ' + nulled.status);
   check('the key survives that as well', !!store('hieronymus-customer-keys')['fiacsa'].claude, 'cleared');
 
-  const ok = await POST({ company: 'FIACSA', claude: 'sk-new-key', staffUsername: 'akore-rene', staffPassword: PW });
+  const ok = await POST({ company: 'FIACSA', claude: 'sk-new-key', staffUsername: 'akore-rene', staffPassword: PW, tfToken: 'staff-ticket' });
   check('staff can still set a key', ok.status === 200, 'status ' + ok.status);
   check('the new key was stored', store('hieronymus-customer-keys')['fiacsa'].claude === 'sk-new-key',
     store('hieronymus-customer-keys')['fiacsa'].claude);

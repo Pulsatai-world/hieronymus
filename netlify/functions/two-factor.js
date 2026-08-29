@@ -10,7 +10,7 @@
 
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { verifyTotp, newSecret, otpauthUri, mintTfaToken, lockState, registerFailure } from './lib/two-factor-gate.js';
+import { verifyTotp, newSecret, otpauthUri, mintTfaToken, lockState, registerFailure, requireTwoFactorProof } from './lib/two-factor-gate.js';
 
 function verifyPassword(password, stored) {
   const [salt, hash] = String(stored || '').split(':');
@@ -76,6 +76,12 @@ export default async (request) => {
   // means a permanently locked account. Reuses the admin-proves-their-own-password pattern already
   // used for password resets.
   if (action === 'reset') {
+    // Clearing someone's two-factor is the most powerful action in this file, so the admin doing it
+    // must prove their own two-factor — not merely know their password. Deliberately scoped to this
+    // action: `begin` and `confirm` below are how an account with no authenticator gets one, and
+    // requiring a ticket there would make enrollment impossible.
+    const proofDenied = await requireTwoFactorProof(url, body, json);
+    if (proofDenied) return proofDenied;
     if (!await isStaffAdmin(body.requestingStaffUsername, body.requestingStaffPassword)) {
       return json({ error: 'Only a staff admin can reset two-factor for an account' }, 403);
     }

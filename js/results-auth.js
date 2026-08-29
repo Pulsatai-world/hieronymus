@@ -18,6 +18,7 @@
 
   const TOKEN_KEY = 'hieronymus_staff_token';
   const STAFF_TFA_KEY = 'hieronymus_staff_tfa';
+  const TFA_TOKEN_KEY = 'geo_2fa_token';
   window.rememberStaffTfaToken = function (token) { if (token) writeLocal(STAFF_TFA_KEY, token); };
 
   let mintTried = false;
@@ -134,6 +135,7 @@
 
       // A token outlives the tab that minted it, so a staff member who is signed in is simply
       // signed in — no dialog in the middle of a task because sessionStorage happened to be empty.
+      const staffTicket = readLocal(STAFF_TFA_KEY);
       const staffToken = readLocal(TOKEN_KEY);
       if (staffToken) {
         if (staffUser) params.set('staffUsername', staffUser);
@@ -167,6 +169,9 @@
       if (staffUser && staffPass) {
         params.set('staffUsername', staffUser);
         params.set('staffPassword', staffPass);
+        // A password alone is refused now. The ticket from this browser's login is what proves the
+        // code was entered; without it the endpoints answer 401 and the page re-authenticates.
+        if (staffTicket) params.set('tfToken', staffTicket);
         return '/api/results?' + params.toString();
       }
     }
@@ -177,6 +182,10 @@
     if (user && pass) {
       params.set('username', user);
       params.set('password', pass);
+      // The endpoints require proof that this session passed two-factor, not just that it knows the
+      // password — otherwise anyone with the password could read the same data straight from the API.
+      const ticket = readSession([TFA_TOKEN_KEY]);
+      if (ticket) params.set('tfToken', ticket);
     }
     return '/api/results?' + params.toString();
   };
@@ -201,6 +210,12 @@
     // is passed empty here, so there is nothing to filter out.
     creds.forEach((value, key) => { if (value) p.set(key, value); });
     return endpoint + (p.toString() ? '?' + p.toString() : '');
+  };
+
+  // Pages that send credentials in a request body (saving an intake, approving prompts) need the
+  // same ticket the query-string paths attach. Exposed here so no page reads the storage key itself.
+  window.twoFactorTicket = function () {
+    return readSession([TFA_TOKEN_KEY]) || readLocal(STAFF_TFA_KEY) || '';
   };
 
   // "Home" differs by who is looking: staff belong in the internal portal, a customer in their own.
@@ -255,7 +270,6 @@
   // The single customer login call. All three client-facing pages re-validate through the same
   // endpoint on load, so the two-factor token is held here and replayed automatically — otherwise a
   // customer would type a fresh code walking from the intake form to their dashboard.
-  const TFA_TOKEN_KEY = 'geo_2fa_token';
   window.clientLogin = async function (username, password, code) {
     let url = '/api/intake-codes?username=' + encodeURIComponent(username)
       + '&password=' + encodeURIComponent(password);

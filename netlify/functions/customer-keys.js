@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
+import { requireTwoFactorProof } from './lib/two-factor-gate.js';
 
 // which engines a customer has keys configured for is customer-identifying, and every caller of this endpoint is an internal page — so it is
 // staff-only rather than open. Same check the other scoped endpoints use.
@@ -55,6 +56,13 @@ export default async (request, context) => {
   const store = getStore('hieronymus-customer-keys');
   const url = new URL(request.url);
 
+  // Every credential this endpoint accepts must now be backed by two-factor: a customer password
+  // needs the ticket issued when their code was accepted, and a staff password needs the same. A
+  // staff session token is proof on its own. Without this, two-factor guarded the login pages while
+  // this endpoint still answered anyone holding a password.
+  const proofDenied = await requireTwoFactorProof(url, null, json);
+  if (proofDenied) return proofDenied;
+
   if (request.method === 'POST') {
     let body;
     try {
@@ -64,6 +72,12 @@ export default async (request, context) => {
     }
     const company = (body.company || '').trim();
     if (!company) return json({ error: 'Missing company name' }, 400);
+
+    // This endpoint takes its staff credentials in the BODY, which the top-of-handler check cannot
+    // see — it runs before there is a body to read. Without this line a stolen staff password could
+    // still swap in an attacker's engine key, which is exactly what the suite caught.
+    const bodyDenied = await requireTwoFactorProof(url, body, json);
+    if (bodyDenied) return bodyDenied;
 
     // Staff only. This POST sets the engine API keys a customer's audit runs are billed against, and
     // it answered anyone who named a company — so a stranger could swap in their own key, point a

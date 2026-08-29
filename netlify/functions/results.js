@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
+import { requireTwoFactorProof } from './lib/two-factor-gate.js';
 
 function verifyPassword(password, stored) {
   const [salt, hash] = String(stored || '').split(':');
@@ -89,6 +90,19 @@ function rowToCsvLine(row) {
 
 export default async (request, context) => {
   const store = getStore('hieronymus-results-rows');
+
+  // A password alone is no longer enough here. A customer's password must be accompanied by the
+  // ticket issued when their code was accepted, and so must a staff password; a staff session token
+  // is proof on its own. Before this, two-factor guarded the login pages while this endpoint still
+  // handed a customer's entire dataset to anyone who knew their password.
+  const proofDenied = await requireTwoFactorProof(
+    new URL(request.url),
+    null,
+    (obj, status) => new Response(JSON.stringify(obj), {
+      status, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' }
+    })
+  );
+  if (proofDenied) return proofDenied;
 
   if (request.method === 'POST') {
     // The audit no longer calls this — run-audit-background.js writes rows straight to the store —

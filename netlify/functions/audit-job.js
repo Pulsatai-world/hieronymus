@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
+import { requireTwoFactorProof } from './lib/two-factor-gate.js';
 
 // a customer's audit run status is customer-identifying, and every caller of this endpoint is an internal page — so it is
 // staff-only rather than open. Same check the other scoped endpoints use.
@@ -46,6 +47,13 @@ function json(obj, status) {
 
 export default async (request) => {
   const url = new URL(request.url);
+
+  // Every credential this endpoint accepts must now be backed by two-factor: a customer password
+  // needs the ticket issued when their code was accepted, and a staff password needs the same. A
+  // staff session token is proof on its own. Without this, two-factor guarded the login pages while
+  // this endpoint still answered anyone holding a password.
+  const proofDenied = await requireTwoFactorProof(url, null, json);
+  if (proofDenied) return proofDenied;
   const company = url.searchParams.get('company');
   if (!company) return json({ error: 'Missing company param' }, 400);
   const store = getStore('hieronymus-audit-jobs');

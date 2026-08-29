@@ -1,6 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { totpGate } from './lib/two-factor-gate.js';
+import { requireTwoFactorProof, totpGate } from './lib/two-factor-gate.js';
 
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
@@ -73,6 +73,11 @@ export default async (request, context) => {
     } catch {
       return json({ error: 'Invalid JSON body' }, 400);
     }
+
+    // An admin password alone must not be able to mint a new account or reset another one: the
+    // attacker would simply enroll their own authenticator on it. Ticket required.
+    const adminDenied = await requireTwoFactorProof(url, body, json);
+    if (adminDenied) return adminDenied;
     const username = (body.username || '').trim().toLowerCase();
     const password = (body.password || '').trim();
     const role = body.role === 'admin' ? 'admin' : 'user';
@@ -127,6 +132,11 @@ export default async (request, context) => {
 
     // Listing every internal account is staff-only. It answered anyone, and it names each staff
     // member, their role, and now whether they have a second factor configured.
+    // Two-factor proof for the listing as well. Not at the top of the handler: the login branch and
+    // the verifyOnly password check above both arrive without a ticket by design.
+    const proofDenied = await requireTwoFactorProof(url, null, json);
+    if (proofDenied) return proofDenied;
+
     if (!await isStaffRequester(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'))) {
       return json({ error: 'Listing staff accounts requires staff credentials' }, 403);
     }
@@ -147,6 +157,11 @@ export default async (request, context) => {
     } catch {
       return json({ error: 'Invalid JSON body' }, 400);
     }
+
+    // An admin password alone must not be able to mint a new account or reset another one: the
+    // attacker would simply enroll their own authenticator on it. Ticket required.
+    const adminDenied = await requireTwoFactorProof(url, body, json);
+    if (adminDenied) return adminDenied;
     const username = (body.username || '').trim().toLowerCase();
     if (!username) return json({ error: 'Missing username' }, 400);
     const record = await store.get(username, { type: 'json' });
@@ -179,6 +194,10 @@ export default async (request, context) => {
   if (request.method === 'DELETE') {
     const username = (url.searchParams.get('username') || '').trim().toLowerCase();
     if (!username) return json({ error: 'Missing username' }, 400);
+    // Same for removing an account, whose credentials arrive in the query string.
+    const delDenied = await requireTwoFactorProof(url, null, json);
+    if (delDenied) return delDenied;
+
     const requestingUsername = url.searchParams.get('requestingUsername');
     const requestingPassword = url.searchParams.get('requestingPassword');
     const ok = await requireAdmin(store, requestingUsername, requestingPassword);

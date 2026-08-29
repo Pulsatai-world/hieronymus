@@ -1,6 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { totpGate } from './lib/two-factor-gate.js';
+import { requireTwoFactorProof, totpGate } from './lib/two-factor-gate.js';
 
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
@@ -188,6 +188,12 @@ export default async (request, context) => {
     const staffReader = await isStaffReader(url.searchParams.get('staffUsername'), url.searchParams.get('staffPassword'), url.searchParams.get('staffToken'));
 
     if (companyParam) {
+      // Reading a customer record requires two-factor proof, not just a password. Deliberately NOT
+      // at the top of this handler: the login form below arrives with a username and password and no
+      // ticket, because it is the request that issues one.
+      const proofDenied = await requireTwoFactorProof(url, null, json);
+      if (proofDenied) return proofDenied;
+
       const record = await loadGroup(store, slugify(companyParam));
       if (!record) return json({ error: 'Unknown company' }, 404);
       // A customer may read their own company's record; anyone else needs staff credentials.
@@ -255,6 +261,11 @@ export default async (request, context) => {
     } catch {
       return json({ error: 'Invalid JSON body' }, 400);
     }
+
+    // Releasing a dashboard, toggling monitoring, resetting a customer's password — all reachable
+    // with a staff password, so all need the ticket that proves a code was entered.
+    const adminDenied = await requireTwoFactorProof(url, body, json);
+    if (adminDenied) return adminDenied;
 
     // Scheduling monitoring is a company-wide setting, not tied to any one member's login —
     // staff-only, verified the same way an admin password reset is.
@@ -359,6 +370,16 @@ export default async (request, context) => {
   if (request.method === 'DELETE') {
     const username = (url.searchParams.get('username') || '').trim().toLowerCase();
     if (!username) return json({ error: 'Missing username' }, 400);
+
+    // This branch had NO authorisation of any kind: anyone who named a username could delete an
+    // entire customer — their intake, their prompt set, their whole record — or quietly remove one
+    // member. Found while auditing the login path. Staff admin, with the two-factor ticket, like
+    // every other destructive action.
+    const delDenied = await requireTwoFactorProof(url, null, json);
+    if (delDenied) return delDenied;
+    if (!await requireStaffAdmin(url.searchParams.get('requestingStaffUsername'), url.searchParams.get('requestingStaffPassword'))) {
+      return json({ error: 'Only a staff admin can delete a customer or a member' }, 403);
+    }
 
     // Removing a single member from their group (leaves the group and other members intact).
     if (url.searchParams.get('memberOnly') === 'true') {

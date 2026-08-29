@@ -462,7 +462,8 @@ async function releasePrompts() {
         internalApprove: true,
         promptsText,
         requestingStaffUsername: staffUsername,
-        requestingStaffPassword: sessionStorage.getItem('geo_staff_password') || ''
+        requestingStaffPassword: sessionStorage.getItem('geo_staff_password') || '',
+        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -490,7 +491,7 @@ async function approvePrompts() {
     const res = await fetch('/api/prompts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company: clientCompany, comments, promptsText, requestingUsername: clientUsername, requestingPassword: clientPassword })
+      body: JSON.stringify({ company: clientCompany, comments, promptsText, requestingUsername: clientUsername, requestingPassword: clientPassword, tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '' })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     // Staff stay put (they may keep editing); a client is done here, so hand them back to their

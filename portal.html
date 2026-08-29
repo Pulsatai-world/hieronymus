@@ -806,7 +806,10 @@ async function deleteCustomer(username, company) {
   });
   if (!okPw) return;
   try {
-    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username), { method: 'DELETE' });
+    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username)
+      + '&requestingStaffUsername=' + encodeURIComponent(localStorage.getItem(USER_KEY) || '')
+      + '&requestingStaffPassword=' + encodeURIComponent(getStaffPassword())
+      + '&tfToken=' + encodeURIComponent(window.twoFactorTicket ? window.twoFactorTicket() : ''), { method: 'DELETE' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     await loadAll();
   } catch (err) {
@@ -950,7 +953,10 @@ async function addMember() {
 async function removeMember(username) {
   if (!confirm(t('confirmRemoveMember', username))) return;
   try {
-    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username) + '&memberOnly=true', { method: 'DELETE' });
+    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username) + '&memberOnly=true'
+      + '&requestingStaffUsername=' + encodeURIComponent(localStorage.getItem(USER_KEY) || '')
+      + '&requestingStaffPassword=' + encodeURIComponent(getStaffPassword())
+      + '&tfToken=' + encodeURIComponent(window.twoFactorTicket ? window.twoFactorTicket() : ''), { method: 'DELETE' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     await renderMembersList();
     await loadAll();
@@ -970,7 +976,8 @@ async function resetMemberPassword(username) {
       body: JSON.stringify({
         username, adminReset: true, newPassword: newPassword.trim(),
         requestingStaffUsername: localStorage.getItem(USER_KEY),
-        requestingStaffPassword: getStaffPassword()
+        requestingStaffPassword: getStaffPassword(),
+        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -1105,7 +1112,8 @@ async function resetTwoFactor(username) {
         action: 'reset',
         username: username,
         requestingStaffUsername: localStorage.getItem(USER_KEY) || '',
-        requestingStaffPassword: getStaffPassword()
+        requestingStaffPassword: getStaffPassword(),
+        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -1190,7 +1198,8 @@ async function addStaffUser() {
       body: JSON.stringify({
         username, password, role,
         requestingUsername: localStorage.getItem(USER_KEY),
-        requestingPassword: getStaffPassword()
+        requestingPassword: getStaffPassword(),
+        tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -1211,7 +1220,8 @@ async function removeStaffUser(username) {
     const params = new URLSearchParams({
       username,
       requestingUsername: localStorage.getItem(USER_KEY) || '',
-      requestingPassword: getStaffPassword()
+      requestingPassword: getStaffPassword(),
+      tfToken: window.twoFactorTicket ? window.twoFactorTicket() : ''
     });
     const res = await fetch('/api/staff-users?' + params.toString(), { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));

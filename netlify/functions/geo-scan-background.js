@@ -11,6 +11,7 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
 import { runScan } from './lib/geo-scan-engine.js';
+import { requireTwoFactorProof } from './lib/two-factor-gate.js';
 
 function verifyPassword(password, stored) {
   const [salt, hash] = String(stored || '').split(':');
@@ -75,6 +76,17 @@ export default async (request) => {
   try { body = await request.json(); } catch { return new Response('Bad request', { status: 400 }); }
   const { company, url, maxPages } = body || {};
   if (!company || !url) return new Response('Missing company or url', { status: 400 });
+
+  // Same two-factor requirement as every other staff-scoped endpoint. `url` here is the site being
+  // scanned, so the request's own URL is read separately.
+  const proofDenied = await requireTwoFactorProof(
+    new URL(request.url),
+    body,
+    (obj, status) => new Response(JSON.stringify(obj), {
+      status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+    })
+  );
+  if (proofDenied) return proofDenied;
 
   // Credentials may arrive in the query string (apiQuery puts them there, as it does for every
   // other staff-scoped call) or in the body. Accepting both means neither caller shape is

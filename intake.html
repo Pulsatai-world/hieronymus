@@ -1913,7 +1913,7 @@ window.submitIntake = async function() {
     const res = await fetch('/api/intake', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company, intake: data, requestingUsername: isStaffBypass ? '' : clientUsername, requestingPassword: clientPassword })
+      body: JSON.stringify({ company, intake: data, requestingUsername: isStaffBypass ? '' : clientUsername, requestingPassword: clientPassword, tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '' })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -1954,7 +1954,7 @@ window.saveProgress = async function() {
     const res = await fetch('/api/intake', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company, intake: data, requestingUsername: isStaffBypass ? '' : clientUsername, requestingPassword: clientPassword })
+      body: JSON.stringify({ company, intake: data, requestingUsername: isStaffBypass ? '' : clientUsername, requestingPassword: clientPassword, tfToken: window.twoFactorTicket ? window.twoFactorTicket() : '' })
     });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     btn.textContent = '✓ ' + (lang === 'es' ? 'Guardado' : 'Saved');

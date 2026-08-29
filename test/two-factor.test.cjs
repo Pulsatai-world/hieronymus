@@ -101,6 +101,15 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
   const intakeCodes = load('intake-codes.js').handler;
 
   const PW = 'correct-horse';
+  // Issues a live two-factor ticket, exactly as a successful login would. Scoped reads and admin
+  // actions now require one alongside the password.
+  const ticketFor = name => {
+    const t = 'ticket-' + name;
+    store('hieronymus-2fa-sessions')[t] = {
+      username: name, expiresAt: new Date(Date.now() + 11 * 3600 * 1000).toISOString()
+    };
+    return t;
+  };
   const reset = () => {
     Object.keys(STORES).forEach(k => delete STORES[k]);
     store('hieronymus-staff-users')['akore-rene'] = { username: 'akore-rene', role: 'admin', passwordHash: scrypt(PW), createdAt: '2026-01-01T00:00:00Z' };
@@ -240,7 +249,8 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     await POST(twoFactor, { action: 'confirm', username: 'fiacsa', password: PW, code: codeAt(cb.secret, nowStep() - 1) });
 
     // The listing is staff-only now, so it is read the way the Portal reads it.
-    const list = await (await GET(staffUsers, 'staffUsername=akore-rene&staffPassword=' + encodeURIComponent(PW))).text();
+    const list = await (await GET(staffUsers, 'staffUsername=akore-rene&staffPassword=' + encodeURIComponent(PW)
+      + '&tfToken=' + ticketFor('akore-rene'))).text();
     check('staff listing carries no secret', !list.includes(sb.secret) && !list.includes('totp'), list.slice(0, 200));
     check('staff listing reports enrollment instead', list.includes('twoFactorEnabled'), list.slice(0, 200));
 
@@ -248,7 +258,8 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
       + '&code=' + codeAt(sb.secret, nowStep()))).text();
     check('staff login carries no secret', !login.includes(sb.secret), login.slice(0, 200));
 
-    const rec = await (await GET(intakeCodes, 'company=FIACSA&staffUsername=akore-rene&staffPassword=' + encodeURIComponent(PW))).text();
+    const rec = await (await GET(intakeCodes, 'company=FIACSA&staffUsername=akore-rene&staffPassword=' + encodeURIComponent(PW)
+      + '&tfToken=' + ticketFor('akore-rene'))).text();
     check('customer record carries no secret', !rec.includes(cb.secret) && !rec.includes('pendingSecret'), rec.slice(0, 300));
     check('customer record reports enrollment instead', rec.includes('twoFactorEnabled'), rec.slice(0, 300));
 
@@ -265,13 +276,13 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     const cb = await (await POST(twoFactor, { action: 'begin', username: 'fiacsa', password: PW })).json();
     await POST(twoFactor, { action: 'confirm', username: 'fiacsa', password: PW, code: codeAt(cb.secret, nowStep() - 1) });
 
-    const nope = await POST(twoFactor, { action: 'reset', username: 'fiacsa', requestingStaffUsername: 'fiacsa', requestingStaffPassword: PW });
+    const nope = await POST(twoFactor, { action: 'reset', username: 'fiacsa', requestingStaffUsername: 'fiacsa', requestingStaffPassword: PW, tfToken: ticketFor('fiacsa') });
     check('a customer cannot reset their own two-factor', nope.status === 403, 'status ' + nope.status);
 
-    const badPw = await POST(twoFactor, { action: 'reset', username: 'fiacsa', requestingStaffUsername: 'akore-rene', requestingStaffPassword: 'wrong' });
+    const badPw = await POST(twoFactor, { action: 'reset', username: 'fiacsa', requestingStaffUsername: 'akore-rene', requestingStaffPassword: 'wrong', tfToken: ticketFor('akore-rene') });
     check("a staff password must be right", badPw.status === 403, 'status ' + badPw.status);
 
-    const ok = await POST(twoFactor, { action: 'reset', username: 'fiacsa', requestingStaffUsername: 'akore-rene', requestingStaffPassword: PW });
+    const ok = await POST(twoFactor, { action: 'reset', username: 'fiacsa', requestingStaffUsername: 'akore-rene', requestingStaffPassword: PW, tfToken: ticketFor('akore-rene') });
     check('an admin can reset it', ok.status === 200, 'status ' + ok.status);
     check('the enrollment is gone', !store('hieronymus-intake-codes')['fiacsa'].members[0].totp, 'still enrolled');
 
@@ -347,7 +358,8 @@ const POST = (fn, body) => fn(new Request('https://x/api/x', {
     const pbody = await probe.json();
     check('the bootstrap probe answers one boolean', probe.status === 200 && pbody.empty === false && Object.keys(pbody).length === 1, JSON.stringify(pbody));
 
-    const asStaff = await GET(staffUsers, 'staffUsername=akore-rene&staffPassword=' + encodeURIComponent(PW));
+    const asStaff = await GET(staffUsers, 'staffUsername=akore-rene&staffPassword=' + encodeURIComponent(PW)
+      + '&tfToken=' + ticketFor('akore-rene'));
     check('staff can still list accounts', asStaff.status === 200 && (await asStaff.json()).items.length === 1, 'status ' + asStaff.status);
 
     // The status endpoint that answered 404-vs-200 for any name is gone.
