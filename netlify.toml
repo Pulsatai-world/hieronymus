@@ -96,3 +96,17 @@
   from = "/api/confirm-password"
   to = "/.netlify/functions/confirm-password"
   status = 200
+
+# ── Never serve stale login code ──
+# A browser running an older js/auth.js than the server is indistinguishable, from the outside, from
+# a broken login: setup starts against one version and finishes against another. These files are
+# small and revalidate cheaply.
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"

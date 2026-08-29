@@ -1,6 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
 import { callerOf, requireCompany, requireStaff, requireStaffAdmin } from './lib/authorize.js';
+import { publicRecord } from './lib/accounts.js';
 
 
 function slugify(name) {
@@ -73,12 +74,11 @@ function stripHashes(record) {
   // The authenticator holds a shared secret — anyone who reads it can mint valid codes for that
   // account forever. It is removed alongside the password hash, and replaced by the only thing a
   // caller legitimately needs: whether that person has finished setting one up.
-  return {
-    ...rest,
-    members: (members || []).map(({ passwordHash, authenticator, totp, ...m }) => ({
-      ...m, twoFactorEnabled: !!(authenticator && authenticator.secret && authenticator.enabledAt)
-    }))
-  };
+  //
+  // Through publicRecord rather than naming the field here. A local copy of that name is exactly
+  // what leaked: the field was renamed to reset every authenticator, this copy was not, and from
+  // then on every listing carried the live secret and reported nobody as enrolled.
+  return { ...rest, members: (members || []).map(publicRecord) };
 }
 
 function findMember(record, username) {

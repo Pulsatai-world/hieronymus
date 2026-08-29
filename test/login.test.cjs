@@ -73,7 +73,9 @@ function scrypt(pw) {
   // Read the field name from the code rather than hardcoding it: bumping that name is how every
   // account on the platform gets reset, and a suite that hardcoded it would fail for the wrong
   // reason every time that happens.
-  const AUTH = (await import(pathToFileURL(require('path').resolve('netlify/functions/lib/accounts.js')).href)).AUTH_FIELD;
+  const ACCOUNTS = await import(pathToFileURL(require('path').resolve('netlify/functions/lib/accounts.js')).href);
+  const AUTH = ACCOUNTS.AUTH_FIELD;
+  const LEGACY = ACCOUNTS.AUTH_LEGACY_FIELDS;
 
   const POST = (fn, body) => fn(new Request('https://x/api/x', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -444,6 +446,43 @@ function scrypt(pw) {
       !/hieronymus_internal_auth/.test(browser), 'the flag survives');
     check('the login endpoint is the only thing that mints a session',
       fs.readFileSync('netlify/functions/lib/identity.js', 'utf8').includes('sessionFor'), '');
+  }
+
+
+  // ── 11. Renaming the authenticator field ──
+  // Bumping that name is how every account gets reset. Both of these broke in production the last
+  // time it was bumped, because the name was known in more than one place.
+  console.log('\nWhen the authenticator field is renamed:');
+  reset();
+  {
+    // Setup STARTS on the old deploy (pending under the old name) and FINISHES on the new one.
+    // This is the failure people actually saw: "this setup expired", seconds after scanning, on
+    // every account, with no way through it.
+    const old = LEGACY[LEGACY.length - 1];
+    const secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+    store('hieronymus-staff-users')['akore-roy'][old] = {
+      pending: [{ secret, at: new Date().toISOString() }]
+    };
+    const done = await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(secret, nowStep()) });
+    check('a setup begun on the previous deploy can still be finished', done.status === 200, 'status ' + done.status);
+    const rec = store('hieronymus-staff-users')['akore-roy'];
+    check('and it is the scanned secret that becomes the authenticator', rec[AUTH] && rec[AUTH].secret === secret, 'kept another');
+    check('with the old field dropped', !rec[old], 'the old field survives');
+  }
+
+  reset();
+  {
+    // A listing must never carry the secret. The customer listing named the field itself, so the
+    // rename left it copying the live one out verbatim and reporting everybody as not enrolled.
+    const intakeCodes = await load('intake-codes.js');
+    const customer = await enrolAndSignIn('fiacsa');
+    const staff = await enrolAndSignIn('akore-rene');
+
+    const text = await (await GET(intakeCodes, 'session=' + staff.body.session)).text();
+    check('the customer listing never carries a secret', !text.includes(customer.started.secret), text.slice(0, 200));
+    check('nor the authenticator under any name',
+      !new RegExp('"(' + [AUTH].concat(LEGACY).join('|') + ')"').test(text), text.slice(0, 200));
+    check('and it reports enrollment truthfully', /"twoFactorEnabled":true/.test(text), text.slice(0, 300));
   }
 
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));

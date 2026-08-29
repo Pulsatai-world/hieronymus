@@ -108,7 +108,9 @@ export default async (request) => {
 
   // ── Finish: a code was submitted ──
   if (body.code) {
-    const candidates = (Array.isArray(auth.pending) ? auth.pending : []).filter(fresh).map(p => p.secret);
+    // Every recent secret, including one issued by an older deploy — see pendingSecrets.
+    const candidates = acct.pendingSecrets.filter(fresh).map(p => p.secret)
+      .filter((sec, i, all) => all.indexOf(sec) === i);
 
     if (!candidates.length) {
       // Nothing pending. Most often this is a repeat of a setup that already succeeded — the button

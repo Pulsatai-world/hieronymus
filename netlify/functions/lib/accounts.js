@@ -13,21 +13,23 @@ const GROUP_STORE = 'hieronymus-intake-codes';
 
 // Where an account's authenticator lives on its record.
 //
-// Deliberately NOT the old field name. Every account in the platform was left enrolled against a
-// secret nobody could produce codes for, after repeated failed setup attempts, so all of them have
-// to start over. Reading a new field means every account is simply "not enrolled yet" and sets up
-// cleanly on its next login — no bulk operation, no reach into storage, and no recovery scaffolding
-// to remember to delete. Any old value is ignored and dropped the next time the record is written.
 // ── Resetting every account ──
 // Bumping this name voids every authenticator on the platform at once: nothing reads the old field,
 // so every account is simply "not enrolled yet" and sets up cleanly on its next sign-in. No bulk
 // operation, nothing to reach into storage for, and no half-finished state left to reason about.
 // Every older name goes in LEGACY_FIELDS and is deleted the next time a record is written.
 //
-// Bumped now because repeated failed setup attempts left accounts enrolled against secrets nobody
-// could produce codes for, and a full reset was asked for.
-const FIELD = 'authenticator_v2';
-const LEGACY_FIELDS = ['totp', 'authenticator'];
+// Two things this name must never be known anywhere else, both of which broke production:
+//   * A pending setup secret is found through pendingSecrets, which reads the older names too.
+//     Without that, a setup that started before a bump and finished after it was told it had
+//     expired seconds after the QR was scanned — on every account, with no way through.
+//   * A record only ever leaves through publicRecord. A listing that named the field itself kept
+//     copying the live secret out after the rename, and reported everyone as not enrolled.
+//
+// Bumped to _v3 for the reset asked for on 2026-08-29, after failed setups left accounts enrolled
+// against secrets nobody could produce codes for.
+const FIELD = 'authenticator_v3';
+const LEGACY_FIELDS = ['totp', 'authenticator', 'authenticator_v2'];
 
 export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -112,9 +114,28 @@ function account(base) {
       const a = rec[FIELD];
       return !!(a && a.secret && a.enabledAt);
     },
+    /**
+     * Setup secrets waiting to be confirmed — from the current field AND any older one.
+     *
+     * A setup that STARTS on one deploy and FINISHES on the next would otherwise fail: the pending
+     * secret gets written under one field name and looked for under another, and the person is told
+     * their setup expired seconds after scanning. That happened. Enrollment is not voided by reading
+     * these — `enrolled` looks only at the current field — so bumping the field name still resets
+     * every account, while a setup already in progress can still be completed.
+     */
+    get pendingSecrets() {
+      const out = [];
+      for (const name of [FIELD, ...LEGACY_FIELDS]) {
+        const a = rec[name];
+        if (a && Array.isArray(a.pending)) out.push(...a.pending);
+        // The very first scheme kept a single secret rather than a list.
+        if (a && typeof a.pendingSecret === 'string') out.push({ secret: a.pendingSecret, at: a.pendingAt });
+      }
+      return out;
+    },
     setAuth(next) {
       if (next) rec[FIELD] = next; else delete rec[FIELD];
-      // Drop anything left by the previous scheme so a record cannot carry two answers.
+      // Drop anything left by a previous scheme so a record cannot carry two answers.
       for (const old of LEGACY_FIELDS) delete rec[old];
     },
     checkPassword(password) {
@@ -145,3 +166,4 @@ export function publicRecord(record) {
 }
 
 export const AUTH_FIELD = FIELD;
+export const AUTH_LEGACY_FIELDS = LEGACY_FIELDS;

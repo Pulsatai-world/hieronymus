@@ -22,14 +22,12 @@
     step1:      { en: '1. Install an authenticator app', es: '1. Instala una app de autenticación' },
     step1body:  { en: "If you don't have one, Google Authenticator and Microsoft Authenticator are free. A password manager like 1Password works too.",
                   es: 'Si no tienes una, Google Authenticator y Microsoft Authenticator son gratuitas. Un gestor de contraseñas como 1Password también sirve.' },
-    step2:      { en: '2. Scan this with the app', es: '2. Escanea esto con la app' },
+    step2:      { en: '2. Scan this code with the app', es: '2. Escanea este código con la app' },
     step2body:  { en: 'Choose "Add account", then "Scan a QR code", and point your camera here.',
                   es: 'Elige «Agregar cuenta», luego «Escanear código QR», y apunta la cámara aquí.' },
-    stale:      { en: 'If you already have an entry for this account in the app, delete it first — an old one will not work.',
-                  es: 'Si ya tienes una entrada de esta cuenta en la app, bórrala primero: una anterior no va a funcionar.' },
-    manual:     { en: "Can't scan it? Enter the key by hand", es: '¿No puedes escanearla? Ingresa la clave a mano' },
+    manual:     { en: "Can't scan it? Type the key instead", es: '¿No puedes escanear el código? Escribe la clave' },
     manualBody: { en: 'Choose "Enter a setup key" instead, and use this:',
-                  es: 'Elige «Ingresar una clave de configuración» y usa esta:' },
+                  es: 'En la app elige «Ingresar una clave de configuración» y escribe esta:' },
     copy:       { en: 'Copy key', es: 'Copiar clave' },
     copied:     { en: 'Copied', es: 'Copiada' },
     step3:      { en: '3. Enter the 6-digit code the app shows', es: '3. Escribe el código de 6 dígitos que muestra la app' },
@@ -38,21 +36,21 @@
     retry:      { en: 'Try again', es: 'Intentar de nuevo' },
     cancel:     { en: 'Cancel', es: 'Cancelar' },
     needSix:    { en: 'Enter all 6 digits.', es: 'Escribe los 6 dígitos.' },
-    badCode:    { en: "That code didn't match. Delete any older entry for this account in the app, then try the next code it shows.",
-                  es: 'El código no coincide. Borra cualquier entrada anterior de esta cuenta en la app e intenta con el siguiente código que muestre.' },
+    badCode:    { en: "That code didn't match. Check that your phone's clock is set automatically, then try the next code the app shows.",
+                  es: 'El código no coincide. Revisa que la hora de tu teléfono esté en automático e intenta con el siguiente código que muestre la app.' },
     tooMany:    { en: 'Too many incorrect codes. Wait a few minutes and try again.',
                   es: 'Demasiados códigos incorrectos. Espera unos minutos e intenta de nuevo.' },
     expired:    { en: 'This setup timed out. Press "Try again" to start over.',
                   es: 'Esta configuración expiró. Presiona «Intentar de nuevo» para empezar otra vez.' },
-    alreadySet: { en: 'This account already has an authenticator. Reload the page and sign in, or ask an admin to reset it.',
-                  es: 'Esta cuenta ya tiene un autenticador. Recarga la página e inicia sesión, o pide a un administrador que lo restablezca.' },
+    alreadySet: { en: 'This account is already set up. Reload the page and sign in with a code from your app.',
+                  es: 'Esta cuenta ya está configurada. Recarga la página e inicia sesión con un código de tu app.' },
     wrongPass:  { en: 'That password is not correct.', es: 'La contraseña no es correcta.' },
     noConnect:  { en: 'Could not reach the server. Check your connection and try again.',
                   es: 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.' },
-    serverSaid: { en: 'The server could not do this ({code}). Try again — if it keeps happening, send us that number.',
-                  es: 'El servidor no pudo hacer esto ({code}). Intenta de nuevo — si sigue pasando, envíanos ese número.' },
-    clockOff:   { en: "This device's clock is off by about {mins} minutes. Codes depend on the time, so fix the clock (set it automatically) before setting this up.",
-                  es: 'El reloj de este dispositivo está desfasado unos {mins} minutos. Los códigos dependen de la hora, así que corrige el reloj (ponlo en automático) antes de configurar esto.' }
+    serverSaid: { en: 'Something failed on our side ({code}). Try again, and if it keeps happening let us know and mention that number.',
+                  es: 'Algo falló de nuestro lado ({code}). Intenta de nuevo y, si sigue pasando, avísanos y menciona ese número.' },
+    clockOff:   { en: 'This device\'s clock is about {mins} minutes off. Codes are based on the time, so set the clock automatically before continuing.',
+                  es: 'El reloj de este dispositivo tiene unos {mins} minutos de diferencia. Los códigos se basan en la hora, así que pon el reloj en automático antes de continuar.' }
   };
 
   function styles() {
@@ -70,7 +68,6 @@
       // The QR gets its own white plate: a code inverted by a dark-mode background will not scan.
       '.ae-qr{margin-top:11px;background:#fff;border:1px solid #e3e6ea;border-radius:10px;padding:12px;display:flex;justify-content:center;}',
       '.ae-qr svg{display:block;width:100%;height:auto;max-width:210px;shape-rendering:crispEdges;}',
-      '.ae-note{font-size:11.5px;line-height:1.5;color:#8a6d1f;background:#fdf6e3;border:1px solid #f0e3bd;border-radius:8px;padding:9px 11px;margin-top:10px;}',
       '.ae-manual{margin-top:12px;}',
       '.ae-manual summary{font-size:12.5px;color:#6d4fe0;cursor:pointer;list-style:none;}',
       '.ae-manual summary::-webkit-details-marker{display:none;}',
@@ -113,7 +110,6 @@
         + '<div class="ae-step"><div class="ae-h" data-k="step1"></div><div class="ae-b" data-k="step1body"></div></div>'
         + '<div class="ae-step"><div class="ae-h" data-k="step2"></div><div class="ae-b" data-k="step2body"></div>'
         + '<div class="ae-qr" id="ae-qr"></div>'
-        + '<div class="ae-note" data-k="stale"></div>'
         + '<details class="ae-manual"><summary></summary>'
         + '<div class="ae-b" data-k="manualBody"></div>'
         + '<div class="ae-key"><code id="ae-secret"></code><button type="button" class="ae-copy"></button></div>'
