@@ -30,6 +30,18 @@ function page(body, status) {
   return new Response(body, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
 }
 
+// requireStaff reports a refusal by calling this with an object and a status. Every other endpoint
+// hands it a JSON responder; this one answers in HTML, so the refusal is rendered as a page.
+// The call below used to pass `json`, which is not defined in this file — a ReferenceError on
+// every request, which is why opening a saved report returned a 502 rather than a report.
+function refusal(_body, status) {
+  const titulo = status === 401 ? 'Necesitas iniciar sesión' : 'Sin permiso';
+  const texto = status === 401
+    ? 'Inicia sesión en el portal y vuelve a abrir este enlace.'
+    : 'Este informe solo se abre para el personal de Akore Labs.';
+  return page('<h1>' + titulo + '</h1><p>' + texto + '</p>', status);
+}
+
 export default async (request) => {
   const url = new URL(request.url);
 
@@ -37,7 +49,7 @@ export default async (request) => {
   const lang = url.searchParams.get('lang') === 'en' ? 'en' : 'es';
   if (!company) return page('<p>Missing company</p>', 400);
 
-  const denied = await requireStaff(url, null, json);
+  const denied = await requireStaff(url, null, refusal);
   if (denied) return denied;
 
   const key = slugify(company);
