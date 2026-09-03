@@ -283,6 +283,15 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
         <button class="btn" id="geo-run" onclick="geoStart()" data-t="geoRun">Analizar sitio web</button>
       </div>
 
+      <label style="display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12px; color:var(--text-dim); cursor:pointer;">
+        <input type="checkbox" id="geo-paste-toggle" onchange="geoTogglePaste()" style="cursor:pointer;">
+        <span data-t="geoPasteToggle">The site blocks the scanner — paste the page instead</span>
+      </label>
+      <div id="geo-paste-wrap" style="display:none; margin-top:10px;">
+        <div class="field-hint" data-t="geoPasteHint" style="margin-bottom:7px;"></div>
+        <textarea id="geo-html" rows="6" data-t-placeholder="geoPastePlaceholder" placeholder="Pega aquí el código de la página…" style="width:100%; font-family:var(--mono); font-size:11px; padding:10px 12px; border:1px solid var(--border-bright); border-radius:var(--radius-md); background:var(--surface); color:var(--text); resize:vertical;"></textarea>
+      </div>
+
       <div id="geo-status" class="field-hint" style="margin-top:12px; min-height:18px;"></div>
       <div id="geo-result"></div>
 
@@ -439,6 +448,10 @@ const T = {
   geoHint: { en: 'Check any website, customer or not. One scan, then choose which report you need.', es: 'Revisa cualquier sitio web, sea cliente o no. Un solo análisis y eliges qué informe necesitas.' },
   geoUrlPlaceholder: { en: 'https://example.com', es: 'https://ejemplo.com' },
   geoRun: { en: 'Scan website', es: 'Analizar sitio web' },
+  geoPasteToggle: { en: 'The site blocks the scanner — paste the page instead', es: 'El sitio web bloquea al escáner: pega el código de la página' },
+  geoPasteHint: { en: 'Open the page in your browser, press Ctrl+U to see the source, select all, copy, and paste it here. Everything on-page is still checked; crawlability cannot be, and the report says so.', es: 'Abre la página en tu navegador, pulsa Ctrl+U para ver el código, selecciona todo, cópialo y pégalo aquí. Se revisa todo lo de la página; la rastreabilidad no se puede comprobar así, y el informe lo dice.' },
+  geoPastePlaceholder: { en: 'Paste the page source here…', es: 'Pega aquí el código de la página…' },
+  geoNeedHtml: { en: 'Paste the page source, or untick the box to scan normally.', es: 'Pega el código de la página, o desmarca la casilla para analizar normalmente.' },
   geoRunning: { en: 'Scanning… this takes 20-100 seconds.', es: 'Analizando… tarda entre 20 y 100 segundos.' },
   geoNeedUrl: { en: 'Enter the website address first.', es: 'Escribe primero la dirección del sitio web.' },
   geoFailed: { en: 'The scan did not complete.', es: 'El análisis no se completó.' },
@@ -773,6 +786,11 @@ async function geoStart() {
   if (!url) { geoSay(t('geoNeedUrl')); input.focus(); return; }
   input.value = url;
 
+  // When the box is ticked the page source is analysed instead of being fetched.
+  const pasting = document.getElementById('geo-paste-toggle').checked;
+  const pastedHtml = pasting ? document.getElementById('geo-html').value.trim() : '';
+  if (pasting && !pastedHtml) { geoSay(t('geoNeedHtml')); document.getElementById('geo-html').focus(); return; }
+
   geoKey = geoCompanyKey(url);
   geoLang = lang;
   document.getElementById('geo-run').disabled = true;
@@ -784,7 +802,7 @@ async function geoStart() {
     const res = await fetch(await window.apiQuery('/api/geo-scan', {}), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company: geoKey, url: url, session: window.akoreAuth.session() })
+      body: JSON.stringify({ company: geoKey, url: url, html: pastedHtml, session: window.akoreAuth.session() })
     });
     if (!res.ok && res.status !== 202) {
       geoSay(t('geoFailed') + ' (HTTP ' + res.status + ')');
@@ -840,6 +858,11 @@ async function geoCheck() {
     // Never silent: a hidden failure looks exactly like a scan that found nothing.
     geoSay(t('geoFailed') + ' — ' + err.message);
   }
+}
+
+function geoTogglePaste() {
+  const on = document.getElementById('geo-paste-toggle').checked;
+  document.getElementById('geo-paste-wrap').style.display = on ? 'block' : 'none';
 }
 
 function geoStop() {

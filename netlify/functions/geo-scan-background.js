@@ -10,7 +10,7 @@
 
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
-import { runScan } from './lib/geo-scan-engine.js';
+import { runScan, runScanFromHtml } from './lib/geo-scan-engine.js';
 import { requireStaff } from './lib/authorize.js';
 
 // A signed-in staff session presents an opaque token instead of the password. Checked first so a
@@ -55,7 +55,7 @@ export default async (request) => {
 
   let body;
   try { body = await request.json(); } catch { return new Response('Bad request', { status: 400 }); }
-  const { company, url, maxPages } = body || {};
+  const { company, url, maxPages, html } = body || {};
   if (!company || !url) return new Response('Missing company or url', { status: 400 });
 
   // Staff only. `url` in this scope is the site being scanned, so the request's own URL is read
@@ -76,7 +76,11 @@ export default async (request) => {
   await jobs.setJSON(key, { status: 'running', url, startedAt: new Date().toISOString() });
 
   try {
-    const result = await runScan({ url, maxPages: Number(maxPages) || 20 });
+    // Hand-supplied HTML skips the network entirely. Used for sites that refuse every request
+    // from a datacentre by IP range, where no user-agent fallback can reach them.
+    const result = html && String(html).trim()
+      ? runScanFromHtml({ url, pages: [{ url, html: String(html) }] })
+      : await runScan({ url, maxPages: Number(maxPages) || 20 });
     const snap = snapshot(result);
 
     // Every run is kept under its own timestamped key so a re-audit can be compared against the

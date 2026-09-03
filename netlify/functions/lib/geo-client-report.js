@@ -274,6 +274,7 @@ footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--ink-200);disp
 <div class="lede">
   <h2>${esc(titular)}</h2>
   <p>${esc(resumen)}</p>
+  ${data.scanQuality?.source === 'supplied-html' ? '<p style="margin-top:10px;font-size:12.5px;color:var(--ink-500);">' + esc('Este análisis se hizo sobre el código de la página, guardado a mano, porque el servidor no acepta peticiones automáticas. Por eso no se puede decir aquí si la IA logra entrar al sitio web: eso se revisa aparte.') + '</p>' : ''}
 </div>
 
 ${seccion('01', 'Lo que revisamos', 'Qué puede hacer la IA con este sitio web hoy', `
