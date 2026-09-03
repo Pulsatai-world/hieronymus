@@ -30,6 +30,8 @@ const TX = {
   execSummary:  { es: 'Resumen ejecutivo', en: 'Executive summary' },
   unreachHead:  { es: 'El escáner no ha podido acceder al sitio web; no se informa calificación.', en: 'The scanner could not reach this site — no score is reported.' },
   unreachNote:  { es: '<b>Esto no es un hallazgo sobre el sitio web.</b> No se ha medido nada, así que nada en este informe debe leerse como una valoración de su calidad.', en: '<b>This is not a finding about the site.</b> Nothing was measured, so nothing in this report should be read as an assessment of its quality.' },
+  noPagesHead:  { es: 'El servidor respondió, pero no se pudo leer ninguna página.', en: 'The server answered, but no page could be read.' },
+  noPagesNote:  { es: '<b>Esto no es un hallazgo sobre el sitio web.</b> Las cifras de abajo están en cero porque no se midió nada, no porque el sitio web esté vacío. Suele pasar cuando el servidor rechaza las peticiones automáticas. Vuelve a intentarlo, y si se repite, analízalo pegando el código de la página: se revisa todo lo de la página igual.', en: '<b>This is not a finding about the site.</b> The figures below are zero because nothing was measured, not because the site is empty. This usually means the server refuses automated requests. Try again, and if it persists, analyse it by pasting the page source — every on-page check still runs.' },
   headlineThin: { es: 'Nada bloquea a los rastreadores de IA. Lo que ocurre es que hay muy poco que encontrar.', en: 'Nothing is blocking AI crawlers. There is very little for them to find.' },
   headlineNorm: { es: 'Evaluación técnica en página', en: 'On-page technical assessment' },
   summaryLine:  { es: 'El sitio web era accesible y se han podido analizar {p} página(s) con {c} revisiones. {b}', en: 'The site was reachable and {p} page(s) could be analysed across {c} checks. {b}' },
@@ -115,12 +117,18 @@ export function buildReportHtml(rawData, lang = 'es') {
       ${l.scored ? '' : `<div class="n">${T('notInScore')}</div>`}
     </div>`).join('');
 
-  const thin = schemaTypes.length === 0 && wordCount < 800;
+  // Zero pages is its own case. Without this the thin-site headline fires on an empty result.
+  const noPages = (q.pagesAnalyzed || 0) === 0;
+  const thin = !noPages && schemaTypes.length === 0 && wordCount < 800;
   const summary = !data.reachable ? `
     <div class="callout warn">
       <h4>${T('unreachHead')}</h4>
       <p>${esc((data.section1.checks.find(c => c.id === 'site-reachability') || {}).detail || '')}</p>
       <p>${T('unreachNote')}</p>
+    </div>` : noPages ? `
+    <div class="callout warn">
+      <h4>${T('noPagesHead')}</h4>
+      <p>${T('noPagesNote')}</p>
     </div>` : `
     <div class="callout">
       <h4>${thin ? T('headlineThin') : T('headlineNorm')}</h4>

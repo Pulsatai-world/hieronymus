@@ -143,10 +143,17 @@ export function buildClientReport(data) {
   const lectura = band(layer('readability').score);
   const cita = band(layer('substance').score);
 
-  const titular = bloqueos === 0
+  // Nothing read is not the same as nothing there. Said plainly, rather than describing an
+  // empty site that was never actually looked at.
+  const sinPaginas = nPages === 0;
+  const titular = sinPaginas
+    ? 'No se pudo leer ninguna página del sitio web.'
+    : bloqueos === 0
     ? 'Nada impide que la IA entre al sitio web. El problema es lo que encuentra cuando entra.'
     : 'Hay algo bloqueándole el paso a la IA. Eso se resuelve primero.';
-  const resumen = bloqueos === 0
+  const resumen = sinPaginas
+    ? 'El servidor respondió, pero rechazó cada intento de leer una página, así que no hay nada que informar todavía. Esto no dice nada sobre el sitio web en sí: sólo que no se dejó revisar de forma automática.'
+    : bloqueos === 0
     ? `Revisamos ${nPages} página${nPages === 1 ? '' : 's'}. ChatGPT, Gemini, Perplexity y Google pueden entrar sin ningún problema. Lo que falta es información concreta que puedan citar.`
     : `Revisamos ${nPages} página${nPages === 1 ? '' : 's'} y encontramos ${bloqueos} punto${bloqueos === 1 ? '' : 's'} que le impiden el paso a la IA. Mientras eso siga así, lo demás no importa.`;
 
