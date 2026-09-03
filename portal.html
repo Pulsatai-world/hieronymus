@@ -36,6 +36,8 @@ const GATE_T = {
   geoRunning: { en: 'Scanning… this takes 20-100 seconds.', es: 'Analizando… tarda entre 20 y 100 segundos.' },
   geoNeedUrl: { en: 'Enter the website address first.', es: 'Escribe primero la dirección del sitio web.' },
   geoFailed: { en: 'The scan did not complete.', es: 'El análisis no se completó.' },
+  geoNeverStarted: { en: 'The scan never started. Reload the portal and sign in again, then try once more.', es: 'El análisis no llegó a arrancar. Recarga el portal, vuelve a iniciar sesión e inténtalo otra vez.' },
+  geoTimedOut: { en: 'The scan is taking longer than expected. Reload the portal in a minute — if the result is there it finished; if not, run it again.', es: 'El análisis está tardando más de lo normal. Recarga el portal en un minuto: si el resultado ya está, terminó; si no, córrelo otra vez.' },
   geoUnreachable: { en: 'The site did not answer the scanner, so there is no report. This is not a finding about the site.', es: 'El sitio web no respondió al escáner, así que no hay informe. Esto no es un hallazgo sobre el sitio web.' },
   geoDone: { en: 'page(s) checked', es: 'página(s) revisada(s)' },
   geoClientBtn: { en: 'Client version ↗', es: 'Versión para el cliente ↗' },
@@ -724,7 +726,19 @@ async function loadAll() {
 // ── GEO scan from the portal ────────────────────────────────────────────────────────────────
 // A scan here is not tied to a customer, so it is filed under a key derived from the hostname.
 // The per-customer panel keys off the customer name, so the two can never overwrite each other.
-let geoPoll = null, geoKey = null, geoLang = 'es';
+let geoPoll = null, geoKey = null, geoLang = 'es', geoTicks = 0;
+
+// A background function answers 202 the moment it is dispatched, before its own code has run, so
+// a refusal inside it never reaches the browser. The only evidence available here is whether a job
+// record ever appears. These two limits turn that silence into a sentence.
+const GEO_START_TICKS = 5;    // ~25s: by now the record exists, or the scan never began
+const GEO_MAX_TICKS = 36;     // ~3min: longer than any real scan has taken
+
+function geoNormalizeUrl(raw) {
+  const v = String(raw || '').trim();
+  if (!v) return '';
+  return /^https?:\/\//i.test(v) ? v : 'https://' + v;
+}
 
 function geoCompanyKey(rawUrl) {
   let host;
@@ -739,8 +753,9 @@ function geoSay(text) {
 
 async function geoStart() {
   const input = document.getElementById('geo-url');
-  const url = (input.value || '').trim();
+  const url = geoNormalizeUrl(input.value);
   if (!url) { geoSay(t('geoNeedUrl')); input.focus(); return; }
+  input.value = url;
 
   geoKey = geoCompanyKey(url);
   geoLang = lang;
@@ -764,6 +779,7 @@ async function geoStart() {
     document.getElementById('geo-run').disabled = false;
     return;
   }
+  geoTicks = 0;
   geoPoll = setInterval(geoCheck, 5000);
   setTimeout(geoCheck, 2500);
 }
@@ -774,10 +790,24 @@ async function geoCheck() {
     const res = await fetch(await window.apiQuery('/api/geo-scan-job', { company: geoKey }));
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    if (data.status === 'running' || data.status === 'none') return;
+    geoTicks++;
 
-    clearInterval(geoPoll); geoPoll = null;
-    document.getElementById('geo-run').disabled = false;
+    // No job record at all: geo-scan-background writes one before it starts work, so its absence
+    // means the function refused or never ran. Almost always an expired session.
+    if (data.status === 'none') {
+      if (geoTicks < GEO_START_TICKS) return;
+      geoStop();
+      geoSay(t('geoNeverStarted'));
+      return;
+    }
+    if (data.status === 'running') {
+      if (geoTicks < GEO_MAX_TICKS) return;
+      geoStop();
+      geoSay(t('geoTimedOut'));
+      return;
+    }
+
+    geoStop();
 
     if (data.status === 'error') {
       geoSay(t('geoFailed') + (data.job && data.job.error ? ' — ' + data.job.error : ''));
@@ -789,11 +819,16 @@ async function geoCheck() {
     geoSay((latest ? latest.pagesAnalyzed + ' ' : '') + t('geoDone'));
     document.getElementById('geo-actions').style.display = 'flex';
   } catch (err) {
-    clearInterval(geoPoll); geoPoll = null;
-    document.getElementById('geo-run').disabled = false;
+    geoStop();
     // Never silent: a hidden failure looks exactly like a scan that found nothing.
     geoSay(t('geoFailed') + ' — ' + err.message);
   }
+}
+
+function geoStop() {
+  if (geoPoll) { clearInterval(geoPoll); geoPoll = null; }
+  const btn = document.getElementById('geo-run');
+  if (btn) btn.disabled = false;
 }
 
 // Both buttons open the same stored scan. Running the scan twice would hammer the target site and
