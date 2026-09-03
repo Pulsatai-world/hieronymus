@@ -31,6 +31,9 @@ const params = new URLSearchParams(location.search);
 const company = params.get('company');
 const run = params.get('run');
 const lang = params.get('lang') === 'en' ? 'en' : 'es';
+// Which report to render. Forwarded to the endpoint; without it both buttons on the portal would
+// open the technical version, because that is what the endpoint defaults to.
+const formato = params.get('formato') === 'cliente' ? 'cliente' : 'tecnico';
 
 const COPY = {
   es: {
@@ -78,7 +81,7 @@ function show(pair, extra) {
   }
 
   try {
-    const q = await window.apiQuery('/api/geo-report', run ? { company, lang, run } : { company, lang });
+    const q = await window.apiQuery('/api/geo-report', run ? { company, lang, run, formato } : { company, lang, formato });
     const res = await fetch(q);
     if (res.status === 403) {
       document.getElementById('msg').innerHTML =

@@ -11,6 +11,7 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
 import { buildReportHtml } from './lib/geo-report-html.js';
+import { buildClientReport } from './lib/geo-client-report.js';
 import { requireStaff } from './lib/authorize.js';
 
 // A signed-in staff session presents an opaque token instead of the password. Checked first so a
@@ -47,6 +48,10 @@ export default async (request) => {
 
   const company = url.searchParams.get('company');
   const lang = url.searchParams.get('lang') === 'en' ? 'en' : 'es';
+  // Two readers, one scan. 'cliente' is the short version handed to a prospect; anything else is
+  // the full technical document Akore works from. Defaulting to technical keeps every report link
+  // already in circulation pointing at what it pointed at before.
+  const formato = url.searchParams.get('formato') === 'cliente' ? 'cliente' : 'tecnico';
   if (!company) return page('<p>Missing company</p>', 400);
 
   const denied = await requireStaff(url, null, refusal);
@@ -81,5 +86,5 @@ export default async (request) => {
       : 'Ese análisis lo guardó una versión anterior del escáner y no se puede mostrar. Corre uno nuevo.'}</p>`, 409);
   }
 
-  return page(buildReportHtml(result, lang), 200);
+  return page(formato === 'cliente' ? buildClientReport(result) : buildReportHtml(result, lang), 200);
 };

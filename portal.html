@@ -29,6 +29,19 @@
 // the end of this file. These keys are gone; nothing in a browser grants access any more.
 const GATE_T = {
   title: { en: 'Internal Portal', es: 'Portal Interno' },
+  geoTitle: { en: 'GEO scan', es: 'Diagnóstico GEO' },
+  geoHint: { en: 'Check any website, customer or not. One scan, then choose which report you need.', es: 'Revisa cualquier sitio web, sea cliente o no. Un solo análisis y eliges qué informe necesitas.' },
+  geoUrlPlaceholder: { en: 'https://example.com', es: 'https://ejemplo.com' },
+  geoRun: { en: 'Scan', es: 'Analizar' },
+  geoRunning: { en: 'Scanning… this takes 20-100 seconds.', es: 'Analizando… tarda entre 20 y 100 segundos.' },
+  geoNeedUrl: { en: 'Enter the website address first.', es: 'Escribe primero la dirección del sitio web.' },
+  geoFailed: { en: 'The scan did not complete.', es: 'El análisis no se completó.' },
+  geoUnreachable: { en: 'The site did not answer the scanner, so there is no report. This is not a finding about the site.', es: 'El sitio web no respondió al escáner, así que no hay informe. Esto no es un hallazgo sobre el sitio web.' },
+  geoDone: { en: 'page(s) checked', es: 'página(s) revisada(s)' },
+  geoClientBtn: { en: 'Client version ↗', es: 'Versión para el cliente ↗' },
+  geoTechBtn: { en: 'Technical report ↗', es: 'Informe técnico ↗' },
+  geoWhichClient: { en: 'Short and plain — the one to hand a prospect.', es: 'Corto y en lenguaje sencillo: el que se le entrega al prospecto.' },
+  geoWhichTech: { en: 'Everything measured — the one to work from.', es: 'Todo lo medido: el que se usa para trabajar.' },
   sub: { en: 'Akore Labs — Restricted Access', es: 'Akore Labs — Acceso Restringido' },
   userPlaceholder: { en: 'Username', es: 'Usuario' },
   placeholder: { en: 'Password', es: 'Contraseña' },
@@ -260,6 +273,26 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
     <div class="card-title" style="margin-bottom:0;" data-t="customersTitle">Customers</div>
     <div class="row" style="display:flex; gap:8px; flex-wrap:wrap;">
       <button class="btn" onclick="openNewCustomerModal()" data-t="newCustomerBtn">+ New Customer</button>
+    </div>
+  </div>
+
+  <div class="card" id="geo-card">
+    <div class="card-title" data-t="geoTitle">GEO scan</div>
+    <div class="card-caption" data-t="geoHint" style="font-size:12px; color:var(--text-dim); margin-bottom:14px;">Check any website, customer or not.</div>
+    <div class="row" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <input type="url" id="geo-url" data-t-placeholder="geoUrlPlaceholder" placeholder="https://ejemplo.com" style="flex:1; min-width:240px; font-family:inherit; font-size:14px; padding:11px 14px; border:1px solid var(--border-bright); border-radius:var(--radius-md); background:var(--surface); color:var(--text);">
+      <button class="btn" id="geo-run" onclick="geoStart()" data-t="geoRun">Scan</button>
+    </div>
+    <div id="geo-status" class="field-hint" style="margin-top:10px; min-height:18px;"></div>
+    <div class="row" id="geo-actions" style="display:none; gap:8px; flex-wrap:wrap; margin-top:12px;">
+      <div style="display:flex; flex-direction:column; gap:3px;">
+        <button class="btn btn-ghost btn-sm" onclick="geoOpen('cliente')" data-t="geoClientBtn">Client version</button>
+        <span class="field-hint" data-t="geoWhichClient" style="font-size:11px;"></span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:3px;">
+        <button class="btn btn-ghost btn-sm" onclick="geoOpen('tecnico')" data-t="geoTechBtn">Technical report</button>
+        <span class="field-hint" data-t="geoWhichTech" style="font-size:11px;"></span>
+      </div>
     </div>
   </div>
 
@@ -686,6 +719,90 @@ async function loadAll() {
   } catch (err) {
     container.innerHTML = `<div class="empty-state">${t('failedToLoad')}${err.message}</div>`;
   }
+}
+
+// ── GEO scan from the portal ────────────────────────────────────────────────────────────────
+// A scan here is not tied to a customer, so it is filed under a key derived from the hostname.
+// The per-customer panel keys off the customer name, so the two can never overwrite each other.
+let geoPoll = null, geoKey = null, geoLang = 'es';
+
+function geoCompanyKey(rawUrl) {
+  let host;
+  try { host = new URL(rawUrl).hostname; } catch (e) { host = String(rawUrl); }
+  return 'prospecto-' + host.replace(/^www\./, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+}
+
+function geoSay(text) {
+  const el = document.getElementById('geo-status');
+  if (el) el.textContent = text;
+}
+
+async function geoStart() {
+  const input = document.getElementById('geo-url');
+  const url = (input.value || '').trim();
+  if (!url) { geoSay(t('geoNeedUrl')); input.focus(); return; }
+
+  geoKey = geoCompanyKey(url);
+  geoLang = lang;
+  document.getElementById('geo-run').disabled = true;
+  document.getElementById('geo-actions').style.display = 'none';
+  geoSay(t('geoRunning'));
+
+  try {
+    const res = await fetch(await window.apiQuery('/api/geo-scan', {}), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company: geoKey, url: url, session: window.akoreAuth.session() })
+    });
+    if (!res.ok && res.status !== 202) {
+      geoSay(t('geoFailed') + ' (HTTP ' + res.status + ')');
+      document.getElementById('geo-run').disabled = false;
+      return;
+    }
+  } catch (err) {
+    geoSay(t('geoFailed') + ' — ' + err.message);
+    document.getElementById('geo-run').disabled = false;
+    return;
+  }
+  geoPoll = setInterval(geoCheck, 5000);
+  setTimeout(geoCheck, 2500);
+}
+
+async function geoCheck() {
+  if (!geoKey) return;
+  try {
+    const res = await fetch(await window.apiQuery('/api/geo-scan-job', { company: geoKey }));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (data.status === 'running' || data.status === 'none') return;
+
+    clearInterval(geoPoll); geoPoll = null;
+    document.getElementById('geo-run').disabled = false;
+
+    if (data.status === 'error') {
+      geoSay(t('geoFailed') + (data.job && data.job.error ? ' — ' + data.job.error : ''));
+      return;
+    }
+    const latest = data.latest;
+    if (latest && latest.reachable === false) { geoSay(t('geoUnreachable')); return; }
+
+    geoSay((latest ? latest.pagesAnalyzed + ' ' : '') + t('geoDone'));
+    document.getElementById('geo-actions').style.display = 'flex';
+  } catch (err) {
+    clearInterval(geoPoll); geoPoll = null;
+    document.getElementById('geo-run').disabled = false;
+    // Never silent: a hidden failure looks exactly like a scan that found nothing.
+    geoSay(t('geoFailed') + ' — ' + err.message);
+  }
+}
+
+// Both buttons open the same stored scan. Running the scan twice would hammer the target site and
+// risk its rate limiter, and two scans could disagree with each other.
+function geoOpen(formato) {
+  if (!geoKey) return;
+  window.open('/geo-report.html?company=' + encodeURIComponent(geoKey)
+    + '&lang=' + encodeURIComponent(geoLang)
+    + '&formato=' + encodeURIComponent(formato), '_blank', 'noopener');
 }
 
 function renderCustomerTable() {
