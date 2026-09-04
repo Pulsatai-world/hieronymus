@@ -40,27 +40,27 @@ function band(score) {
 const CATALOGUE = [
   {
     ids: ['content-depth', 'authority-signals', 'entities', 'first-250-specificity'],
-    titulo: 'Las páginas no dicen lo suficiente como para que la IA las cite',
-    que: 'La mayoría de las páginas de producto y de servicio tienen muy poco texto. La IA puede entrar y leerlas perfectamente, y aun así no citarlas nunca, porque no hay nada concreto que citar.',
-    porque: 'Las respuestas de la IA se arman con páginas que explican el servicio a detalle: qué incluye, para quién es, cómo funciona, cuánto tarda.'
+    titulo: 'A las páginas les falta información para que la IA las pueda citar',
+    que: 'La mayoría de las páginas de producto y de servicio traen muy poco texto. La IA las puede leer sin problema, pero no encuentra nada concreto que valga la pena citar.',
+    porque: 'Cuando alguien le pregunta algo a ChatGPT o a Gemini, la respuesta se arma con páginas que explican el servicio a detalle: qué incluye, para quién es, cómo funciona y cuánto tarda.'
   },
   {
     ids: ['schema-completeness', 'schema'],
     titulo: 'La ficha del negocio está incompleta',
-    que: 'El sitio web sí trae una ficha con los datos del negocio —qué es, dónde está y a qué se dedica— pero le faltan datos obligatorios, y en varias páginas no aparece.',
-    porque: 'Si a esa ficha le falta un dato obligatorio, no se puede usar: no aporta nada aunque esté ahí. Es de lo que más ayuda para que la IA reconozca un negocio real.'
+    que: 'El sitio web sí manda una ficha con los datos del negocio (qué es, dónde está y a qué se dedica), pero le faltan datos obligatorios y en varias páginas ni siquiera aparece.',
+    porque: 'Si a esa ficha le falta un dato obligatorio, no sirve de nada aunque esté ahí. Es de las cosas que más ayudan a que la IA entienda que atrás hay un negocio real.'
   },
   {
     ids: ['meta-description', 'open-graph'],
     titulo: 'Faltan las descripciones de varias páginas',
-    que: 'Es el resumen que aparece debajo del título en los resultados de búsqueda, y el que se ve cuando alguien comparte la página por WhatsApp.',
-    porque: 'Es el primer texto que se lee para decidir de qué trata la página. Se escribe desde el mismo administrador del sitio web, una por página.'
+    que: 'Es el resumen que sale debajo del título en los resultados de búsqueda, y el que aparece cuando alguien comparte la página por WhatsApp.',
+    porque: 'Es el primer texto que se lee para saber de qué trata la página. Se captura desde el mismo administrador del sitio web, una por página.'
   },
   {
     ids: ['main-landmark', 'a11y-tree-health', 'headings', 'heading-hierarchy'],
     titulo: 'No se distingue el contenido principal del resto de la página',
-    que: 'Nada separa el contenido de verdad del menú, la columna lateral y el pie de página. Además los títulos saltan niveles, así que el orden de la página no queda claro.',
-    porque: 'Si la IA no distingue el contenido del menú, se lleva el menú. Se corrige una sola vez en la plantilla y queda resuelto en todas las páginas a la vez.'
+    que: 'Nada separa el contenido de verdad del menú, la columna de un lado y el pie de página. Además los títulos se saltan niveles, así que no queda claro cómo está armada.',
+    porque: 'Si la IA no distingue el contenido del menú, se lleva el menú. Esto se arregla una sola vez en la plantilla y queda listo para todas las páginas.'
   },
   {
     ids: ['image-alt'],
@@ -71,28 +71,28 @@ const CATALOGUE = [
   {
     ids: ['content-freshness'],
     titulo: 'No se puede saber qué tan actual es la información',
-    que: 'Las páginas no traen una fecha de actualización, así que no hay forma de saber si lo que dicen sigue vigente.',
-    porque: 'Ante dos páginas parecidas, la IA prefiere la que se ve reciente. Sin fecha, la tuya pierde por descarte.'
+    que: 'Las páginas no traen fecha de actualización, así que no hay manera de saber si lo que dicen sigue vigente.',
+    porque: 'Entre dos páginas parecidas, la IA se va por la que se ve más reciente. Si la tuya no trae fecha, se queda atrás.'
   },
   {
     ids: ['answer-format'],
-    titulo: 'El contenido no está escrito en forma de respuesta',
-    que: 'Las páginas son texto corrido. No hay preguntas con su respuesta debajo, ni listas, ni tablas comparativas.',
-    porque: 'A la IA le cuesta mucho más sacar una respuesta directa de un párrafo largo que de una pregunta contestada en la primera línea.'
+    titulo: 'El contenido no está escrito como la gente pregunta',
+    que: 'Las páginas son texto corrido. No hay preguntas con su respuesta abajo, ni listas, ni tablas para comparar.',
+    porque: 'A la IA le cuesta mucho más sacar una respuesta de un párrafo largo que de una pregunta contestada en la primera línea.'
   }
 ];
 
 const BUENO = [
   { ids: ['multi-ua', 'robots-txt', 'x-robots-tag', 'noindex-meta', 'edge-protection'],
-    txt: 'Nada le impide el paso a la IA. Puede entrar al sitio web sin ningún obstáculo.' },
+    txt: 'Nada le impide el paso a la IA. Puede entrar al sitio web sin ningún problema.' },
   { ids: ['response-time'], txt: 'El sitio web abre rápido.' },
   { ids: ['sitemap'], txt: 'La IA puede encontrar todas las páginas sin batallar.' },
-  { ids: ['faq-schema-match'], txt: 'Las preguntas frecuentes están puestas de manera que la IA puede tomarlas como respuesta.' },
-  { ids: ['title'], txt: 'Los títulos de las páginas están bien escritos y con el largo adecuado.' },
-  { ids: ['contact-machine-readable'], txt: 'El teléfono y el correo se detectan solos, sin que nadie tenga que buscarlos.' },
-  { ids: ['js-rendering'], txt: 'El texto se lee sin necesidad de que la página termine de cargar sus programas.' },
-  { ids: ['canonical'], txt: 'Cada página declara cuál es su dirección oficial, así que no se duplica sola.' },
-  { ids: ['author-attribution'], txt: 'El contenido tiene autor identificable, no es texto anónimo.' }
+  { ids: ['faq-schema-match'], txt: 'Las preguntas frecuentes están puestas de una manera que la IA sí las puede usar como respuesta.' },
+  { ids: ['title'], txt: 'Los títulos de las páginas están bien escritos y con el largo que conviene.' },
+  { ids: ['contact-machine-readable'], txt: 'El teléfono y el correo se detectan solos, sin que nadie los tenga que buscar.' },
+  { ids: ['js-rendering'], txt: 'El texto se alcanza a leer sin esperar a que carguen los programas de la página.' },
+  { ids: ['canonical'], txt: 'Cada página dice cuál es su dirección buena, así que no se duplica sola.' },
+  { ids: ['author-attribution'], txt: 'El contenido tiene autor, no es texto anónimo.' }
 ];
 
 // Questions the site already asks in its own words, taken from the question-form headings the
@@ -149,10 +149,10 @@ export function buildClientReport(data) {
   const titular = sinPaginas
     ? 'No se pudo leer ninguna página del sitio web.'
     : bloqueos === 0
-    ? 'Nada impide que la IA entre al sitio web. El problema es lo que encuentra cuando entra.'
-    : 'Hay algo bloqueándole el paso a la IA. Eso se resuelve primero.';
+    ? 'Nada impide que la IA entre al sitio web. El problema es lo que se encuentra cuando entra.'
+    : 'Hay algo que le está cerrando el paso a la IA. Eso se arregla primero.';
   const resumen = sinPaginas
-    ? 'El servidor respondió, pero rechazó cada intento de leer una página, así que no hay nada que informar todavía. Esto no dice nada sobre el sitio web en sí: sólo que no se dejó revisar de forma automática.'
+    ? 'El servidor contestó, pero no dejó leer ninguna página, así que todavía no hay nada que reportar. Esto no dice nada del sitio web en sí, nada más que no se deja revisar de forma automática.'
     : bloqueos === 0
     ? `Revisamos ${nPages} página${nPages === 1 ? '' : 's'}. ChatGPT, Gemini, Perplexity y Google pueden entrar sin ningún problema. Lo que falta es información concreta que puedan citar.`
     : `Revisamos ${nPages} página${nPages === 1 ? '' : 's'} y encontramos ${bloqueos} punto${bloqueos === 1 ? '' : 's'} que le impiden el paso a la IA. Mientras eso siga así, lo demás no importa.`;
@@ -180,7 +180,7 @@ export function buildClientReport(data) {
 
   return `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Revisión de sitio web — ${esc(host)}</title>
+<title>Revisión de sitio web: ${esc(host)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
@@ -281,33 +281,33 @@ footer{margin-top:30px;padding-top:14px;border-top:1px solid var(--ink-200);disp
 <div class="lede">
   <h2>${esc(titular)}</h2>
   <p>${esc(resumen)}</p>
-  ${data.scanQuality?.source === 'supplied-html' ? '<p style="margin-top:10px;font-size:12.5px;color:var(--ink-500);">' + esc('Este análisis se hizo sobre el código de la página, guardado a mano, porque el servidor no acepta peticiones automáticas. Por eso no se puede decir aquí si la IA logra entrar al sitio web: eso se revisa aparte.') + '</p>' : ''}
+  ${data.scanQuality?.source === 'supplied-html' ? '<p style="margin-top:10px;font-size:12.5px;color:var(--ink-500);">' + esc('Este análisis se hizo con el código de la página, guardado a mano, porque el servidor no acepta peticiones automáticas. Por eso aquí no se puede decir si la IA alcanza a entrar al sitio web, eso se revisa por separado.') + '</p>' : ''}
 </div>
 
 ${seccion('01', 'Lo que revisamos', 'Qué puede hacer la IA con este sitio web hoy', `
   <div class="signals">
-    ${señal('¿Puede entrar?', acceso, 'Si los sistemas de IA logran llegar al sitio web y leerlo sin que nada los detenga.')}
-    ${señal('¿Puede entenderlo?', lectura, 'Si distingue de qué trata cada página y dónde está el contenido que importa.')}
-    ${señal('¿Puede citarlo?', cita, 'Si encuentra información concreta que valga la pena usar como respuesta.')}
+    ${señal('¿Puede entrar?', acceso, 'Si los sistemas de IA alcanzan a llegar al sitio web y a leerlo sin que nada los detenga.')}
+    ${señal('¿Puede entenderlo?', lectura, 'Si distingue de qué trata cada página y dónde está lo que importa.')}
+    ${señal('¿Puede citarlo?', cita, 'Si encuentra información concreta que sirva como respuesta.')}
   </div>`)}
 
-${seccion('02', 'La lectura', 'Qué ayuda y qué se está perdiendo', `
+${seccion('02', 'La lectura', 'Qué ayuda y qué está estorbando', `
   <div class="panels">
     ${bueno.length ? `<div class="panel panel-good">
       <h3>Esto ya funciona</h3>
       <ul>${bueno.map(b => `<li><span class="mark">✓</span><span>${esc(b.txt)}</span></li>`).join('')}</ul>
     </div>` : ''}
     ${problemas.length ? `<div class="panel panel-bad">
-      <h3>Esto lo está limitando</h3>
-      <ul>${problemas.slice(0, 5).map(p => `<li><span class="mark">—</span><span>${esc(p.titulo)}</span></li>`).join('')}</ul>
+      <h3>Esto es lo que estorba</h3>
+      <ul>${problemas.slice(0, 5).map(p => `<li><span class="mark">•</span><span>${esc(p.titulo)}</span></li>`).join('')}</ul>
     </div>` : ''}
   </div>`)}
 
 ${qs.length ? seccion('03', 'Las preguntas', 'Lo que el sitio web ya contesta', `
-  <p style="margin:0 0 14px;font-size:13px;color:var(--ink-500);">Estas preguntas ya están en el sitio web con su respuesta. Son las que la IA puede usar tal cual.</p>
+  <p style="margin:0 0 14px;font-size:13px;color:var(--ink-500);">Estas preguntas ya están en el sitio web con su respuesta. Son las que la IA puede aprovechar tal cual.</p>
   <div class="qs">${qs.map(q => `<div class="q"><p>«${esc(q)}»</p></div>`).join('')}</div>`) : ''}
 
-${problemas.length ? seccion(qs.length ? '04' : '03', 'El plan', 'Qué conviene corregir primero', `
+${problemas.length ? seccion(qs.length ? '04' : '03', 'El plan', 'Qué conviene arreglar primero', `
   <div class="fixes">
     ${problemas.map((p, i) => `
     <div class="fix">
@@ -323,8 +323,8 @@ ${problemas.length ? seccion(qs.length ? '04' : '03', 'El plan', 'Qué conviene 
 <div class="next">
   <div class="eyebrow">Qué sigue</div>
   <h2>Esto es la base. Falta saber si hoy te están nombrando.</h2>
-  <p>Esta revisión ve únicamente lo que pasa dentro del sitio web: si la IA puede entrar, entenderlo y citarlo. Conviene resolverlo antes de medir cualquier otra cosa.</p>
-  <p>Lo que no mide: si hoy apareces en las respuestas de ChatGPT, Gemini o Perplexity cuando alguien pregunta por tu servicio, ni cómo te comparas con tu competencia. Eso se mide aparte, y solo tiene sentido una vez resuelto lo de arriba.</p>
+  <p>Esta revisión ve nada más lo que pasa dentro del sitio web: si la IA puede entrar, entenderlo y citarlo. Conviene resolverlo antes de medir cualquier otra cosa.</p>
+  <p>Lo que no mide: si hoy apareces en las respuestas de ChatGPT, Gemini o Perplexity cuando alguien pregunta por tu servicio, ni cómo te comparas con tu competencia. Eso se mide por separado, y apenas tiene sentido cuando ya está resuelto lo de arriba.</p>
 </div>
 
 <footer>
