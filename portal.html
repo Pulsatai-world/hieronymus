@@ -32,6 +32,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <script src="/js/auth.js"></script>
+<script src="/js/geo-capture.bookmarklet.js"></script>
 <script>window.akoreAuth.useStaffSession();</script>
 <script src="/js/enroll-dialog.js"></script>
 <script>
@@ -289,6 +290,13 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
       </label>
       <div id="geo-paste-wrap" style="display:none; margin-top:10px;">
         <div class="field-hint" data-t="geoPasteHint" style="margin-bottom:7px;"></div>
+        <div style="margin-bottom:10px; padding:11px 13px; background:var(--surface); border:1px dashed var(--border-bright); border-radius:var(--radius-md);">
+          <div class="field-hint" data-t="geoCaptureLead" style="margin-bottom:7px;"></div>
+          <a id="geo-capture-link" href="#" onclick="return false;" draggable="true"
+             style="display:inline-block; font-family:inherit; font-size:13px; font-weight:700; padding:8px 16px; border-radius:999px; background:var(--accent); color:#fff; text-decoration:none; cursor:grab;"
+             data-t="geoCaptureBtn">Capturar para Akore</a>
+          <div class="field-hint" data-t="geoCaptureHow" style="margin-top:8px;"></div>
+        </div>
         <textarea id="geo-html" rows="6" data-t-placeholder="geoPastePlaceholder" placeholder="Pega aquí el código de la página…" style="width:100%; font-family:var(--mono); font-size:11px; padding:10px 12px; border:1px solid var(--border-bright); border-radius:var(--radius-md); background:var(--surface); color:var(--text); resize:vertical;"></textarea>
       </div>
 
@@ -448,6 +456,10 @@ const T = {
   geoHint: { en: 'Check any website, customer or not. One scan, then choose which report you need.', es: 'Revisa cualquier sitio web, sea cliente o no. Un solo análisis y eliges qué informe necesitas.' },
   geoUrlPlaceholder: { en: 'https://example.com', es: 'https://ejemplo.com' },
   geoRun: { en: 'Scan website', es: 'Analizar sitio web' },
+  geoCaptureLead: { en: 'One-time setup: drag this button to your bookmarks bar.', es: 'Se configura una vez: arrastra este botón a tu barra de marcadores.' },
+  geoCaptureBtn: { en: 'Capture for Akore', es: 'Capturar para Akore' },
+  geoCaptureHow: { en: 'Then open the site in a tab, click the button, and paste here. It reads the homepage and up to 19 more pages from your own browser, which the site already lets through.', es: 'Después abre el sitio web en una pestaña, dale clic al botón y pega aquí. Lee la portada y hasta 19 páginas más desde tu propio navegador, que es el que el sitio web sí deja pasar.' },
+  geoBundleRead: { en: 'Captured pages ready to scan:', es: 'Páginas capturadas, listas para analizar:' },
   geoPasteToggle: { en: 'The site blocks the scanner — paste the page instead', es: 'El sitio web no deja pasar al escáner: pega el código de la página' },
   geoPasteHint: { en: 'Open the page in your browser, press Ctrl+U to see the source, select all, copy, and paste it here. Everything on-page is still checked; crawlability cannot be, and the report says so.', es: 'Abre la página en tu navegador, presiona Ctrl+U para ver el código, selecciona todo, cópialo y pégalo aquí. Así se revisa todo lo que trae la página. Lo único que no se puede saber de esta forma es si la IA alcanza a entrar al sitio web, y el informe lo aclara.' },
   geoPastePlaceholder: { en: 'Paste the page source here…', es: 'Pega aquí el código de la página…' },
@@ -788,21 +800,35 @@ async function geoStart() {
 
   // When the box is ticked the page source is analysed instead of being fetched.
   const pasting = document.getElementById('geo-paste-toggle').checked;
-  const pastedHtml = pasting ? document.getElementById('geo-html').value.trim() : '';
-  if (pasting && !pastedHtml) { geoSay(t('geoNeedHtml')); document.getElementById('geo-html').focus(); return; }
+  const pastedRaw = pasting ? document.getElementById('geo-html').value.trim() : '';
+  if (pasting && !pastedRaw) { geoSay(t('geoNeedHtml')); document.getElementById('geo-html').focus(); return; }
+
+  // What the bookmarklet produces is a JSON bundle of several pages; what a person pastes by hand
+  // is the source of one page. Both are accepted, and the difference is only how many pages the
+  // scan gets to see.
+  let pastedHtml = pastedRaw, capturedPages = null;
+  if (pastedRaw) {
+    try {
+      const parsed = JSON.parse(pastedRaw);
+      if (parsed && parsed.akoreCapture && Array.isArray(parsed.pages) && parsed.pages.length) {
+        capturedPages = parsed.pages;
+        pastedHtml = '';
+      }
+    } catch (e) { /* not a bundle, treat it as one page of HTML */ }
+  }
 
   geoKey = geoCompanyKey(url);
   geoLang = lang;
   document.getElementById('geo-run').disabled = true;
   document.getElementById('geo-actions').style.display = 'none';
   document.getElementById('geo-result').innerHTML = '';
-  geoSay(t('geoRunning'));
+  geoSay(capturedPages ? t('geoBundleRead') + ' ' + capturedPages.length : t('geoRunning'));
 
   try {
     const res = await fetch(await window.apiQuery('/api/geo-scan', {}), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company: geoKey, url: url, html: pastedHtml, session: window.akoreAuth.session() })
+      body: JSON.stringify({ company: geoKey, url: url, html: pastedHtml, pages: capturedPages, session: window.akoreAuth.session() })
     });
     if (!res.ok && res.status !== 202) {
       geoSay(t('geoFailed') + ' (HTTP ' + res.status + ')');
@@ -860,7 +886,14 @@ async function geoCheck() {
   }
 }
 
+// The bookmarklet is generated from js/geo-capture.src.js at build time; the link just carries it.
+function geoWireCaptureLink() {
+  const a = document.getElementById('geo-capture-link');
+  if (a && window.AKORE_CAPTURE_BOOKMARKLET) a.setAttribute('href', window.AKORE_CAPTURE_BOOKMARKLET);
+}
+
 function geoTogglePaste() {
+  geoWireCaptureLink();
   const on = document.getElementById('geo-paste-toggle').checked;
   document.getElementById('geo-paste-wrap').style.display = on ? 'block' : 'none';
 }

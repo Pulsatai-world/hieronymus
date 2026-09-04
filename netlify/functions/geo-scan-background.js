@@ -55,7 +55,7 @@ export default async (request) => {
 
   let body;
   try { body = await request.json(); } catch { return new Response('Bad request', { status: 400 }); }
-  const { company, url, maxPages, html } = body || {};
+  const { company, url, maxPages, html, pages } = body || {};
   if (!company || !url) return new Response('Missing company or url', { status: 400 });
 
   // Staff only. `url` in this scope is the site being scanned, so the request's own URL is read
@@ -78,7 +78,16 @@ export default async (request) => {
   try {
     // Hand-supplied HTML skips the network entirely. Used for sites that refuse every request
     // from a datacentre by IP range, where no user-agent fallback can reach them.
-    const result = html && String(html).trim()
+    // Three ways in, in order of completeness: a captured bundle of pages, a single pasted page,
+    // or a live fetch. The first two exist because a server cannot reach a site whose bot
+    // protection filters by IP range, and the staff member's own browser can.
+    const captured = Array.isArray(pages)
+      ? pages.filter(p => p && p.html && String(p.html).trim()).map(p => ({ url: p.url || url, html: String(p.html) }))
+      : [];
+
+    const result = captured.length
+      ? runScanFromHtml({ url, pages: captured })
+      : html && String(html).trim()
       ? runScanFromHtml({ url, pages: [{ url, html: String(html) }] })
       : await runScan({ url, maxPages: Number(maxPages) || 20 });
     const snap = snapshot(result);
