@@ -468,6 +468,7 @@ const T = {
   geoNeedUrl: { en: 'Enter the website address first.', es: 'Escribe primero la dirección del sitio web.' },
   geoFailed: { en: 'The scan did not complete.', es: 'No se pudo terminar el análisis.' },
   geoNeverStarted: { en: 'The scan never started. Reload the portal and sign in again, then try once more.', es: 'El análisis no llegó a arrancar. Recarga el portal, vuelve a iniciar sesión e inténtalo otra vez.' },
+  geoBlocked: { en: 'This site does not let our server in. Use the capture button below: open the site in another tab, click it, and paste here.', es: 'Este sitio web no deja entrar a nuestro servidor. Usa el botón de captura de abajo: abre el sitio web en otra pestaña, dale clic y pega aquí.' },
   geoTimedOut: { en: 'The scan is taking longer than expected. Reload the portal in a minute — if the result is there it finished; if not, run it again.', es: 'El análisis está tardando más de lo normal. Recarga el portal en un minuto: si el resultado ya está, terminó; si no, córrelo otra vez.' },
   geoUnreachable: { en: 'The site did not answer the scanner, so there is no report. This is not a finding about the site.', es: 'El sitio web no le contestó al escáner, así que no hay informe. Eso no quiere decir que el sitio web esté mal.' },
   geoDone: { en: 'page(s) checked', es: 'página(s) revisada(s)' },
@@ -875,7 +876,8 @@ async function geoCheck() {
       return;
     }
     const latest = data.latest;
-    if (latest && latest.reachable === false) { geoSay(t('geoUnreachable')); return; }
+    const blocked = !latest || latest.reachable === false || (latest.pagesAnalyzed || 0) === 0;
+    if (blocked) { geoOfferCapture(); return; }
 
     geoRenderResult(latest);
     document.getElementById('geo-actions').style.display = 'flex';
@@ -896,6 +898,16 @@ function geoTogglePaste() {
   geoWireCaptureLink();
   const on = document.getElementById('geo-paste-toggle').checked;
   document.getElementById('geo-paste-wrap').style.display = on ? 'block' : 'none';
+}
+
+// The one thing that does work on a site like this is capturing it from a browser it already
+// admits, so the panel opens itself there rather than leaving the operator to guess.
+function geoOfferCapture() {
+  geoSay(t('geoBlocked'));
+  const box = document.getElementById('geo-paste-toggle');
+  if (box && !box.checked) { box.checked = true; geoTogglePaste(); }
+  const link = document.getElementById('geo-capture-link');
+  if (link && link.scrollIntoView) link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 function geoStop() {
