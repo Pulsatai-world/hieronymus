@@ -51,7 +51,16 @@ async function callClaude(apiKey, { prompt, maxTokens, effort, jsonSchema }) {
   } catch {
     throw new Error('Upstream non-JSON response: ' + rawText.slice(0, 200));
   }
-  if (!res.ok) throw new Error(data.error?.message || 'Claude API error ' + res.status);
+  if (!res.ok) {
+    const upstream = data.error?.message || 'HTTP ' + res.status;
+    // Name the key that is at fault. Anthropic's own wording for a rejected key is
+    // "invalid x-api-key", which says nothing about whose key or where to change it.
+    if (res.status === 401 || res.status === 403) {
+      throw new Error("Anthropic rejected this customer's Claude API key (" + upstream
+        + '). Update it on this page under Generate Prompts → API Keys.');
+    }
+    throw new Error('Claude API error ' + res.status + ': ' + upstream);
+  }
   // Safety classifiers can decline a request with a 200 + stop_reason "refusal" and an empty
   // content array, so this has to be checked before reading content.
   if (data.stop_reason === 'refusal') {
@@ -542,8 +551,19 @@ export default async (request, context) => {
   await jobsStore.setJSON(jobKey, { status: 'running', company, startedAt: new Date().toISOString(), completed: 0, total: totalSteps });
 
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error('Server is missing ANTHROPIC_API_KEY — set it in Netlify site environment variables.');
+    // The customer's own Claude key, the same one an audit run grades with — read server-to-server
+    // and never returned to a browser.
+    //
+    // This used to be a single platform-wide ANTHROPIC_API_KEY, which made generation the one piece
+    // of the pipeline whose cost, rate limit and blast radius were shared across every customer
+    // while everything else was already segmented. It also meant a customer could have their keys
+    // set correctly and still be told an API key was invalid.
+    const keysRecord = await getStore('hieronymus-customer-keys').get(jobKey, { type: 'json' });
+    const apiKey = keysRecord && keysRecord.claude;
+    if (!apiKey) {
+      throw new Error('No Claude API key is configured for ' + company
+        + '. Add it on this page under Generate Prompts → API Keys, then generate again.');
+    }
 
     const count = parseInt(body.count) || 100;
     const languages = Array.isArray(body.languages) && body.languages.length ? body.languages : ['English'];
