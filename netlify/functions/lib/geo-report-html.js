@@ -16,7 +16,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '
 
 const TX = {
   brand:        { es: 'Akore Labs · Diagnóstico técnico GEO', en: 'Akore Labs · GEO Technical Readiness' },
-  sub:          { es: 'Evaluación técnica en página para la visibilidad en motores generativos', en: 'On-page technical assessment for generative engine visibility' },
+  sub:          { es: 'Qué hay que corregir en el sitio web para que la IA lo pueda leer y citar', en: 'What to fix on this site so AI can read and cite it' },
   scanned:      { es: 'Analizado', en: 'Scanned' },
   pagesAnalysed:{ es: 'Páginas analizadas', en: 'Pages analysed' },
   checksRun:    { es: 'Revisiones', en: 'Checks run' },
@@ -37,7 +37,7 @@ const TX = {
   summaryLine:  { es: 'Se pudo entrar al sitio web y se analizaron {p} página(s) con {c} revisiones. {b}', en: 'The site was reachable and {p} page(s) could be analysed across {c} checks. {b}' },
   noBlockers:   { es: 'No se encontró nada que le cierre el paso a la IA.', en: 'No crawlability blockers were found.' },
   someBlockers: { es: 'Hay {n} cosa(s) cerrándole el paso a la IA. Eso va primero.', en: '{n} crawlability blocker(s) require attention before anything else.' },
-  depthLine:    { es: 'La portada trae <b>{w} palabras</b> de contenido propio y <b>{s}</b>. La IA cita cosas concretas, así que de cuánto haya escrito y de cómo esté acomodado depende que tenga de dónde agarrar una respuesta.', en: 'Content depth: <b>{w} words</b> of main content on the homepage, with <b>{s}</b>. Generative engines cite specific, substantive material, so depth and structure determine how much there is to draw on.' },
+  depthLine:    { es: 'La portada trae <b>{w} palabras</b> de contenido propio y <b>{s}</b>.', en: 'Content depth: <b>{w} words</b> of main content on the homepage, with <b>{s}</b>. Generative engines cite specific, substantive material, so depth and structure determine how much there is to draw on.' },
   noSchema:     { es: 'ningún dato estructurado', en: 'no structured data' },
   someSchema:   { es: '{n} tipo(s) de datos estructurados', en: '{n} structured data type(s)' },
   statPages:    { es: 'Páginas analizadas', en: 'Pages analysed' },
@@ -57,6 +57,18 @@ const TX = {
   method2:      { es: 'Lo que no se ha podido establecer se informa como <b>sin verificar</b> y queda excluido de la calificación, en lugar de suponerse. Cuando un sitio web está detrás de un CDN o un WAF, la prueba de user-agents no puede confirmar si los rastreadores de IA tienen paso, porque esos servicios identifican a los bots verificados por rango de IP y no por la cadena de user-agent: esos casos se marcan para confirmación manual.', en: 'Checks that could not be established are reported as <b>unverified</b> rather than as passes or failures, and are excluded from the score entirely. Where a site sits behind a CDN or WAF, user-agent testing cannot confirm whether AI crawlers are permitted, because those services identify verified bots by source IP range rather than user-agent string — such cases are flagged for manual confirmation.' },
   method3:      { es: 'Esta evaluación cubre <b>únicamente factores técnicos en página</b>. No mide la visibilidad actual en respuestas de IA, la presencia de la entidad fuera del sitio web ni la cuota de voz frente a competidores: eso se mide por separado en la auditoría de visibilidad posterior.', en: 'This assessment covers <b>on-site technical factors only</b>. It does not measure current visibility in AI answers, off-site entity presence, or competitive share of voice — each measured separately in the visibility audit that follows.' },
   howToFix:     { es: 'Cómo resolverlo', en: 'How to fix' },
+  workTitle:    { es: 'Qué hay que hacer', en: 'What to do' },
+  workLede:     { es: '{n} cosas por corregir, de mayor a menor alcance. Cada una es un solo trabajo, aunque toque varias páginas.', en: '{n} things to fix, widest reach first. Each is one job, however many pages it touches.' },
+  workNone:     { es: 'No quedó nada por corregir en las páginas revisadas.', en: 'Nothing to fix on the pages checked.' },
+  scopeAll:     { es: 'en la plantilla', en: 'in the template' },
+  scopeSome:    { es: '{n} página(s)', en: '{n} page(s)' },
+  scopeSite:    { es: 'todo el sitio web', en: 'site-wide' },
+  labFact:      { es: 'Así está', en: 'As it stands' },
+  labDo:        { es: 'Qué hacer', en: 'What to do' },
+  labWhere:     { es: 'Dónde', en: 'Where' },
+  andMore:      { es: 'y {n} más', en: 'and {n} more' },
+  okTitle:      { es: 'Esto ya está bien', en: 'Already fine' },
+  unverTitle:   { es: 'Esto no se pudo comprobar', en: 'Could not be checked' },
   thCheck:      { es: 'Revisión', en: 'Check' },
   thStatus:     { es: 'Estado', en: 'Status' },
   thDetail:     { es: 'Detalle', en: 'Detail' },
@@ -99,6 +111,85 @@ export function buildReportHtml(rawData, lang = 'es') {
   const rows = checks => checks.map(c => `
     <tr><td class="c-name">${esc(c.title)}</td><td class="c-status">${pill(c.status)}</td><td class="c-detail">${esc(c.detail)}</td></tr>`).join('');
 
+  // One row per check, not one per page. Pages are collected so the reader knows where to go.
+  const problems = (() => {
+    const byId = new Map();
+    const visit = (node, page) => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) return node.forEach(x => visit(x, page));
+      const here = node.url || page;
+      if (node.id && (node.status === 'FAIL' || node.status === 'WARNING')) {
+        const row = byId.get(node.id) || {
+          id: node.id, title: node.title, status: node.status,
+          detail: node.detail, howToFix: node.howToFix, pages: new Set()
+        };
+        // A fault that fails anywhere is reported at its worst, not its mildest.
+        if (node.status === 'FAIL') {
+          row.status = 'FAIL';
+          if (!row.detail || row.detail === node.detail) row.detail = node.detail;
+        }
+        if (here) row.pages.add(here);
+        byId.set(node.id, row);
+      }
+      Object.values(node).forEach(v => visit(v, here));
+    };
+    visit(data, '');
+    return [...byId.values()].sort((a, b) =>
+      (a.status === b.status ? 0 : a.status === 'FAIL' ? -1 : 1) || (b.pages.size - a.pages.size));
+  })();
+
+  // The instruction, without the paragraph of justification that follows it. Split on a full stop
+  // before a capital, never on a colon: several instructions name what is missing after one.
+  const firstSentence = (txt) => {
+    const t = String(txt || '').trim();
+    const m = t.match(/^[\s\S]*?\.(?=\s+[A-ZÁÉÍÓÚÑ¿«]|\s*$)/);
+    return (m ? m[0] : t).trim();
+  };
+
+  const shortPath = (u) => {
+    try { const p = new URL(u); return (p.pathname === '/' ? '/' : p.pathname.replace(/\/$/, '')); }
+    catch { return String(u || ''); }
+  };
+
+  const scopeOf = (row) => {
+    const n = row.pages.size;
+    if (!n) return T('scopeSite');
+    if (q.pagesAnalyzed && n >= q.pagesAnalyzed) return T('scopeAll');
+    return T('scopeSome', { n });
+  };
+
+  // Where to go. Listed when it is a handful; counted when it is most of the site, because a
+  // column of twenty URLs is the padding this report is meant to remove.
+  const whereOf = (row) => {
+    const n = row.pages.size;
+    if (!n || (q.pagesAnalyzed && n >= q.pagesAnalyzed)) return '';
+    const paths = [...row.pages].map(shortPath).sort();
+    const shown = paths.slice(0, 4).map(p => '<code>' + esc(p) + '</code>').join(', ');
+    return shown + (paths.length > 4 ? ' ' + T('andMore', { n: paths.length - 4 }) : '');
+  };
+
+  const workRows = problems.map((row, i) => {
+    const where = whereOf(row);
+    return `
+    <div class="work w-${row.status}">
+      <div class="work-head">
+        <span class="work-n">${String(i + 1).padStart(2, '0')}</span>
+        <span class="work-t">${esc(row.title)}</span>
+        <span class="work-scope">${esc(scopeOf(row))}</span>
+        ${pill(row.status)}
+      </div>
+      <dl class="work-body">
+        <dt>${T('labFact')}</dt><dd>${esc(firstSentence(row.detail))}</dd>
+        ${row.howToFix ? `<dt>${T('labDo')}</dt><dd class="do">${esc(firstSentence(row.howToFix))}</dd>` : ''}
+        ${where ? `<dt>${T('labWhere')}</dt><dd class="where">${where}</dd>` : ''}
+      </dl>
+    </div>`;
+  }).join('');
+
+  // Unverified and passing checks, compressed to one line each rather than a table apiece.
+  const siteChecks = (data.section1 && data.section1.checks) || [];
+  const passing = siteChecks.filter(c => c.status === 'PASS').map(c => c.title);
+
   const findingBlocks = Object.entries(bySection).map(([section, items]) => `
     <div class="fgroup"><h3>${esc(section)}</h3>
       ${items.map(f => `
@@ -135,12 +226,7 @@ export function buildReportHtml(rawData, lang = 'es') {
       <p>${T('summaryLine', { p: q.pagesAnalyzed, c: totalChecks, b: s.blockers.count === 0 ? T('noBlockers') : T('someBlockers', { n: s.blockers.count }) })}</p>
       <p>${T('depthLine', { w: wordCount, s: schemaTypes.length === 0 ? T('noSchema') : T('someSchema', { n: schemaTypes.length }) })}</p>
     </div>
-    <div class="stats">
-      <div class="stat"><div class="v">${q.pagesAnalyzed}</div><div class="l">${T('statPages')}</div></div>
-      <div class="stat"><div class="v">${wordCount}</div><div class="l">${T('statWords')}</div></div>
-      <div class="stat"><div class="v">${schemaTypes.length}</div><div class="l">${T('statSchema')}</div></div>
-      <div class="stat"><div class="v">${pagesFound}/5</div><div class="l">${T('statKeyPages')}</div></div>
-    </div>`;
+`;
 
   return `<!doctype html>
 <html lang="${lang}"><head><meta charset="utf-8">
@@ -235,12 +321,54 @@ tbody tr:last-child td{border-bottom:none}
 .c-detail{color:var(--ink-600);line-height:1.5}
 
 .note{font-size:12px;color:var(--ink-500);line-height:1.6}
+.work{border:1px solid var(--ink-100);border-radius:9px;padding:12px 14px;margin-bottom:9px;break-inside:avoid;page-break-inside:avoid}
+.work-head{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:7px}
+.work-n{font-family:var(--fm);font-size:10.5px;color:var(--ink-400)}
+.work-t{font-family:var(--fd);font-size:13.5px;font-weight:700;color:var(--ink-950);flex:1 1 auto}
+.work-scope{font-family:var(--fm);font-size:9.5px;color:var(--ink-500);white-space:nowrap}
+.work-body{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0}
+.work-body dt{font-family:var(--fm);font-size:8.4px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-400);font-weight:600;padding-top:2px;white-space:nowrap}
+.work-body dd{margin:0;font-size:12px;line-height:1.45;color:var(--ink-600)}
+.work-body dd.do{color:var(--ink-950)}
+.work-body dd.where code{font-family:var(--fm);font-size:10.5px;color:var(--ink-500)}
+.w-FAIL{border-left:3px solid var(--red)}
+.w-WARNING{border-left:3px solid var(--yellow)}
+section.tight{margin-top:18px}
+.oneline{font-size:11.5px;line-height:1.5;color:var(--ink-500);margin:0 0 5px}
+@media(max-width:560px){.work-body{grid-template-columns:1fr;gap:1px}.work-body dt{padding-top:6px}}
 footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--ink-200);font-family:var(--fm);font-size:9.5px;letter-spacing:.06em;color:var(--ink-400);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
 
 @media (max-width:720px){ .sheet{margin:0;border-radius:0;border:none;padding:26px 18px 40px} h1{font-size:24px} }
 
 @page{size:A4;margin:13mm}
 @media print{
+  /* Measured: the masthead and score band cost 994px of a 1017px page, so the work list began on
+     page two. These bring the preamble to roughly a third of that. */
+  .masthead{padding:0 0 10px!important;margin-bottom:12px!important}
+  h1{font-size:20pt!important;margin:0 0 3px!important}
+  .sub{font-size:9.5pt!important;padding:0!important;border:none!important;background:none!important;margin:0 0 6px!important}
+  .metarow{font-size:8pt!important;gap:14px!important;padding:6px 0 0!important}
+  .scoreband{gap:8px!important;margin:0 0 14px!important}
+  .scorebox{padding:10px 12px!important}
+  .scorenum{font-size:26pt!important}
+  .scorecap{font-size:7.5pt!important}
+  .subscores .sub,.subscores>div{padding:8px 10px!important}
+  section{margin-top:14px!important}
+  h2{font-size:14pt!important;margin:0 0 6px!important}
+  .callout{padding:11px 14px!important;margin:0 0 10px!important}
+  .callout p{font-size:9.5pt!important;margin:0 0 5px!important}
+  .lede{font-size:9pt!important;margin:0 0 8px!important}
+
+  /* 17 rows at 135px each was 2300px on its own. */
+  .work{padding:8px 11px!important;margin-bottom:6px!important}
+  .work-head{margin-bottom:5px!important}
+  .work-t{font-size:11pt!important}
+  .work-body{gap:2px 11px!important}
+  .work-body dd{font-size:8.6pt!important;line-height:1.35!important}
+  .work-body dt{font-size:7.2pt!important}
+  .oneline{font-size:8.4pt!important}
+  .note{font-size:8pt!important}
+
   body{background:#fff;font-size:10.2pt}
   .sheet{max-width:none;margin:0;border:none;border-radius:0;box-shadow:none;padding:0}
   h1{font-size:23pt}
@@ -257,7 +385,6 @@ footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--ink-200);font
   <div class="metarow">
     <span>${T('scanned')} <b>${esc(scanDate)}</b></span>
     <span>${T('pagesAnalysed')} <b>${q.pagesAnalyzed ?? 0}</b></span>
-    <span>${T('checksRun')} <b>${totalChecks}</b></span>
     <span>${T('rubric')} <b>v${s.rubricVersion}</b></span>
   </div>
 </div>
@@ -280,34 +407,27 @@ footer{margin-top:34px;padding-top:14px;border-top:1px solid var(--ink-200);font
 </section>
 
 <section>
-  <h2>${T('crawlTitle')}</h2>
-  <p class="lede">${T('crawlLede')}</p>
-  <div class="tablewrap"><table><thead><tr><th>${T('thCheck')}</th><th>${T('thStatus')}</th><th>${T('thDetail')}</th></tr></thead>
-  <tbody>${rows(data.section1.checks)}</tbody></table></div>
-  ${unverified.length ? `<div class="callout" style="margin-top:14px">
-    <h4>${T('manualTitle')}</h4>
-    ${unverified.map(c => `<p><b>${esc(c.title)}.</b> ${esc(c.detail)}${c.howToFix ? ` <i>${esc(c.howToFix)}</i>` : ''}</p>`).join('')}
-  </div>` : ''}
+  <h2>${T('workTitle')}</h2>
+  ${problems.length
+    ? `<p class="lede">${T('workLede', { n: problems.length })}</p>${workRows}`
+    : `<p class="lede">${T('workNone')}</p>`}
 </section>
 
-${findings.length ? `<section>
-  <h2>${T('findingsTitle')}</h2>
-  <p class="lede">${T('findingsLede', { n: findings.length })}</p>
-  ${findingBlocks}
+${unverified.length ? `<section class="tight">
+  <h2>${T('unverTitle')}</h2>
+  ${unverified.map(c => `<p class="oneline"><b>${esc(c.title)}.</b> ${esc(firstSentence(c.detail))}</p>`).join('')}
 </section>` : ''}
 
-${homepage ? `<section>
-  <h2>${T('detailTitle')}</h2>
-  <p class="lede">${T('detailLede', { u: esc(homepage.url) })}</p>
-  <div class="tablewrap"><table><thead><tr><th>${T('thCheck')}</th><th>${T('thStatus')}</th><th>${T('thDetail')}</th></tr></thead>
-  <tbody>${rows(homepage.checks)}${data.section4.pages[0] ? rows(data.section4.pages[0].checks) : ''}</tbody></table></div>
+${passing.length ? `<section class="tight">
+  <h2>${T('okTitle')}</h2>
+  <p class="oneline">${passing.map(t => esc(t)).join(' · ')}</p>
 </section>` : ''}
+
 
 <section>
   <h2>${T('methodTitle')}</h2>
   ${q.source === 'supplied-html' ? '<p class="note"><b>' + T('methodHtml', { n: q.pagesAnalyzed }) + '</b></p>' : ''}
-  <p class="note">${T('method1', { c: q.maxConcurrency, t: Math.round((q.timeoutMs || 20000) / 1000) })}</p>
-  <p class="note" style="margin-top:8px">${T('method2')}</p>
+  <p class="note">${T('method2')}</p>
   <p class="note" style="margin-top:8px">${T('method3')}</p>
 </section>
 
