@@ -995,12 +995,12 @@ async function clearResults() {
   // are built from, and a plain confirm() is one stray click away from doing it.
   if (!(await confirmWithPassword(t('pwClearResultsTitle'), t('confirmClearResults', esc(currentCompany), currentRows.length)))) return;
   try {
-    const params = new URLSearchParams({
-      company: currentCompany,
-      // The password dialog is all the user sees; this ticket rides along so the endpoint can tell
-      // a signed-in staff member from someone who merely knows the password.
-    });
-    const res = await fetch('/api/results?' + params.toString(), { method: 'DELETE' });
+    // The session is the credential. The password dialog above is a confirmation, not a
+    // credential — it proves intent, not identity. When the login rewrite removed the old
+    // "ticket" this call carried, nothing replaced it, so this DELETE went out with no
+    // credential at all and every attempt answered "Sign in to continue."
+    const res = await fetch(await window.apiQuery('/api/results', { company: currentCompany }),
+      { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
     // Also clear the displayed audit status so it doesn't keep showing a "Last run" summary
@@ -1397,6 +1397,7 @@ async function saveMonitoring() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        session: window.akoreAuth.session(),
         company: currentCompany,
         monitoringEnabled: enabled,
         monitoringCadence: cadence,
@@ -1456,13 +1457,9 @@ async function deleteRun(snapshotDate) {
   if (!currentCompany || !snapshotDate) return;
   if (!(await confirmWithPassword(t('pwDeleteRunTitle'), t('pwDeleteRunMsg', esc(snapshotDate), esc(currentCompany))))) return;
   try {
-    const params = new URLSearchParams({
-      company: currentCompany,
-      snapshot_date: snapshotDate,
-      // The password dialog is all the user sees; this ticket rides along so the endpoint can tell
-      // a signed-in staff member from someone who merely knows the password.
-    });
-    const res = await fetch('/api/results?' + params.toString(), { method: 'DELETE' });
+    const res = await fetch(
+      await window.apiQuery('/api/results', { company: currentCompany, snapshot_date: snapshotDate }),
+      { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
     await loadCompany(currentCompany);
@@ -1479,6 +1476,7 @@ async function setDashboardRelease(which, release) {
   if (!(await confirmWithPassword(t('pwReleaseTitle'), t('pwReleaseMsg', esc(label), esc(currentCompany))))) return;
   try {
     const body = {
+      session: window.akoreAuth.session(),
       company: currentCompany
     };
     body[which === 'diagnosis' ? 'diagnosisReleased' : 'monitoringReleased'] = release;

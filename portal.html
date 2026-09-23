@@ -988,7 +988,7 @@ async function deleteCustomer(username, company) {
   });
   if (!okPw) return;
   try {
-    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username), { method: 'DELETE' });
+    const res = await fetch(await window.apiQuery('/api/intake-codes', { username }), { method: 'DELETE' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     await loadAll();
   } catch (err) {
@@ -1132,7 +1132,7 @@ async function addMember() {
 async function removeMember(username) {
   if (!confirm(t('confirmRemoveMember', username))) return;
   try {
-    const res = await fetch('/api/intake-codes?username=' + encodeURIComponent(username) + '&memberOnly=true', { method: 'DELETE' });
+    const res = await fetch(await window.apiQuery('/api/intake-codes', { username, memberOnly: 'true' }), { method: 'DELETE' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     await renderMembersList();
     await loadAll();
@@ -1150,6 +1150,7 @@ async function resetMemberPassword(username) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        session: window.akoreAuth.session(),
         username, adminReset: true, newPassword: newPassword.trim()
       })
     });
@@ -1354,6 +1355,7 @@ async function addStaffUser() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        session: window.akoreAuth.session(),
         username, password, role
       })
     });
@@ -1372,10 +1374,7 @@ async function addStaffUser() {
 async function removeStaffUser(username) {
   if (!confirm(t('confirmRemoveStaff', username))) return;
   try {
-    const params = new URLSearchParams({
-      username
-    });
-    const res = await fetch('/api/staff-users?' + params.toString(), { method: 'DELETE' });
+    const res = await fetch(await window.apiQuery('/api/staff-users', { username }), { method: 'DELETE' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
     await renderStaffList();
