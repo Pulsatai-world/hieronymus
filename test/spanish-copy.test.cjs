@@ -42,6 +42,14 @@ function spanishStrings(src) {
   // reported zero Spanish strings for the most Spanish file in the project, and would have passed
   // no matter what was in it.
   for (const m of src.matchAll(/\b(?:titulo|que|porque|txt|titular|resumen):\s*('(?:[^'\\]|\\.)*')/g)) out.push(m[1]);
+
+  // Any Spanish string whose value is a FUNCTION — `es: (n) => \`…\`` — was invisible. The pattern
+  // above only matches a literal straight after `es:`, and 96 strings across six pages are written
+  // this way because they interpolate a count or a name. An em dash added to one of those passed
+  // this suite cleanly, which is how it got found.
+  for (const m of src.matchAll(/\bes:\s*(?:\([^)]*\)|\w+)\s*=>\s*([\s\S]*?)(?=\n\s*(?:\w+:|\}))/g)) {
+    for (const lit of m[1].matchAll(/`(?:[^`\\]|\\.)*`|'(?:[^'\\]|\\.)*'/g)) out.push(lit[0]);
+  }
   return out;
 }
 
