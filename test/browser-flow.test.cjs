@@ -552,6 +552,46 @@ function scrypt(pw) {
       c.akoreLand(cust, 'https://evil.test/steal'));
   }
 
+
+  // ── The whole journey, in one browser ──
+  // Sign in at the front door, then arrive at the destination as a second page load carrying the
+  // same storage. The handoff is the part that was broken: landing somewhere correct is worth
+  // nothing if that page then asks for the password again.
+  console.log("\nFront door to destination, without signing in twice:");
+  reset();
+  {
+    const { w } = browser('https://test.local/login.html');
+    const signingIn = w.akoreSignIn('fiacsa', PW, '', 'es');
+    await completeSetup(w);
+    const who = (await settle(signingIn)).who;
+    const landedAt = w.akoreLand(who);
+    check('a customer is sent to their own portal',
+      landedAt === '/client-portal.html?username=fiacsa', landedAt);
+
+    // That page, in the same browser. It calls restore() on load, with no staff audience declared.
+    const arrival = browser('https://test.local/client-portal.html?username=fiacsa', snapshot(w));
+    const restored = await settle(arrival.w.akoreAuth.restore());
+    check('and it recognises them on arrival, asking for nothing',
+      !!(restored && restored.username === 'fiacsa' && restored.company === 'FIACSA'),
+      JSON.stringify(restored));
+  }
+
+  reset();
+  {
+    const { w } = browser('https://test.local/login.html');
+    const signingIn = w.akoreSignIn('akore-rene', PW, '', 'es');
+    await completeSetup(w);
+    const who = (await settle(signingIn)).who;
+    const landedAt = w.akoreLand(who);
+    check('staff are sent to the internal portal', landedAt === '/portal.html', landedAt);
+
+    const arrival = browser('https://test.local/portal.html', snapshot(w));
+    arrival.w.akoreAuth.useStaffSession();                  // what portal.html does on load
+    const gate = await settle(arrival.w.akoreRequireStaff());
+    check('and it lets them straight in',
+      !!(gate && gate.ok && gate.who.username === 'akore-rene'), JSON.stringify(gate));
+  }
+
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
   process.exit(failures ? 1 : 0);
 })();
