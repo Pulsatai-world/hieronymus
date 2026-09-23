@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs';
 import { requireStaff } from './lib/authorize.js';
+import { createStaffSession } from './lib/session.js';
 
 // Server-side port of index.html's multi-engine answer+grade pipeline. Runs as a Netlify
 // Background Function (note the -background filename) so it can keep going well past the
@@ -620,11 +621,23 @@ export default async (request, context) => {
         message: ''
       });
       try {
-        await fetch(base + '/api/run-audit', {
+        // The continuation is this run calling itself, and /api/run-audit is staff-only — so it
+        // signs itself in, exactly as the monthly cron does. Without this the handoff was refused
+        // and every run longer than the platform's time limit died here, at the 11-minute mark,
+        // with the record still saying "running" because a 401 is a perfectly ordinary response
+        // and never reached the catch below.
+        const relaySession = await createStaffSession('system-continuation', 'admin');
+        const res = await fetch(base + '/api/run-audit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ company, startIndex: handedOffAt, engines: selectedEngines || undefined, run_type: runType, continuation: true })
+          body: JSON.stringify({ company, startIndex: handedOffAt, engines: selectedEngines || undefined, run_type: runType, continuation: true, session: relaySession })
         });
+        // A refused or failed handoff must not look like a successful one. fetch only throws on a
+        // transport failure, so the status has to be checked or the job sits at "running" forever
+        // with no invocation behind it.
+        if (!res.ok) {
+          throw new Error('the handoff was refused (HTTP ' + res.status + ')');
+        }
       } catch (err) {
         // The handoff itself failed, so nothing else will pick this up. Say so plainly rather than
         // leaving a job that looks alive but has no invocation behind it.
