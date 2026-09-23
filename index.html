@@ -16,7 +16,12 @@
 function checkAuth() {
   // Signed in means the server recognised our session on this page load — see the guarded init at
   // the end of this file. Not a stored flag, which proved nothing and granted everything.
-  return !!(window.akoreAuth.who());
+  //
+  // And signed in as STAFF. A customer's session is a real session; it just does not belong on an
+  // internal page, and answering "yes" for one rendered this shell to them with every data call
+  // refused underneath it.
+  const who = window.akoreAuth.who();
+  return !!(who && who.kind === 'staff');
 }
 function isAdmin() {
   // The role comes from the session the server validated, not from whatever the browser last wrote.
@@ -111,7 +116,8 @@ async function tryAuth() {
     setTimeout(() => { passInput.classList.remove('error'); passInput.focus(); }, 400);
     return;
   }
-  location.reload();
+  // Where someone lands is decided by who they are, not by the page they signed in on.
+  window.akoreLand(attempt.who);
 }
 
 </script>
@@ -1676,7 +1682,8 @@ async function pollGenerateJob(company, opts) {
   // Nothing on this page runs until the server confirms this browser holds a live session. A value
   // in storage is not proof — a stored flag once opened the internal pages indefinitely, with no
   // code ever asked for again.
-  if (!await window.akoreAuth.restore()) { showPasswordGate(); return; }
+  const gate = await window.akoreRequireStaff();
+  if (!gate.ok) { if (!gate.redirecting) showPasswordGate(); return; }
 
   const params = new URLSearchParams(location.search);
   const company = params.get('company');

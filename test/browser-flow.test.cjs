@@ -398,6 +398,71 @@ function scrypt(pw) {
     check('no code was involved', !w.document.querySelector('.ae-back'), 'a setup dialog appeared');
   }
 
+
+  // ── A customer using the website's "log in" button ──
+  // That button points at the internal portal. Before this, a customer who used it signed in
+  // successfully, had their session written to the STAFF storage key, and was shown the internal
+  // shell with every data call refused underneath — while their own portal, which reads a
+  // different key, could not see them at all.
+  console.log("\nA customer who signs in on the internal portal:");
+  reset();
+  {
+    const { w } = browser('https://test.local/portal.html');
+    w.akoreAuth.useStaffSession();                      // what portal.html does before anything else
+
+    const signingIn = w.akoreSignIn('fiacsa', PW, '', 'es');
+    await completeSetup(w);
+    const attempt = await settle(signingIn);
+    check('their credentials are accepted — they are a real user',
+      !!(attempt && attempt.ok && attempt.who.kind === 'customer'), JSON.stringify(attempt));
+
+    check('the internal gate does not count them as signed in',
+      attempt.who.kind !== 'staff', 'a customer satisfies the staff gate');
+    check('and they are sent to their own portal, not this one',
+      w.homeHref() === '/client-portal.html?username=fiacsa', w.homeHref());
+
+    w.akoreLand(attempt.who);
+    check('their session is re-filed under the customer key',
+      w.sessionStorage.getItem('akore_client_session') === attempt.who.session,
+      'client key holds: ' + w.sessionStorage.getItem('akore_client_session'));
+    check('and is gone from the staff key',
+      !w.localStorage.getItem('akore_staff_session'),
+      'a customer session is still filed as staff');
+  }
+
+  // ── The same gate, for the people it is for ──
+  reset();
+  {
+    const { w } = browser('https://test.local/portal.html');
+    w.akoreAuth.useStaffSession();
+    const signingIn = w.akoreSignIn('akore-rene', PW, '', 'es');
+    await completeSetup(w);
+    const attempt = await settle(signingIn);
+    const gate = await settle(w.akoreRequireStaff());
+    check('staff pass the internal gate', !!(gate && gate.ok), JSON.stringify(gate));
+    check('and stay where they are', w.homeHref() === '/portal.html', w.homeHref());
+    check('their session stays in localStorage',
+      !!w.localStorage.getItem('akore_staff_session'), 'moved');
+  }
+
+  // ── A customer session already sitting in the staff key ──
+  // The state the old code left behind, which a reload would otherwise keep honouring.
+  reset();
+  {
+    const { w: c } = browser('https://test.local/client-portal.html');
+    const signingIn = c.akoreSignIn('fiacsa', PW, '', 'es');
+    await completeSetup(c);
+    const who = (await settle(signingIn)).who;
+
+    const { w } = browser('https://test.local/portal.html', { local: { akore_staff_session: who.session } });
+    w.akoreAuth.useStaffSession();
+    const gate = await settle(w.akoreRequireStaff());
+    check('a customer session in the staff key is refused, not honoured',
+      !!(gate && gate.ok === false), JSON.stringify(gate));
+    check('and it is recognised as someone to redirect, not as a stranger',
+      !!(gate && gate.redirecting), JSON.stringify(gate));
+  }
+
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
   process.exit(failures ? 1 : 0);
 })();
