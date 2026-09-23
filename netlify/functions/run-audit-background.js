@@ -127,14 +127,29 @@ function isPermanentQuotaError(message) {
 // there for five minutes before it throws. In a background function with a ~15 minute budget three
 // of those end the whole run, and everything it never reached gets written as an error row — which
 // is how an audit "completes" with most rows unusable. Bound the wait instead.
-const ENGINE_TIMEOUT_MS = 90 * 1000;
+// Answering and grading get different budgets, because they fail differently and cost differently.
+//
+// One setting of 90s × 4 retries meant a single wedged call could occupy SIX MINUTES before giving
+// up. Under the old batch loop that held eleven finished prompts hostage, and it is also what made
+// the run-length budget below unsafe: the handoff reserved four minutes for work that could take
+// seven. Answers are the volume — three per prompt, usually quick, and a slow one is rarely worth
+// waiting on. Grading is one call per prompt and the only thing that turns answers into data, so it
+// keeps the longer window (adaptive thinking shares its token budget and it genuinely runs long),
+// but fewer attempts.
+const ANSWER_TIMEOUT_MS = 45 * 1000;
+const ANSWER_RETRIES = 2;
+const GRADE_TIMEOUT_MS = 90 * 1000;
+const GRADE_RETRIES = 1;
 
-async function callEngineWithRetry(def, apiKey, body, maxRetries = 4) {
+// Kept for anything that does not say which it is.
+const ENGINE_TIMEOUT_MS = ANSWER_TIMEOUT_MS;
+
+async function callEngineWithRetry(def, apiKey, body, maxRetries = ANSWER_RETRIES, timeoutMs = ANSWER_TIMEOUT_MS) {
   let attempt = 0;
   while (true) {
     let res;
     try {
-      res = await def.call(apiKey, body, AbortSignal.timeout(ENGINE_TIMEOUT_MS));
+      res = await def.call(apiKey, body, AbortSignal.timeout(timeoutMs));
     } catch (err) {
       // Thrown fetch failures — timeouts, resets, DNS — were previously not retried at all: only
       // HTTP status codes were, so a single blip produced an error row on the first attempt.
@@ -142,7 +157,7 @@ async function callEngineWithRetry(def, apiKey, body, maxRetries = 4) {
       attempt++;
       if (attempt > maxRetries) {
         throw new Error(timedOut
-          ? `${def.name} timed out after ${Math.round(ENGINE_TIMEOUT_MS / 1000)}s — gave up after ${maxRetries} attempts`
+          ? `${def.name} timed out after ${Math.round(timeoutMs / 1000)}s — gave up after ${maxRetries} attempts`
           : `${def.name} request failed: ${err.message} — gave up after ${maxRetries} attempts`);
       }
       await sleep(Math.min(30, 3 * Math.pow(2, attempt)) * 1000);
@@ -451,7 +466,17 @@ export default async (request, context) => {
   if (isContinuation && existingJob) {
     await jobsStore.setJSON(jobKey, { ...existingJob, status: 'running', message: '', seq: nextSeq, lastProgressAt: new Date().toISOString() });
   } else {
-    await jobsStore.setJSON(jobKey, { status: 'running', company, startedAt: new Date().toISOString(), completed: 0, total: 0, cited: 0, message: '', seq: nextSeq, lastProgressAt: new Date().toISOString() });
+    // A resume is not a fresh run. Writing completed: 0 here — before the engine count is known and
+    // the real baseline can be worked out — made a run picking up at prompt 18 announce zero
+    // progress first, which is precisely what starting over looks like. Only a run that really does
+    // begin at the first prompt claims zero; a resume leaves the field alone until it can be seeded
+    // correctly a few lines below.
+    const fromScratch = startIndex === 0;
+    await jobsStore.setJSON(jobKey, {
+      status: 'running', company, startedAt: new Date().toISOString(),
+      ...(fromScratch ? { completed: 0, total: 0, cited: 0 } : {}),
+      message: '', seq: nextSeq, lastProgressAt: new Date().toISOString()
+    });
   }
 
   // Background Functions get their long execution window from Netlify itself — the platform
@@ -526,13 +551,24 @@ export default async (request, context) => {
     // startIndex keeps it exact without trusting the previous record, which the manual Resume button
     // deletes before re-triggering.
     const totalUnits = prompts.length * activeEngines.length;
-    const baseCompleted = startIndex * activeEngines.length;
+    // startIndex covers everything below it; the skip list covers finished prompts above it.
+    const skipCount = (Array.isArray(body.skip) ? body.skip : []).filter(Number.isInteger).length;
+    const baseCompleted = (startIndex + skipCount) * activeEngines.length;
     const baseCited = isContinuation ? ((existingJob && existingJob.cited) || 0) : 0;
     await updateJob(jobsStore, jobKey, {
       total: totalUnits,
       promptsTotal: prompts.length,
       engineCount: activeEngines.length,
-      startIndex
+      startIndex,
+      // Seeded with the work already done, so a resume does not read as a restart.
+      //
+      // The run genuinely picks up at startIndex — the loop starts there and existing rows are not
+      // cleared — but `completed` was left at 0 until the FIRST prompt of the resumed segment
+      // finished. For that whole window the panel showed "Prompt 0 of 100" at 0%, which is exactly
+      // what starting over looks like, and then it jumped to the real figure. Nothing was being
+      // re-run; the number just told you it was.
+      completed: baseCompleted,
+      cited: baseCited
     });
 
     // A fresh diagnostic run REPLACES the previous diagnosis instead of accumulating beside it.
@@ -585,7 +621,7 @@ export default async (request, context) => {
         try {
           const classifyBody = buildClassifyRequest(cleanedPrompt, company, truthNote,
             okEngines.map(e => ({ engine: e.def.name, text: rawAnswers[e.def.name].text })));
-          const data = await callEngineWithRetry(claudeDef, claudeKey, classifyBody);
+          const data = await callEngineWithRetry(claudeDef, claudeKey, classifyBody, GRADE_RETRIES, GRADE_TIMEOUT_MS);
           judgments = parseClassifyResponse(data, okEngines.map(e => e.def.name));
         } catch (err) {
           classifyError = err.message;
@@ -620,20 +656,82 @@ export default async (request, context) => {
     // prompts unprocessed, the run hands off to a fresh invocation of itself, continuing from the
     // next unprocessed prompt. The same startIndex machinery the manual Resume button uses, only
     // automatic — so a run of any length completes without anyone watching it.
-    const RUN_BUDGET_MS = 11 * 60 * 1000;
+    //
+    // The reserve is CALCULATED, not picked. It used to be a flat 11 minutes, which quietly assumed
+    // the work already in flight would finish within four — while a single prompt could occupy
+    // nearly seven on retries. A run could therefore start work at 10:59, sail past the ceiling and
+    // be killed with no handoff at all, which is one of the ways a run "never reported".
+    const PLATFORM_CAP_MS = 15 * 60 * 1000;
+    const WORST_PROMPT_MS = ANSWER_TIMEOUT_MS * (ANSWER_RETRIES + 1)
+                          + GRADE_TIMEOUT_MS * (GRADE_RETRIES + 1);
+    const HANDOFF_RESERVE_MS = 60 * 1000;      // writing the record and firing the next invocation
+    // Without this the worst case lands exactly ON the ceiling, which is not a reserve at all.
+    const SAFETY_MARGIN_MS = 60 * 1000;
+    const RUN_BUDGET_MS = PLATFORM_CAP_MS - WORST_PROMPT_MS - HANDOFF_RESERVE_MS - SAFETY_MARGIN_MS;
     const runStartedAt = Date.now();
     let handedOffAt = null;
 
-    for (let i = startIndex; i < prompts.length; i += CONCURRENCY) {
-      // Checked before starting a chunk, not after, so the handoff happens with time in hand rather
-      // than being cut off mid-chunk.
-      if (i > startIndex && Date.now() - runStartedAt > RUN_BUDGET_MS) {
-        handedOffAt = i;
-        break;
+    // ── A worker pool, not batches ──
+    // This was `for (i += CONCURRENCY) { await Promise.all(chunk) }` — a barrier every 12 prompts,
+    // so nothing in the next batch could start until the slowest prompt in the current one finished.
+    // Eleven prompts sat idle behind one slow call, twelve times over, and wall-clock was the sum of
+    // each batch's slowest prompt rather than the average.
+    //
+    // That is also what "stuck at exactly 22" was. Progress is written as each prompt lands, so the
+    // number climbed to the batch's near-total and then froze there — not because reporting was
+    // coarse, but because eleven workers had genuinely stopped and were waiting on the twelfth.
+    //
+    // Here CONCURRENCY prompts stay in flight continuously: a worker finishing picks up the next
+    // index immediately, so a slow call costs only its own slot. Same calls, same pacing, no idling.
+    const doneIdx = new Set();
+    let nextIdx = startIndex;
+    let outOfTime = false;
+
+    // Prompts a previous invocation already finished ABOVE its resume point. Completion is out of
+    // order in a pool — if prompt 0 is slow and 1-11 finish, the run can only resume from 0, and
+    // without this the continuation would redo 1-11. The rows are keyed by a hash of
+    // date|prompt|engine so redoing them overwrites rather than duplicates, but it is still a dozen
+    // prompts' worth of API spend per handoff, paid for nothing.
+    const skipIdx = new Set((Array.isArray(body.skip) ? body.skip : []).filter(Number.isInteger));
+
+    async function worker() {
+      while (true) {
+        if (outOfTime) return;
+        // Per prompt, not per batch — so the decision to stop is made with a reserve that actually
+        // covers the work about to be started.
+        if (nextIdx > startIndex && Date.now() - runStartedAt > RUN_BUDGET_MS) { outOfTime = true; return; }
+        const i = nextIdx++;
+        if (i >= prompts.length) return;
+        if (skipIdx.has(i)) { doneIdx.add(i); continue; }
+        // One prompt failing must not take the pool down with it. processPrompt guards its engine
+        // calls, its grading and its row write, but the progress write at the end is unguarded — and
+        // under Promise.all a single rejected worker aborts every other one still in flight.
+        try {
+          // processPrompt already writes progress as it finishes each prompt — a second write here
+          // would just double the traffic to the job record for nothing.
+          await processPrompt(prompts[i], i);
+          doneIdx.add(i);
+        } catch (err) {
+          console.error('PROMPT_FAILED', JSON.stringify({ index: i, error: err && err.message }));
+          // Deliberately not added to doneIdx: it becomes the resume point rather than being lost.
+        }
       }
-      const chunk = prompts.slice(i, i + CONCURRENCY);
-      await Promise.all(chunk.map((p, j) => processPrompt(p, i + j)));
-      if (i + CONCURRENCY < prompts.length) await sleep(1200);
+    }
+    const workerCount = Math.max(1, Math.min(CONCURRENCY, prompts.length - startIndex));
+    await Promise.all(Array.from({ length: workerCount }, worker));
+
+    // Prompts finish out of order, so the resume point is the lowest index NOT completed — not
+    // simply where the workers stopped handing out work. Resuming from anything higher would skip
+    // a prompt that was still in flight when the clock ran out.
+    let carryDone = [];
+    if (outOfTime) {
+      let resumeFrom = startIndex;
+      while (doneIdx.has(resumeFrom)) resumeFrom++;
+      if (resumeFrom < prompts.length) {
+        handedOffAt = resumeFrom;
+        // Everything finished above the resume point, so the next invocation does not redo it.
+        carryDone = [...doneIdx].filter(i => i > resumeFrom).sort((a, b) => a - b);
+      }
     }
 
     if (handedOffAt !== null) {
@@ -654,7 +752,7 @@ export default async (request, context) => {
         const res = await fetch(base + '/api/run-audit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ company, startIndex: handedOffAt, engines: selectedEngines || undefined, run_type: runType, continuation: true, session: relaySession })
+          body: JSON.stringify({ company, startIndex: handedOffAt, skip: carryDone, engines: selectedEngines || undefined, run_type: runType, continuation: true, session: relaySession })
         });
         // A refused or failed handoff must not look like a successful one. fetch only throws on a
         // transport failure, so the status has to be checked or the job sits at "running" forever
