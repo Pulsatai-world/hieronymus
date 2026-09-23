@@ -3,8 +3,11 @@
 // converted, so the two things that can be checked mechanically are checked here.
 //
 // What this catches: em dashes, which are English punctuation and were scattered through the
-// Spanish; and peninsular vocabulary, which is Spanish but not Mexican and reads as foreign to
-// the customer. What it cannot catch is register and phrasing. Those still need reading aloud.
+// Spanish; peninsular vocabulary, which is Spanish but not Mexican and reads as foreign to the
+// customer; and "(s)" plurals, which nobody writes by hand — the report said "20 página(s)" and
+// "14 archivo(s)" in a document meant to read as though a person wrote it. The count is always
+// in the string, so the sentence can choose the word.
+// What it cannot catch is register and phrasing. Those still need reading aloud.
 const fs = require('fs');
 const path = require('path');
 
@@ -61,7 +64,15 @@ for (const rel of FILES) {
     if (hits.length) fail(rel + ': "' + spain + '" is peninsular, use "' + mexico + '" (' + hits.length + ')');
   }
 
-  if (!dashed.length) console.log('  PASS  ' + rel + '  (' + strings.length + ' Spanish string(s))');
+  // "página(s)", "revisión(es)". In the engine the count sits in the template literal, so use the
+  // pl() helper; in the report dictionaries use the {n:singular|plural} token.
+  const bracketed = strings.filter(s => /[a-záéíóúñ]+\((?:s|es)\)/i.test(s));
+  if (bracketed.length) {
+    fail(rel + ' — ' + bracketed.length + ' Spanish string(s) use a "(s)" plural');
+    bracketed.slice(0, 3).forEach(s => console.log('        ' + s.replace(/\s+/g, ' ').slice(0, 110)));
+  }
+
+  if (!dashed.length && !bracketed.length) console.log('  PASS  ' + rel + '  (' + strings.length + ' Spanish string(s))');
 }
 
 console.log('\n' + (failures ? failures + ' PROBLEM(S)' : 'no em dashes and no peninsular vocabulary in Spanish copy'));

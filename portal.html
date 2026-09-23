@@ -399,7 +399,9 @@ const T = {
   geoBlocked: { en: 'This site does not let our server in. Use the capture button below: open the site in another tab, click it, and paste here.', es: 'Este sitio web no deja entrar a nuestro servidor. Usa el botón de captura de abajo: abre el sitio web en otra pestaña, dale clic y pega aquí.' },
   geoTimedOut: { en: 'The scan is taking longer than expected. Reload the portal in a minute — if the result is there it finished; if not, run it again.', es: 'El análisis está tardando más de lo normal. Recarga el portal en un minuto: si el resultado ya está, terminó; si no, córrelo otra vez.' },
   geoUnreachable: { en: 'The site did not answer the scanner, so there is no report. This is not a finding about the site.', es: 'El sitio web no le contestó al escáner, así que no hay informe. Eso no quiere decir que el sitio web esté mal.' },
-  geoDone: { en: 'page(s) checked', es: 'página(s) revisada(s)' },
+  // The empty state, shown when no scan is stored yet. It used to read "página(s) revisada(s)": a
+  // fragment meant to trail a number that nothing ever put in front of it.
+  geoDone: { en: 'No site has been scanned yet.', es: 'Todavía no se ha analizado ningún sitio web.' },
   geoScannedOn: { en: 'Scanned', es: 'Analizado' },
   geoOverall: { en: 'Overall', es: 'Global' },
   geoAccess: { en: 'Access', es: 'Acceso' },

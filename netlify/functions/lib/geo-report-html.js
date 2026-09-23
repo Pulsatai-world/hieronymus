@@ -25,7 +25,7 @@ const TX = {
   incomplete:   { es: 'Análisis incompleto', en: 'Scan incomplete' },
   noScore:      { es: 'Sin calificación:<br>sitio web no accesible', en: 'No score —<br>site not reachable' },
   noScoreCap:   { es: 'No se ha medido nada, así que no se informa ninguna calificación.', en: 'Nothing was measured, so no score is reported.' },
-  scoreCap:     { es: 'Media de las capas que califican sobre {n} página(s). El acceso se informa aparte.', en: 'Measures on-page factors across the {n} page(s) analysed. Crawlability is reported separately.' },
+  scoreCap:     { es: 'Media de las capas que califican sobre {n} {n:página|páginas}. El acceso se informa aparte.', en: 'Measures on-page factors across the {n} {n:page|pages} analysed. Crawlability is reported separately.' },
   notInScore:   { es: 'se informa aparte', en: 'reported separately' },
   execSummary:  { es: 'Resumen ejecutivo', en: 'Executive summary' },
   unreachHead:  { es: 'El escáner no alcanzó a entrar al sitio web, así que no hay calificación.', en: 'The scanner could not reach this site — no score is reported.' },
@@ -34,12 +34,12 @@ const TX = {
   noPagesNote:  { es: '<b>Eso no quiere decir que el sitio web esté vacío.</b> Los números de abajo están en cero porque no se midió nada. Casi siempre pasa cuando el servidor no acepta peticiones automáticas. Vuelve a intentarlo, y si sigue igual, pega el código de la página: así se revisa todo lo que trae.', en: '<b>This is not a finding about the site.</b> The figures below are zero because nothing was measured, not because the site is empty. This usually means the server refuses automated requests. Try again, and if it persists, analyse it by pasting the page source — every on-page check still runs.' },
   headlineThin: { es: 'Nada le cierra el paso a la IA. El problema es que hay muy poco que encontrar.', en: 'Nothing is blocking AI crawlers. There is very little for them to find.' },
   headlineNorm: { es: 'Revisión técnica del sitio web', en: 'On-page technical assessment' },
-  summaryLine:  { es: 'Se pudo entrar al sitio web y se analizaron {p} página(s) con {c} revisiones. {b}', en: 'The site was reachable and {p} page(s) could be analysed across {c} checks. {b}' },
+  summaryLine:  { es: 'Se pudo entrar al sitio web y se analizaron {p} {p:página|páginas} con {c} {c:revisión|revisiones}. {b}', en: 'The site was reachable and {p} {p:page|pages} could be analysed across {c} {c:check|checks}. {b}' },
   noBlockers:   { es: 'No se encontró nada que le cierre el paso a la IA.', en: 'No crawlability blockers were found.' },
-  someBlockers: { es: 'Hay {n} cosa(s) cerrándole el paso a la IA. Eso va primero.', en: '{n} crawlability blocker(s) require attention before anything else.' },
+  someBlockers: { es: 'Hay {n} {n:cosa|cosas} cerrándole el paso a la IA. Eso va primero.', en: '{n} crawlability {n:blocker|blockers} require attention before anything else.' },
   depthLine:    { es: 'La portada trae <b>{w} palabras</b> de contenido propio y <b>{s}</b>.', en: 'Content depth: <b>{w} words</b> of main content on the homepage, with <b>{s}</b>. Generative engines cite specific, substantive material, so depth and structure determine how much there is to draw on.' },
   noSchema:     { es: 'ningún dato estructurado', en: 'no structured data' },
-  someSchema:   { es: '{n} tipo(s) de datos estructurados', en: '{n} structured data type(s)' },
+  someSchema:   { es: '{n} {n:tipo|tipos} de datos estructurados', en: '{n} structured data {n:type|types}' },
   statPages:    { es: 'Páginas analizadas', en: 'Pages analysed' },
   statWords:    { es: 'Palabras de contenido principal', en: 'Words of main content' },
   statSchema:   { es: 'Tipos de datos estructurados', en: 'Structured data types' },
@@ -48,11 +48,11 @@ const TX = {
   crawlLede:    { es: 'Si los rastreadores y los motores de búsqueda pueden alcanzar y leer el sitio web. Se informa aparte de la calificación porque depende del hosting y de la red, no del trabajo en página.', en: 'Whether AI crawlers and search engines can reach and read the site. Reported separately from the score because it is hosting and network territory rather than on-page work.' },
   manualTitle:  { es: 'Requiere verificación manual', en: 'Requires manual verification' },
   findingsTitle:{ es: 'Hallazgos y correcciones', en: 'Findings & remediation' },
-  findingsLede: { es: '{n} punto(s) que requieren acción, agrupados por área. Cada uno indica el cambio concreto necesario.', en: '{n} item(s) requiring action, grouped by area. Each carries the specific change needed.' },
+  findingsLede: { es: '{n} {n:punto|puntos} que {n:requiere|requieren} acción, agrupados por área. Cada uno indica el cambio concreto necesario.', en: '{n} {n:item|items} requiring action, grouped by area. Each carries the specific change needed.' },
   detailTitle:  { es: 'Resultados detallados', en: 'Detailed check results' },
   detailLede:   { es: 'Resultados completos en página y de accesibilidad para agentes en {u}.', en: 'Full on-page and agentic-accessibility results for {u}.' },
   methodTitle:  { es: 'Método y limitaciones', en: 'Method & limitations' },
-  methodHtml:   { es: 'Este informe no se generó descargando el sitio web. Se analizó el HTML de {n} página(s) guardado a mano, porque el servidor rechaza las peticiones automáticas por rango de IP. Todas las revisiones en página se ejecutaron con normalidad; en cambio, nada de lo que tiene que ver con el acceso (robots.txt, límites de peticiones, bloqueo en el CDN) se puede saber de esta forma, así que queda sin verificar.', en: 'This report was not produced by fetching the site. It analysed hand-saved HTML from {n} page(s), because the server refuses automated requests by IP range. Every on-page check ran normally; nothing about crawlability — robots.txt, rate limits, CDN-level blocking — can be established this way, and is left unverified.' },
+  methodHtml:   { es: 'Este informe no se generó descargando el sitio web. Se analizó el HTML de {n} {n:página|páginas} guardado a mano, porque el servidor rechaza las peticiones automáticas por rango de IP. Todas las revisiones en página se ejecutaron con normalidad; en cambio, nada de lo que tiene que ver con el acceso (robots.txt, límites de peticiones, bloqueo en el CDN) se puede saber de esta forma, así que queda sin verificar.', en: 'This report was not produced by fetching the site. It analysed hand-saved HTML from {n} {n:page|pages}, because the server refuses automated requests by IP range. Every on-page check ran normally; nothing about crawlability — robots.txt, rate limits, CDN-level blocking — can be established this way, and is left unverified.' },
   method1:      { es: 'Las revisiones se realizan sobre el HTML que devuelve cada servidor, con siete user-agents (un navegador, GPTBot, ClaudeBot, Googlebot, OAI-SearchBot, PerplexityBot y uno genérico), con un máximo de {c} peticiones simultáneas y un tiempo de espera de {t} segundos. robots.txt se evalúa contra 18 identificadores de rastreadores, separando los que recuperan páginas en el momento de responder de los que recogen contenido para entrenamiento. El tiempo de respuesta es el más rápido de dos muestras aisladas: una señal orientativa, no un perfil de rendimiento.', en: 'Checks are performed against the HTML each server returns, using seven user-agents (a standard browser, GPTBot, ClaudeBot, Googlebot, OAI-SearchBot, PerplexityBot and a plain default), at a maximum of {c} concurrent requests with a {t}-second timeout. robots.txt is evaluated against 18 crawler tokens, separated into those that fetch pages live at answer time and those that collect content for model training. Response time is the fastest of two isolated samples and is a directional signal, not a performance profile.' },
   method2:      { es: 'Lo que no se ha podido establecer se informa como <b>sin verificar</b> y queda excluido de la calificación, en lugar de suponerse. Cuando un sitio web está detrás de un CDN o un WAF, la prueba de user-agents no puede confirmar si los rastreadores de IA tienen paso, porque esos servicios identifican a los bots verificados por rango de IP y no por la cadena de user-agent: esos casos se marcan para confirmación manual.', en: 'Checks that could not be established are reported as <b>unverified</b> rather than as passes or failures, and are excluded from the score entirely. Where a site sits behind a CDN or WAF, user-agent testing cannot confirm whether AI crawlers are permitted, because those services identify verified bots by source IP range rather than user-agent string — such cases are flagged for manual confirmation.' },
   method3:      { es: 'Esta evaluación cubre <b>únicamente factores técnicos en página</b>. No mide la visibilidad actual en respuestas de IA, la presencia de la entidad fuera del sitio web ni la cuota de voz frente a competidores: eso se mide por separado en la auditoría de visibilidad posterior.', en: 'This assessment covers <b>on-site technical factors only</b>. It does not measure current visibility in AI answers, off-site entity presence, or competitive share of voice — each measured separately in the visibility audit that follows.' },
@@ -64,7 +64,7 @@ const TX = {
   workLede:     { es: '{n} cosas por corregir, de mayor a menor alcance. Cada una es un solo trabajo, aunque toque varias páginas.', en: '{n} things to fix, widest reach first. Each is one job, however many pages it touches.' },
   workNone:     { es: 'No quedó nada por corregir en las páginas revisadas.', en: 'Nothing to fix on the pages checked.' },
   scopeAll:     { es: 'en la plantilla', en: 'in the template' },
-  scopeSome:    { es: '{n} página(s)', en: '{n} page(s)' },
+  scopeSome:    { es: '{n} {n:página|páginas}', en: '{n} {n:page|pages}' },
   scopeSite:    { es: 'todo el sitio web', en: 'site-wide' },
   labFact:      { es: 'Así está', en: 'As it stands' },
   labDo:        { es: 'Qué hacer', en: 'What to do' },
@@ -87,7 +87,11 @@ export function buildReportHtml(rawData, lang = 'es') {
   // Resolved once, up front: every bilingual field in the payload becomes a plain string for the
   // chosen language, so no template expression can accidentally miss one and print an object.
   const data = localize(rawData, lang);
+  // {p} prints a value; {p:página|páginas} prints the word that belongs with it, chosen by that
+  // same value. The strings used to read "20 página(s)", which is not something anyone writes —
+  // the count is right there, so the report can say the word.
   const T = (k, vars = {}) => String((TX[k] || {})[lang] ?? (TX[k] || {}).es ?? '')
+    .replace(/\{(\w+):([^|}]*)\|([^}]*)\}/g, (_, v, one, many) => (Number(vars[v]) === 1 ? one : many))
     .replace(/\{(\w+)\}/g, (_, v) => (vars[v] ?? ''));
 
   const host = (() => { try { return new URL(data.input.url).hostname; } catch { return data.input.url; } })();
