@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akore Labs — Iniciar sesión</title>
+<link rel="stylesheet" href="/styles/akore-tokens.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<script src="/js/auth.js"></script>
+<script src="/js/enroll-dialog.js"></script>
+<style>
+  body { background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: var(--mono); padding: 24px; margin: 0; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-lg); width: 100%; max-width: 380px; }
+  .logo-icon { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; }
+  .logo-icon img { width: 100%; height: 100%; object-fit: contain; }
+  .gate-input { width: 100%; box-sizing: border-box; font-family: var(--mono); font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--border-bright); border-radius: var(--radius-sm); padding: 12px 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+  .gate-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  .gate-input.error { border-color: var(--red); animation: shake 0.3s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--mono); font-weight: 600; font-size: 14px; padding: 12px 20px; min-height: 40px; width: 100%; border-radius: var(--radius-pill); border: none; cursor: pointer; background: var(--navy); color: #fff; box-shadow: var(--shadow-sm); }
+  .btn[disabled] { opacity: .6; cursor: default; }
+  .lang-toggle { display: flex; border: 1px solid var(--border-bright); border-radius: var(--radius-pill); overflow: hidden; }
+  .lang-btn { font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 5px 11px; border: none; background: none; color: var(--text-dim); cursor: pointer; }
+  .lang-btn.active { background: var(--accent); color: #fff; }
+  .title { font-family: var(--display); font-size: 22px; font-weight: 700; color: var(--text); text-align: center; margin-bottom: 4px; }
+  .sub { font-size: 12px; color: var(--text-dim); text-align: center; margin-bottom: 28px; }
+  .err { font-size: 11px; color: var(--red); text-align: center; margin-top: 10px; min-height: 16px; line-height: 1.45; }
+  .boot { font-size: 12px; color: var(--text-dim); text-align: center; padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="card" id="card"><div class="boot" id="boot">…</div></div>
+
+<script>
+// The front door.
+//
+// This page belongs to nobody in particular, which is the point. akore.com.mx's log-in button used
+// to land on portal.html — the internal one — so a customer signed in under a heading that read
+// "Portal Interno · Acceso restringido" and a footer that read "Solo uso interno". It routed them
+// correctly in the end, but it spent the whole sign-in telling a paying customer they were
+// somewhere they were not allowed to be, and some would not have tried at all.
+//
+// What decides where anyone ends up is who the server says they are — never which page they opened,
+// and never anything the browser wrote about itself. That answer lives in akoreLand(); this page
+// only asks for credentials and hands them over.
+//
+// Deliberately does NOT call useStaffSession(). Declaring an audience before knowing who is signing
+// in is exactly what filed a customer's session under the staff key. akoreLand() files it once the
+// server has said which kind of account it is.
+
+const T = {
+  title:       { en: 'Sign in', es: 'Inicia sesión' },
+  sub:         { en: 'Akore Labs', es: 'Akore Labs' },
+  user:        { en: 'Username', es: 'Usuario' },
+  pass:        { en: 'Password', es: 'Contraseña' },
+  code:        { en: '6-digit code', es: 'Código de 6 dígitos' },
+  go:          { en: 'Sign in →', es: 'Entrar →' },
+  working:     { en: 'Signing in…', es: 'Entrando…' },
+  wrong:       { en: 'Incorrect username or password. Try again.', es: 'Usuario o contraseña incorrectos. Intenta de nuevo.' },
+  offline:     { en: 'Could not reach the server. Check your connection and try again.', es: 'No se pudo conectar con el servidor. Revisa tu conexión e intenta de nuevo.' },
+  sending:     { en: 'Taking you to your dashboard…', es: 'Te estamos llevando a tu panel…' },
+  checking:    { en: 'Checking…', es: 'Verificando…' }
+};
+function lang() { try { return localStorage.getItem('hieronymus_lang') || 'es'; } catch (e) { return 'es'; } }
+function t(k) { return T[k][lang()]; }
+function setLang(next) { try { localStorage.setItem('hieronymus_lang', next); } catch (e) {} showForm(); }
+
+function showForm(message) {
+  const l = lang();
+  document.getElementById('card').innerHTML = `
+    <div style="display:flex; justify-content:flex-end; margin-bottom:20px;">
+      <div class="lang-toggle">
+        <button class="lang-btn ${l === 'en' ? 'active' : ''}" onclick="setLang('en')">EN</button>
+        <button class="lang-btn ${l === 'es' ? 'active' : ''}" onclick="setLang('es')">ES</button>
+      </div>
+    </div>
+    <div style="display:flex; justify-content:center; margin-bottom:20px;">
+      <div class="logo-icon"><img src="/brand/logo-mark.png" alt="Akore Labs"></div>
+    </div>
+    <div class="title">${t('title')}</div>
+    <div class="sub">${t('sub')}</div>
+    <input class="gate-input" id="user-input" type="text" placeholder="${t('user')}" autocomplete="username"
+           autocapitalize="off" autocorrect="off" spellcheck="false" style="margin-bottom:10px;"
+           onkeydown="if(event.key==='Enter')document.getElementById('pw-input').focus()">
+    <input class="gate-input" id="pw-input" type="password" placeholder="${t('pass')}" autocomplete="current-password"
+           style="margin-bottom:16px;" onkeydown="if(event.key==='Enter')tryAuth()">
+    <input class="gate-input" id="code-input" type="text" autocomplete="one-time-code" maxlength="13"
+           placeholder="${t('code')}" style="margin-bottom:16px; display:none; text-align:center; letter-spacing:2px;
+           font-family:ui-monospace,SFMono-Regular,Menlo,monospace;" onkeydown="if(event.key==='Enter')tryAuth()">
+    <button class="btn" id="go" onclick="tryAuth()">${t('go')}</button>
+    <div class="err" id="err">${message || ''}</div>`;
+  setTimeout(function () { try { document.getElementById('user-input').focus(); } catch (e) {} }, 40);
+}
+
+let busy = false;
+async function tryAuth() {
+  if (busy) return;
+  const userEl = document.getElementById('user-input');
+  const passEl = document.getElementById('pw-input');
+  const codeEl = document.getElementById('code-input');
+  const errEl = document.getElementById('err');
+  const btn = document.getElementById('go');
+  const username = userEl.value.trim().toLowerCase();
+  const password = passEl.value.trim();
+  // Six digits or a recovery code — akoreCodeValue keeps whichever was typed intact.
+  const code = window.akoreCodeValue(codeEl);
+  if (!username || !password) { (username ? passEl : userEl).focus(); return; }
+
+  busy = true; btn.disabled = true; btn.textContent = t('working');
+  const attempt = await window.akoreSignIn(username, password, code, lang());
+  busy = false; btn.disabled = false; btn.textContent = t('go');
+
+  // The setup dialog was dismissed; leave the form as it is.
+  if (attempt.cancelled) { errEl.textContent = ''; return; }
+
+  if (attempt.needsCode) {
+    errEl.textContent = window.showGateCode(attempt, lang(), !!code);
+    return;
+  }
+  if (!attempt.ok) {
+    if (attempt.offline) { errEl.textContent = t('offline'); return; }
+    passEl.classList.add('error');
+    errEl.textContent = attempt.error || t('wrong');
+    passEl.value = '';
+    setTimeout(function () { passEl.classList.remove('error'); passEl.focus(); }, 400);
+    return;
+  }
+
+  // Signed in. Who they are decides where they go — staff to the internal portal, a customer to
+  // their own. This page never makes that choice itself.
+  errEl.textContent = '';
+  btn.disabled = true; btn.textContent = t('sending');
+  window.akoreLand(attempt.who);
+}
+
+// Already signed in? Then this page has nothing to ask, and standing here would be a dead end.
+// Tries both session stores, because either kind of person can arrive at this URL.
+document.getElementById('boot').textContent = t('checking');
+window.akoreRestoreEither().then(function (who) {
+  if (who) { window.akoreLand(who); return; }
+  showForm();
+}).catch(function () { showForm(); });
+</script>
+</body>
+</html>

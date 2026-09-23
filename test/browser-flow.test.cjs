@@ -463,6 +463,53 @@ function scrypt(pw) {
       !!(gate && gate.redirecting), JSON.stringify(gate));
   }
 
+
+  // ── The front door ──
+  // login.html is what akore.com.mx points at. Both kinds of person arrive at the same URL and must
+  // end up in different places, decided by the server rather than by the page.
+  console.log("\nThe shared sign-in page:");
+  {
+    // Comments stripped first. This page explains the bug it exists because of, so it quotes both
+    // the old internal wording and the call that caused the misfiling — matching the raw file would
+    // fail on the explanation rather than on the code.
+    const codeOnly = src => src
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n').filter(line => !/^\s*\/\//.test(line)).join('\n');
+    const LOGIN_HTML = codeOnly(fs.readFileSync('login.html', 'utf8'));
+    check('it never declares an audience before knowing who is signing in',
+      !/useStaffSession/.test(LOGIN_HTML),
+      'it picks a session store up front — which is what filed a customer under the staff key');
+    check('it routes by who the server says they are',
+      /akoreLand\s*\(/.test(LOGIN_HTML), 'it does not call akoreLand()');
+    check('it carries none of the internal wording',
+      !/Solo uso interno|Acceso restringido|Internal Portal|Portal Interno|Internal Use Only/.test(LOGIN_HTML),
+      'a customer would be told they are somewhere restricted');
+
+    reset();
+    const { w } = browser('https://test.local/login.html');
+    const signingIn = w.akoreSignIn('fiacsa', PW, '', 'es');
+    await completeSetup(w);
+    const attempt = await settle(signingIn);
+    w.akoreLand(attempt.who);
+    check('a customer signing in here is sent to their own portal',
+      w.homeHref() === '/client-portal.html?username=fiacsa', w.homeHref());
+    check('with their session under the customer key',
+      !!w.sessionStorage.getItem('akore_client_session') && !w.localStorage.getItem('akore_staff_session'),
+      'filed wrongly');
+
+    reset();
+    const { w: s2 } = browser('https://test.local/login.html');
+    const signingIn2 = s2.akoreSignIn('akore-rene', PW, '', 'es');
+    await completeSetup(s2);
+    const attempt2 = await settle(signingIn2);
+    s2.akoreLand(attempt2.who);
+    check('a staff member signing in at the same URL goes to the internal portal',
+      s2.homeHref() === '/portal.html', s2.homeHref());
+    check('with their session under the staff key',
+      !!s2.localStorage.getItem('akore_staff_session') && !s2.sessionStorage.getItem('akore_client_session'),
+      'filed wrongly');
+  }
+
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
   process.exit(failures ? 1 : 0);
 })();
