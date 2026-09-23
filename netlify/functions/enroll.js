@@ -32,12 +32,16 @@ import { newRecoveryCodes, recoveryRemaining } from './lib/recovery.js';
 const MAX_PENDING = 5;
 const PENDING_TTL_MS = 30 * 60 * 1000;
 
-// Wider than a login's window: setup happens once, while someone reads a number off one device and
-// types it into another. At three steps a phone whose clock was two minutes out failed every code
-// with nothing on screen to explain why, so this is six — three minutes either side. The cost is
-// thirteen acceptable codes out of a million rather than seven, against a caller who already has
-// the password and gets five attempts.
-const SETUP_DRIFT = 6;
+// The SAME window a login uses, and that matters more than being generous.
+//
+// Setup once accepted ±3 minutes while login accepted ±30 seconds. A phone whose clock was ninety
+// seconds out therefore enrolled perfectly and could then never sign in — five tries and a fifteen
+// minute lock, forever — and the step it matched was written to `lastStep` in the future, marking
+// the next genuine codes as replays too. A window setup can pass and login cannot is a trap, so
+// there is one window. A clock too far out now fails at setup, where the dialog says so and the
+// person can fix it, instead of silently bricking the account afterwards.
+import { AUTH_DRIFT } from './lib/totp.js';
+const SETUP_DRIFT = AUTH_DRIFT;
 
 const MAX_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
@@ -86,6 +90,12 @@ export default async (request) => {
       return json({ error: 'Sign in to get new recovery codes.' }, 403);
     }
     if (!acct.enrolled) return json({ error: 'Set up an authenticator first.' }, 409);
+    // The password as well as the session. Recovery codes ARE a second factor — ten of them — so a
+    // stolen session alone must not be able to mint a durable set and retire the owner's, which
+    // would survive them revoking that session and re-enrolling their phone.
+    if (!acct.checkPassword(body.password)) {
+      return json({ error: 'Enter your password to get new recovery codes.' }, 401);
+    }
     const fresh = newRecoveryCodes();
     acct.setAuth({ ...acct.auth, recovery: fresh.stored, recoveryIssuedAt: fresh.issuedAt });
     await acct.save();
@@ -124,7 +134,7 @@ export default async (request) => {
     && Date.now() - Date.parse(auth.recoveryUsedAt) < RECOVERY_WINDOW_MS);
   const proven = !!(auth && auth.lastUsedAt) && !recentRecovery;
   if (acct.enrolled && proven && !body.code) {
-    const cur = verifyCode(auth.secret, body.currentCode, { drift: 1 });
+    const cur = verifyCode(auth.secret, body.currentCode, { drift: AUTH_DRIFT });
     if (!cur.ok) {
       return json({
         error: 'This account already has an authenticator.',
@@ -140,12 +150,15 @@ export default async (request) => {
       .filter((sec, i, all) => all.indexOf(sec) === i);
 
     if (!candidates.length) {
-      // Nothing pending. Most often this is a repeat of a setup that already succeeded — the button
-      // pressed twice, or a first response that never made it back. If the code works against the
-      // live authenticator then the enrollment is theirs and this is a repeat of it, so it succeeds
-      // rather than showing a failure on an account that is in fact set up.
-      if (acct.enrolled && verifyCode(auth.secret, body.code, { drift: SETUP_DRIFT }).ok) {
-        return json({ session: await sessionFor(acct), ...whoPayload(acct), repeat: true }, 200);
+      // Nothing pending, and the account is already set up. This used to mint a session if the code
+      // verified — a shortcut for a double press, or a first response that never arrived. It was a
+      // replay hole: it never consulted `lastStep` and never advanced it, so a code already spent
+      // at /api/login (where it is correctly refused a second time) still bought a session here,
+      // for the whole ±3-minute setup window, repeatedly. The dialog already guards double
+      // submission, so the shortcut bought little and cost the replay defence.
+      if (acct.enrolled) {
+        return json({ error: 'This account is already set up. Sign in with a code from your app.',
+                      alreadyEnrolled: true }, 409);
       }
       return json({ error: 'This setup has expired. Start again.', expired: true }, 409);
     }
@@ -175,6 +188,12 @@ export default async (request) => {
     acct.setAuth({
       secret: matched, enabledAt: new Date().toISOString(), lastStep: step,
       failures: 0, lockedUntil: null,
+      // Finishing enrollment IS a sign-in: a password and a live code were both just checked, which
+      // is exactly what /api/login checks. Not stamping this left every freshly enrolled account
+      // "unproven", which stood the replace-gate down — so a stolen password alone could ask for a
+      // new secret, install it, and take the account over with no second factor ever involved. The
+      // gate's own comment assumed an invariant nothing maintained.
+      lastUsedAt: new Date().toISOString(),
       recovery: recovery.stored, recoveryIssuedAt: recovery.issuedAt
     });
     await acct.save();

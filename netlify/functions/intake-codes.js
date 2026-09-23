@@ -1,4 +1,5 @@
 import { getStore } from '@netlify/blobs';
+import { revokeAllFor } from './lib/session.js';
 import crypto from 'node:crypto';
 import { callerOf, requireCompany, requireStaff, requireStaffAdmin } from './lib/authorize.js';
 import { publicRecord } from './lib/accounts.js';
@@ -269,6 +270,7 @@ export default async (request, context) => {
       const np = (body.newPassword || '').trim();
       if (np.length < 6) return json({ error: 'New password must be at least 6 characters' }, 400);
       member.passwordHash = hashPassword(np);
+      await revokeAllFor(member.username);
       await store.setJSON(entry.key, entry.data);
       return json({ status: 'ok' }, 200);
     }
@@ -291,6 +293,7 @@ export default async (request, context) => {
         const np = body.newPassword.trim();
         if (np.length < 6) return json({ error: 'New password must be at least 6 characters' }, 400);
         member.passwordHash = hashPassword(np);
+        await revokeAllFor(member.username);
       }
       if (typeof body.defaultLanguage === 'string' && ['en', 'es'].includes(body.defaultLanguage)) {
         member.defaultLanguage = body.defaultLanguage;
@@ -336,6 +339,7 @@ export default async (request, context) => {
       const entry = groups.find(g => findMember(g.data, username));
       if (!entry) return json({ error: 'Unknown username' }, 404);
       entry.data.members = entry.data.members.filter(m => m.username !== username);
+      await revokeAllFor(username);
       await store.setJSON(entry.key, entry.data);
       return json({ status: 'ok' }, 200);
     }

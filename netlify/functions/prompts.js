@@ -66,11 +66,14 @@ export default async (request, context) => {
   if (request.method === 'GET') {
     const companyParam = url.searchParams.get('company');
     if (companyParam) {
-      const data = await store.get(slugify(companyParam), { type: 'json' });
-      if (!data) return json({ error: 'Not found' }, 404);
-
+      // Authorize first. Reading the store and answering 404 ahead of the guard told an
+      // unauthenticated caller which companies exist — the guard has to be the first thing that
+      // can answer anything.
       const denied = await requireCompany(url, null, json, companyParam);
       if (denied) return denied;
+
+      const data = await store.get(slugify(companyParam), { type: 'json' });
+      if (!data) return json({ error: 'Not found' }, 404);
       const caller = await callerOf(url, null);
       const staff = caller.kind === 'staff';
       // Records the customer already approved predate this gate — they have demonstrably seen the

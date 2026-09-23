@@ -1,4 +1,5 @@
 import { getStore } from '@netlify/blobs';
+import { revokeAllFor } from './lib/session.js';
 import { hashPassword, verifyPassword, publicRecord } from './lib/accounts.js';
 import { requireStaff, requireStaffAdmin, callerOf } from './lib/authorize.js';
 
@@ -29,14 +30,16 @@ export default async (request, context) => {
     const role = body.role === 'admin' ? 'admin' : 'user';
     if (!username || !password) return json({ error: 'Missing username or password' }, 400);
     if (password.length < 6) return json({ error: 'Password must be at least 6 characters' }, 400);
-    if (await store.get(username)) return json({ error: 'A staff user with this username already exists' }, 409);
-
     // First-ever account bootstraps the system as an admin with no other checks — every
     // account after that requires an existing admin's credentials to create.
     const { blobs } = await store.list();
     // The very first account on a fresh install has nobody to authorise it, so it bootstraps as an
     // admin. Every account after that needs a signed-in admin.
     if (blobs.length > 0 && adminDenied) return adminDenied;
+
+    // Behind the admin guard, deliberately. Answering 409 "already exists" versus 401 "sign in"
+    // told anyone who asked which staff usernames are real, without signing in at all.
+    if (await store.get(username)) return json({ error: 'A staff user with this username already exists' }, 409);
 
     const record = { username, passwordHash: hashPassword(password), role: blobs.length === 0 ? 'admin' : role, createdAt: new Date().toISOString() };
     await store.setJSON(username, record);
@@ -95,6 +98,7 @@ export default async (request, context) => {
       }
       if (body.newPassword.trim().length < 6) return json({ error: 'New password must be at least 6 characters' }, 400);
       record.passwordHash = hashPassword(body.newPassword.trim());
+      await revokeAllFor(username);   // a changed password ends the old sessions
     }
 
     // Changing someone else's role or password is an admin action.
@@ -103,6 +107,7 @@ export default async (request, context) => {
       if (body.newRole === 'admin' || body.newRole === 'user') record.role = body.newRole;
       if (typeof body.newPassword === 'string' && body.newPassword.trim().length >= 6) {
         record.passwordHash = hashPassword(body.newPassword.trim());
+        await revokeAllFor(username);   // a changed password ends the old sessions
       }
     }
 
@@ -117,7 +122,12 @@ export default async (request, context) => {
     if (delDenied) return delDenied;
     const caller = await callerOf(url, null);
     if (caller.username === username) return json({ error: "You can't remove your own account" }, 400);
+    // A changed password or a removed account must end that person's live sessions. Without this a
+    // fired staff member's token kept passing requireStaff for up to 24 hours — reading every
+    // customer's data — and someone who changed their password because they feared compromise
+    // left the attacker's session running.
     await store.delete(username);
+    await revokeAllFor(username);
     return json({ status: 'ok' }, 200);
   }
 

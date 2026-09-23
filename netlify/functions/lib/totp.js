@@ -8,6 +8,14 @@ import crypto from 'node:crypto';
 import QRCode from 'qrcode';
 
 const STEP_SECONDS = 30;
+
+/**
+ * How many 30-second steps either side of now are accepted — everywhere.
+ *
+ * Enrollment and login MUST use the same number. When they differed, a clock-skewed phone could
+ * complete setup against a window login would then refuse, locking the account out permanently.
+ */
+export const AUTH_DRIFT = 2;
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 function base32Encode(buf) {
