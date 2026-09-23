@@ -1031,18 +1031,87 @@ async function clearResults() {
 // early state, not a failure — and it has to survive a refresh, or the page comes back claiming no
 // audit was ever run while one is spinning up.
 const AUDIT_PENDING_PREFIX = 'geo_audit_pending_';
-function markAuditPending(company) {
+// What was known at the moment the button was pressed: how many prompts, how many engines, and how
+// many rows this customer already had. The first two give the progress bar a denominator before the
+// run has reported anything, so the first paint shows "Prompt 0 of 31" instead of a sliding block
+// that measures nothing. The third is how this run's rows are told apart from the last run's — any
+// change in the count (cleared by a fresh diagnosis, or added to) belongs to the run now in flight.
+function markAuditPending(company, shape) {
   resetJobView(company);   // a new run is a new story; forget the last one
-  try { sessionStorage.setItem(AUDIT_PENDING_PREFIX + company, String(Date.now())); } catch (e) { /* private mode */ }
+  const rec = Object.assign({ at: Date.now() }, shape || {});
+  try { sessionStorage.setItem(AUDIT_PENDING_PREFIX + company, JSON.stringify(rec)); } catch (e) { /* private mode */ }
 }
 function clearAuditPending(company) {
   try { sessionStorage.removeItem(AUDIT_PENDING_PREFIX + company); } catch (e) { /* private mode */ }
 }
-function auditPendingSince(company) {
+function auditPendingRec(company) {
   try {
-    const v = parseInt(sessionStorage.getItem(AUDIT_PENDING_PREFIX + company) || '', 10);
-    return Number.isFinite(v) ? v : 0;
-  } catch (e) { return 0; }
+    const raw = sessionStorage.getItem(AUDIT_PENDING_PREFIX + company) || '';
+    if (!raw) return null;
+    // Older sessions stored a bare timestamp; a reload mid-run must not lose the waiting state.
+    if (/^\d+$/.test(raw)) return { at: parseInt(raw, 10) };
+    const rec = JSON.parse(raw);
+    return rec && Number.isFinite(rec.at) ? rec : null;
+  } catch (e) { return null; }
+}
+function auditPendingSince(company) {
+  const rec = auditPendingRec(company);
+  return rec ? rec.at : 0;
+}
+// "Pending" means still waiting for the run to say anything. Once it has, the record stays — it
+// carries the shape and the row baseline that the progress bar is measured against for the rest of
+// the run — but it stops meaning "queued". Deleting it here was why progress lost its floor the
+// moment the run first reported, which is precisely when it starts needing one.
+function auditIsPending(company) {
+  const rec = auditPendingRec(company);
+  return !!(rec && !rec.reported);
+}
+function markAuditReported(company) {
+  const rec = auditPendingRec(company);
+  if (!rec || rec.reported) return;
+  rec.reported = true;
+  try { sessionStorage.setItem(AUDIT_PENDING_PREFIX + company, JSON.stringify(rec)); } catch (e) { /* private mode */ }
+}
+
+// What the stored rows say this run has done, read straight from /api/results.
+//
+// The job record is written alongside the rows and is the thing that goes missing: the panel sat on
+// "waiting for the run to report" for nearly two minutes while sixty-two finished rows were visible
+// further down the same page. A row is only ever written because a prompt was answered and graded,
+// so this is the one measure of progress that cannot be behind the work.
+//
+// Throttled, because it runs beside a 3-second poll and fetches the customer's whole result set.
+let auditRowProbe = { at: 0, company: '', rows: null };
+async function auditRowProgress(company) {
+  const rec = auditPendingRec(company);
+  const out = {
+    live: false,
+    promptsDone: 0,
+    promptsTotal: (rec && rec.promptsTotal) || 0,
+    engineCount: (rec && rec.engineCount) || 0
+  };
+  if (!rec || !Number.isFinite(rec.rowsAtTrigger)) return out;
+
+  if (auditRowProbe.company !== company) auditRowProbe = { at: 0, company, rows: null };
+  if (!auditRowProbe.rows || Date.now() - auditRowProbe.at > 6000) {
+    try {
+      const res = await fetch(await window.resultsQuery(company));
+      if (!res.ok) return out;
+      const text = await res.text();
+      auditRowProbe = { at: Date.now(), company, rows: parseCSV(text).filter(r => r.brand === company) };
+    } catch (e) { return out; }
+  }
+  const rows = auditRowProbe.rows || [];
+
+  // Any change from the count taken at trigger means these rows belong to the run in flight: a
+  // fresh diagnosis deletes the previous set before writing, and a monitoring run only adds. An
+  // unchanged count is the previous run's data, which must not be read as progress on this one.
+  out.live = rows.length !== rec.rowsAtTrigger;
+  if (!out.live) return out;
+
+  const latest = rows.reduce((d, r) => (r.snapshot_date > d ? r.snapshot_date : d), '');
+  out.promptsDone = new Set(rows.filter(r => r.snapshot_date === latest).map(r => r.prompt_id)).size;
+  return out;
 }
 
 // Explicit "we are waiting on the platform" state. Previously nothing was drawn during this window,
@@ -1056,9 +1125,21 @@ function renderAuditQueued(block, company, data) {
   // to click.
   const stuck = secs > 60;
   const promptIdx = data ? resumePromptIndex(data) : null;
+  // The prompt count and the engines were both chosen in the Run modal seconds ago, so the bar has
+  // a denominator from the very first paint: "Prompt 0 of 31" at 0%, which is a real measurement of
+  // a run that has not started yet. The sliding indeterminate block it replaces looked like roughly
+  // half-done progress and meant nothing, and it is only kept for a record with no shape at all.
+  const rec = auditPendingRec(company) || {};
+  const known = rec.promptsTotal > 0;
   block.innerHTML =
-    `<span class="badge badge-partial">${t('queuedLabel')}</span> <span class="field-hint">${t('queuedDetail', secs)}</span>` +
-    `<div class="progress-wrap"><div class="progress-bar indeterminate"></div></div>` +
+    `<div class="row" style="align-items:center;">` +
+      `<span class="badge badge-partial">${t('queuedLabel')}</span>` +
+      (known ? `<span style="font-weight:650;">${t('promptProgress', 0, rec.promptsTotal)}</span><span class="field-hint progress-pct">0%</span>` : '') +
+    `</div>` +
+    `<div class="field-hint" style="margin-top:6px;">${t('queuedDetail', secs)}</div>` +
+    (known
+      ? `<div class="progress-wrap"><div class="progress-bar active" style="width:0%"></div></div>`
+      : `<div class="progress-wrap"><div class="progress-bar indeterminate"></div></div>`) +
     (stuck
       ? `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('queuedStuckHint')}</div>` +
         `<div class="row" style="margin-top:10px;">` +
@@ -1168,9 +1249,10 @@ async function pollJobStatus(company, opts) {
   // single response that Blobs may have served stale or with fields missing.
   const verdict = window.akoreAuditStatus.classify(data, view, {
     now: Date.now(),
-    pending: !!auditPendingSince(company),
+    pending: auditIsPending(company),
     graceLeft: opts.graceRetriesLeft || 0,
-    stallAfterMs: STALL_AFTER_MS
+    stallAfterMs: STALL_AFTER_MS,
+    rows: await auditRowProgress(company)
   });
   // classify() returns a fresh view; carry the "already refreshed" flag across it or the
   // completion refresh below fires on every poll and the page reloads itself in a loop.
@@ -1228,7 +1310,7 @@ async function pollJobStatus(company, opts) {
   }
 
   if (state === 'running' || state === 'stalled') {
-    clearAuditPending(company);
+    markAuditReported(company);
     const stalled = state === 'stalled';
     block.innerHTML =
       `<div class="row" style="align-items:center;">` +
@@ -1282,7 +1364,7 @@ async function pollJobStatus(company, opts) {
     return finishAndRefresh();
   }
 
-  if (auditPendingSince(company)) {
+  if (auditIsPending(company)) {
     block.innerHTML = `<span class="badge badge-error">${t('notStartedLabel')}</span> <span class="field-hint">${t('notStartedHint')}</span>` +
       `<div class="row" style="margin-top:10px;"><button class="btn btn-ghost btn-sm" onclick="recheckAuditStatus()">${t('checkAgainBtn')}</button></div>`;
     setButtons(true, t('runAuditBtn'), false);
@@ -1380,7 +1462,11 @@ async function confirmRunAudit() {
   btn.textContent = t('startingBtnLabel');
   // Record and draw the waiting state up front. The old code showed nothing until the job record
   // appeared, so a run that was genuinely starting looked identical to a dead button.
-  markAuditPending(currentCompany);
+  markAuditPending(currentCompany, {
+    promptsTotal: currentPromptCount || 0,
+    engineCount: engines.length,
+    rowsAtTrigger: currentRows.length
+  });
   const statusBlock = document.getElementById('job-status-block');
   if (statusBlock) renderAuditQueued(statusBlock, currentCompany, null);
   // Netlify acks a Background Function's invocation near-instantly regardless of how long the
@@ -1468,7 +1554,11 @@ async function resumeAudit(startIndex) {
   try {
     await fetch(await window.apiQuery('/api/audit-job', { company: currentCompany }), { method: 'DELETE' });
   } catch { /* if this fails the POST below will surface the 409 */ }
-  markAuditPending(currentCompany);
+  markAuditPending(currentCompany, {
+    promptsTotal: currentPromptCount || 0,
+    engineCount: (lastRunEngines && lastRunEngines.length) || new Set(currentRows.map(r => r.engine)).size || 0,
+    rowsAtTrigger: currentRows.length
+  });
   const statusBlock = document.getElementById('job-status-block');
   if (statusBlock) renderAuditQueued(statusBlock, currentCompany, null);
   try {

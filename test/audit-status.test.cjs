@@ -136,5 +136,63 @@ console.log('\nEvery state the classifier can return is drawn by the page:\n');
   }
 }
 
+
+console.log('\nThe rows are the run, whatever the job record says:\n');
+{
+  // Straight from production: the panel read "Iniciando... 107s, waiting for the run to report"
+  // while the same page listed 62 finished rows (31 prompts x 2 engines) underneath it. The job
+  // record was empty, so the panel believed nothing had happened. A row only exists because a
+  // prompt was answered and graded, so rows cannot be behind the work; the record can.
+  const shape = { live: true, promptsDone: 31, promptsTotal: 31, engineCount: 2 };
+  const seen = classify({}, { seq: 0, rank: 0 }, { now: at(2), pending: true, graceLeft: 20, rows: shape });
+  check('an empty job record with finished rows is a RUNNING run, not a queued one',
+    seen.state === 'running', seen.state);
+  check('and it reports the prompts the rows prove',
+    seen.promptsDone === 31 && seen.promptsTotal === 31, seen.promptsDone + '/' + seen.promptsTotal);
+  check('so the bar is not stuck at zero', seen.pct === 100, seen.pct + '%');
+
+  // "It is stuck in exactly 22" / "it says 99 but shows 200 rows": the record lags the rows.
+  const lagging = { seq: 3, status: 'running', total: 62, completed: 44, engineCount: 2, promptsTotal: 31,
+    startedAt: beat(0), lastProgressAt: beat(1) };
+  const floored = classify(lagging, { seq: 0, rank: 0 }, { now: at(2),
+    rows: { live: true, promptsDone: 28, promptsTotal: 31, engineCount: 2 } });
+  check('a job record behind the rows is raised to what the rows prove',
+    floored.promptsDone === 28, String(floored.promptsDone));
+
+  // ...but only ever raised. A record ahead of the rows is the newer news.
+  const ahead = classify(lagging, { seq: 0, rank: 0 }, { now: at(2),
+    rows: { live: true, promptsDone: 5, promptsTotal: 31, engineCount: 2 } });
+  check('and a job record ahead of the rows is left alone', ahead.promptsDone === 22, String(ahead.promptsDone));
+
+  check('progress can never exceed the prompts in the run',
+    classify(lagging, { seq: 0, rank: 0 }, { now: at(2),
+      rows: { live: true, promptsDone: 999, promptsTotal: 31, engineCount: 2 } }).promptsDone === 31, 'overshot');
+}
+
+console.log('\nRows from the PREVIOUS run are not progress on this one:\n');
+{
+  // The dangerous half of reading rows: a customer who already has a finished run has rows sitting
+  // there before the new one writes anything. Counting those would show a run as complete the
+  // instant it was triggered. `live` is the caller's answer to "have these rows changed since I
+  // pressed the button" - a fresh diagnosis deletes the old set first, a monitoring run adds to it.
+  const stale = classify({}, { seq: 0, rank: 0 }, { now: at(1), pending: true, graceLeft: 20,
+    rows: { live: false, promptsDone: 31, promptsTotal: 31, engineCount: 2 } });
+  check('an unchanged row count is the last run, so this one is still queued',
+    stale.state === 'queued', stale.state);
+  check('and none of those rows are counted as progress', stale.promptsDone === 0, String(stale.promptsDone));
+}
+
+console.log('\nThe bar has a denominator before the run reports:\n');
+{
+  // "Where is the fucking progress bar? I had to refresh the page to get there." Prompts and
+  // engines were both chosen in the Run modal seconds earlier, so there is no moment at which the
+  // total is unknown - and an indeterminate sliding block in its place reads as half-finished.
+  const q = classify({}, {}, { now: at(0), pending: true, graceLeft: 40,
+    rows: { live: false, promptsDone: 0, promptsTotal: 31, engineCount: 2 } });
+  check('a queued run already knows how many prompts it will run',
+    q.state === 'queued' && q.promptsTotal === 31, q.state + ' total=' + q.promptsTotal);
+  check('and starts the bar at a true zero', q.promptsDone === 0 && q.pct === 0, q.pct + '%');
+}
+
 console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
 process.exit(failures ? 1 : 0);

@@ -57,6 +57,21 @@
                idleFor: 0, elapsed: 0, etaMs: 0, cited: 0, continuations: 0, phase: '', finishedAt: '' };
     }
 
+    // What the stored rows prove, independently of the job record.
+    //
+    // A result row exists only because a prompt was really answered and really graded. The job
+    // record is a convenience written alongside them, and it can be missing, late, lost or refused
+    // — at which point the panel used to report nothing at all while sixty-two rows sat on the same
+    // screen. Rows cannot lie about work that happened, so they set a floor that the job record is
+    // allowed to raise and never to lower.
+    //
+    // `live` is what distinguishes this run's rows from the last run's: the caller counted the rows
+    // before triggering, and any change since — rows cleared by a fresh diagnosis, or rows added —
+    // means these belong to the run now in flight.
+    const rows = opts.rows || {};
+    const rowsLive = !!rows.live;
+    const rowsDone = rowsLive ? num(rows.promptsDone) : 0;
+
     const total = num(data.total);
     const completed = num(data.completed);
     const hasShape = total > 0;
@@ -72,6 +87,9 @@
     else if (hasShape && completed < total && finished) state = 'incomplete';
     else if (data.status === 'done' || (hasShape && total > 0 && completed >= total)) state = 'done';
     else if (data.status === 'running' || (hasShape && completed < total && !finished)) state = 'running';
+    // Rows landing IS the run reporting, whatever the job record says. Waiting for a record to
+    // appear while its own results accumulate is the state this panel sat in for 107 seconds.
+    else if (rowsDone > 0) state = 'running';
     else if (opts.pending || opts.graceLeft > 0) state = 'queued';
     else if (view.rank >= RANK.running) return { action: 'ignore', reason: 'no-regress', state: null, view };
     else state = 'none';
@@ -88,11 +106,20 @@
 
     // Prompts are what a person counts. `completed` and `total` are rows — prompts × engines — so a
     // bar drawn from them answers a question nobody asked.
-    const engines = num(data.engineCount);
-    const promptsTotal = num(data.promptsTotal);
-    const promptsDone = engines
+    //
+    // The shape can come from the job record or, before that record exists, from what the operator
+    // already chose in the Run modal — prompts and engines were both known at the moment the button
+    // was pressed. Without that the first paint had no denominator, so it drew an indeterminate
+    // sliding block: a bar that looks like progress and measures nothing. There is never a reason
+    // to show that when the numbers are already in hand.
+    const engines = num(data.engineCount) || num(rows.engineCount);
+    const promptsTotal = num(data.promptsTotal) || num(rows.promptsTotal);
+    const fromJob = engines
       ? (promptsTotal ? Math.min(Math.floor(completed / engines), promptsTotal) : Math.floor(completed / engines))
       : 0;
+    // The floor: never report less than the rows already on disk.
+    const promptsDone = promptsTotal ? Math.min(Math.max(fromJob, rowsDone), promptsTotal)
+                                     : Math.max(fromJob, rowsDone);
     const pct = promptsTotal ? Math.round((promptsDone / promptsTotal) * 100)
               : (total ? Math.round((completed / total) * 100) : 0);
 
