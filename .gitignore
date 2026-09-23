@@ -9,3 +9,6 @@ node_modules
 devserver.py
 deno.lock
 __pycache__/
+
+# Local dev accounts (secrets — never commit)
+.local-dev-accounts.json

@@ -10,5 +10,11 @@
   },
   "devDependencies": {
     "jsdom": "^30.0.1"
+  },
+  "scripts": {
+    "dev": "netlify dev",
+    "seed": "node scripts/seed-local.mjs",
+    "code": "node scripts/totp-code.mjs",
+    "test": "node --test \"test/*.test.cjs\""
   }
 }
