@@ -307,8 +307,8 @@ const T = {
   clientComments: { en: 'Client comments: ', es: 'Comentarios del cliente: ' },
   engineFailuresTitle: { en: 'Failed rows in the last run', es: 'Filas con error en la última ejecución' },
   engineFailureLine: { en: (eng, n, tot) => `${eng}: ${n} of ${tot} rows failed`, es: (eng, n, tot) => `${eng}: ${n} de ${tot} filas fallaron` },
-  engineFailureAll: { en: (eng) => `${eng}: every row failed — this is a configuration problem, not a transient one`, es: (eng) => `${eng}: todas las filas fallaron — esto es un problema de configuración, no algo pasajero` },
-  promptsShortfall: { en: (kept, asked) => `${kept} of the ${asked} requested — the rest could not be produced`, es: (kept, asked) => `${kept} de los ${asked} solicitados — el resto no se pudo producir` },
+  engineFailureAll: { en: (eng) => `${eng}: every row failed — this is a configuration problem, not a transient one`, es: (eng) => `${eng}: todas las filas fallaron: es un problema de configuración, no algo pasajero` },
+  promptsShortfall: { en: (kept, asked) => `${kept} of the ${asked} requested — the rest could not be produced`, es: (kept, asked) => `${kept} de los ${asked} solicitados; el resto no se pudo producir` },
   promptsCountLine: { en: (n, langs, date) => `${n} prompts · ${langs} · generated ${date}`, es: (n, langs, date) => `${n} prompts · ${langs} · generado ${date}` },
   regeneratePrompts: { en: 'Regenerate Prompts', es: 'Regenerar Prompts' },
   copyReviewLink: { en: 'Copy Review Link', es: 'Copiar Enlace de Revisión' },
@@ -349,24 +349,28 @@ const T = {
   generateFirstTitle: { en: 'Generate prompts first', es: 'Genera los prompts primero' },
   cancelRunBtn: { en: 'Cancel', es: 'Cancelar' },
   resultsTitle: { en: (n, rowWord, runsPart) => `Results (${n} ${rowWord}${runsPart})`, es: (n, rowWord, runsPart) => `Resultados (${n} ${rowWord}${runsPart})` },
-  row: { en: 'row', es: 'fila' },
-  rows: { en: 'rows', es: 'filas' },
+  row: { en: 'answer', es: 'respuesta' },
+  rows: { en: 'answers', es: 'respuestas' },
+  // Spells out where the number comes from. "99" in the status card and "200" in this one are the
+  // same run counted in different units, and nothing said so.
+  resultsBreakdown: { en: (p, e) => ` (${p} prompts × ${e} ${e === 1 ? 'engine' : 'engines'})`,
+                      es: (p, e) => ` (${p} prompts × ${e} ${e === 1 ? 'motor' : 'motores'})` },
   run: { en: 'run', es: 'ejecución' },
   runs: { en: 'runs', es: 'ejecuciones' },
   exportCustomerBtn: { en: '⬇ Export This Customer (CSV)', es: '⬇ Exportar Este Cliente (CSV)' },
   clearResultsBtn: { en: 'Clear Results', es: 'Borrar Resultados' },
   pwClearResultsTitle: { en: 'Delete audit results', es: 'Eliminar resultados de auditoría' },
-  confirmClearResults: { en: (c, n) => `Permanently delete all ${n} audit result rows for ${c}? This cannot be undone — the results table and both dashboards will go back to empty for this customer. Prompts are not affected; use Regenerate Prompts separately if you want a fresh prompt set.`, es: (c, n) => `¿Eliminar permanentemente las ${n} filas de resultados de auditoría de ${c}? Esto no se puede deshacer — la tabla de resultados y ambos tableros quedarán vacíos para este cliente. Los prompts no se ven afectados; usa Regenerar Prompts por separado si quieres un nuevo conjunto de prompts.` },
+  confirmClearResults: { en: (c, n) => `Permanently delete all ${n} audit result rows for ${c}? This cannot be undone — the results table and both dashboards will go back to empty for this customer. Prompts are not affected; use Regenerate Prompts separately if you want a fresh prompt set.`, es: (c, n) => `¿Eliminar permanentemente las ${n} filas de resultados de auditoría de ${c}? Esto no se puede deshacer: la tabla de resultados y ambos tableros quedarán vacíos para este cliente. Los prompts no se ven afectados; usa Regenerar Prompts por separado si quieres un nuevo conjunto de prompts.` },
   failedToClearResults: { en: 'Failed to clear results: ', es: 'Error al borrar los resultados: ' },
   reenterPasswordPrompt: { en: 'Re-enter your admin password to confirm:', es: 'Vuelve a ingresar tu contraseña de administrador para confirmar:' },
-  confirmRunAudit: { en: (c) => `Run a full audit for ${c} now? This calls the AI engines for every prompt and costs real API usage — make sure this is intentional.`, es: (c) => `¿Ejecutar una auditoría completa para ${c} ahora? Esto llama a los motores de IA para cada prompt y tiene un costo real de uso de API — asegúrate de que sea intencional.` },
+  confirmRunAudit: { en: (c) => `Run a full audit for ${c} now? This calls the AI engines for every prompt and costs real API usage — make sure this is intentional.`, es: (c) => `¿Ejecutar una auditoría completa para ${c} ahora? Esto llama a los motores de IA para cada prompt y tiene un costo real de uso de API: asegúrate de que sea intencional.` },
   thDate: { en: 'Date', es: 'Fecha' },
   thEngine: { en: 'Engine', es: 'Motor' },
   thPrompt: { en: 'Prompt', es: 'Prompt' },
   thCategory: { en: 'Category', es: 'Categoría' },
   thCited: { en: 'Recommended', es: 'Recomendado' },
   thSentiment: { en: 'Sentiment', es: 'Sentimiento' },
-  showingRecent: { en: (n) => `Showing the 5 most recent of ${n} rows — see the dashboards below for the full picture.`, es: (n) => `Se muestran las 5 filas más recientes de ${n} — consulta los tableros de abajo para ver el panorama completo.` },
+  showingRecent: { en: (n) => `Showing the 5 most recent of ${n} rows — see the dashboards below for the full picture.`, es: (n) => `Se muestran las 5 filas más recientes de ${n}; consulta los tableros de abajo para ver el panorama completo.` },
   noResultsYet: { en: 'No audit results yet for this customer.', es: 'Aún no hay resultados de auditoría para este cliente.' },
   dashboardsTitle: { en: 'Dashboards', es: 'Tableros' },
   runsTitle: { en: 'Runs on record', es: 'Ejecuciones registradas' },
@@ -425,12 +429,16 @@ const T = {
   selectEngineAlertRun: { en: 'Select at least one engine to run the audit with.', es: 'Selecciona al menos un motor para ejecutar la auditoría.' },
   startingBtnLabel: { en: 'Starting...', es: 'Iniciando...' },
   queuedLabel: { en: 'Starting', es: 'Iniciando' },
-  queuedDetail: { en: (secs) => `Waiting for the run to report in… ${secs}s. Netlify can take up to a minute to start a background run — leaving this page will not stop it.`, es: (secs) => `Esperando que la ejecución reporte… ${secs}s. Netlify puede tardar hasta un minuto en arrancar una ejecución en segundo plano — si sales de esta página no se detiene.` },
+  queuedDetail: { en: (secs) => `Waiting for the run to report in… ${secs}s. Netlify can take up to a minute to start a background run — leaving this page will not stop it.`, es: (secs) => `Esperando que la ejecución reporte… ${secs}s. Netlify puede tardar hasta un minuto en arrancar una ejecución en segundo plano. Si sales de esta página no se detiene.` },
   notStartedLabel: { en: "Hasn't started", es: 'No ha arrancado' },
   notStartedHint: { en: 'The run was accepted but has not reported any progress. It may still be starting, or it may have failed to launch. Check again, or try running it once more.', es: 'La ejecución fue aceptada pero no ha reportado progreso. Puede seguir arrancando o puede que no haya podido iniciar. Vuelve a verificar o intenta ejecutarla de nuevo.' },
   queuedStuckHint: { en: 'This has been waiting a long time. The run may have been cut off by the platform before it reported in. You can continue it from where it stopped, or start over.', es: 'Lleva mucho tiempo esperando. Puede que la plataforma haya cortado la ejecución antes de que reportara. Puedes continuarla desde donde se detuvo, o empezar de nuevo.' },
   giveUpWaitingBtn: { en: 'Stop waiting', es: 'Dejar de esperar' },
   checkAgainBtn: { en: 'Check again', es: 'Verificar de nuevo' },
+  statusUnreadableLabel: { en: 'Status unreadable', es: 'Estado ilegible' },
+  statusUnreadableHint: { en: (m) => `Could not read the run status: ${m}. This says nothing about the run itself, which keeps going either way. It is this page that cannot see it.`, es: (m) => `No se pudo leer el estado de la ejecución: ${m}. Esto no dice nada sobre la ejecución, que sigue de todos modos. Es esta página la que no puede verla.` },
+  statusSignInHint: { en: 'Your session expired. Sign in again to see the run.', es: 'Tu sesión expiró. Inicia sesión de nuevo para ver la ejecución.' },
+  signInBtn: { en: 'Sign in', es: 'Iniciar sesión' },
   auditElapsed: { en: (e) => `${e} elapsed`, es: (e) => `${e} transcurrido` },
   auditEta: { en: (e) => `~${e} left`, es: (e) => `~${e} restante` },
   auditUnits: { en: (c, tt) => `${c} of ${tt} answers graded`, es: (c, tt) => `${c} de ${tt} respuestas evaluadas` },
@@ -442,11 +450,11 @@ const T = {
   endedIncompleteLabel: { en: 'Ended incomplete', es: 'Terminó incompleta' },
   endedIncompleteDetail: { en: (d, tt) => `The run stopped after ${d} of ${tt} answers. Background runs are cut off at roughly 15 minutes, and a large prompt set across several engines can exceed that. Resuming continues from where it stopped instead of paying for the whole set again.`, es: (d, tt) => `La ejecución se detuvo tras ${d} de ${tt} respuestas. Las ejecuciones en segundo plano se cortan alrededor de los 15 minutos, y un conjunto grande de prompts en varios motores puede pasarse. Reanudar continúa donde se detuvo en vez de pagar todo el conjunto otra vez.` },
   stalledLabel: { en: 'No progress', es: 'Sin avance' },
-  stalledDetail: { en: (m) => `Still shown as running, but the counter hasn't moved in ${m}. It may simply be slow — engine calls are batched, so quiet stretches are normal. If it stays like this, the platform's execution limit may have cut the run off, in which case resuming continues from where it stopped instead of paying for the whole set again.`, es: (m) => `Sigue marcada como en proceso, pero el contador no avanza desde hace ${m}. Puede que solo vaya lenta — las llamadas a los motores van por lotes, así que los periodos sin avance son normales. Si se queda así, puede que el límite de ejecución de la plataforma haya cortado la ejecución; en ese caso reanudar continúa donde se detuvo en vez de pagar todo el conjunto otra vez.` },
+  stalledDetail: { en: (m) => `Still shown as running, but the counter hasn't moved in ${m}. It may simply be slow — engine calls are batched, so quiet stretches are normal. If it stays like this, the platform's execution limit may have cut the run off, in which case resuming continues from where it stopped instead of paying for the whole set again.`, es: (m) => `Sigue marcada como en proceso, pero el contador no avanza desde hace ${m}. Puede que solo vaya lenta: las llamadas a los motores van por lotes, así que los periodos sin avance son normales. Si se queda así, puede que el límite de ejecución de la plataforma haya cortado la ejecución; en ese caso reanudar continúa donde se detuvo en vez de pagar todo el conjunto otra vez.` },
   resumeBtn: { en: (n) => `Resume from prompt ${n}`, es: (n) => `Reanudar desde el prompt ${n}` },
   resumeConfirm: { en: (n, c) => `This continues the audit for <b>${c}</b> from prompt ${n}, keeping everything already graded. Enter your password to confirm.`, es: (n, c) => `Esto continúa la auditoría de <b>${c}</b> desde el prompt ${n}, conservando todo lo ya evaluado. Ingresa tu contraseña para confirmar.` },
   resumeTitle: { en: 'Resume audit', es: 'Reanudar auditoría' },
-  genModalTitle: { en: (c) => 'Generate Prompts — ' + c, es: (c) => 'Generar Prompts — ' + c },
+  genModalTitle: { en: (c) => 'Generate Prompts — ' + c, es: (c) => 'Generar Prompts: ' + c },
   selectLanguageAlert: { en: 'Select at least one language.', es: 'Selecciona al menos un idioma.' },
   selectEngineAlert: { en: 'Select at least one AI engine.', es: 'Selecciona al menos un motor de IA.' },
   generatingBtnLabel: { en: 'Generating...', es: 'Generando...' },
@@ -892,7 +900,9 @@ async function loadCompany(company) {
     </div>
 
     <div class="card">
-      <div class="card-title">${t('resultsTitle', rows.length, rows.length === 1 ? t('row') : t('rows'), runDates.length ? ', ' + runDates.length + ' ' + (runDates.length === 1 ? t('run') : t('runs')) : '')}</div>
+      <div class="card-title">${t('resultsTitle', rows.length, rows.length === 1 ? t('row') : t('rows'),
+        (rows.length ? t('resultsBreakdown', new Set(rows.map(r => r.prompt_id)).size, new Set(rows.map(r => r.engine)).size) : '')
+        + (runDates.length ? ', ' + runDates.length + ' ' + (runDates.length === 1 ? t('run') : t('runs')) : ''))}</div>
       ${rows.length ? `<div class="row" style="margin-bottom:12px;"><button class="btn btn-ghost btn-sm" onclick="exportCompanyCSV()">${t('exportCustomerBtn')}</button>${isAdmin() ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="clearResults()">${t('clearResultsBtn')}</button>` : ''}</div>` : ''}
       ${rows.length ? `
       <div style="overflow-x:auto;">
@@ -1200,6 +1210,22 @@ async function pollJobStatus(company, opts) {
     jobView[company].refreshed = true;
     await loadCompany(company);
   };
+
+  // The status endpoint refused or failed. That is not a run that has not started, and it used to
+  // be drawn as one — a single bad poll mid-run replaced a live progress bar with "no audit yet".
+  // Say what came back, keep polling so a blip heals itself, and deliberately leave the buttons
+  // alone: we do not know enough to re-enable "Run audit" without risking a second run.
+  if (state === 'unavailable') {
+    block.innerHTML =
+      `<span class="badge badge-error">${t('statusUnreadableLabel')}</span> ` +
+      `<div class="field-hint" style="margin-top:6px;">${esc(verdict.needsSignIn ? t('statusSignInHint') : t('statusUnreadableHint', verdict.message))}</div>` +
+      `<div class="row" style="margin-top:10px;">` +
+        (verdict.needsSignIn
+          ? `<button class="btn btn-sm" onclick="window.akoreGoToLogin()">${t('signInBtn')}</button>`
+          : `<button class="btn btn-ghost btn-sm" onclick="recheckAuditStatus()">${t('checkAgainBtn')}</button>`) +
+      `</div>`;
+    return verdict.needsSignIn ? undefined : again(5000);
+  }
 
   if (state === 'running' || state === 'stalled') {
     clearAuditPending(company);

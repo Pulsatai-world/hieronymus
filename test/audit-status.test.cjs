@@ -94,5 +94,47 @@ console.log('\nStarting, and continuing:\n');
   check('a customer with no run shows nothing rather than guessing', none.state === 'none', none.state);
 }
 
+
+console.log('\nThe status endpoint itself failing:\n');
+{
+  // /api/audit-job answers its refusals as JSON with a 4xx, and pollJobStatus reads the body
+  // regardless of status. That body used to fall through every branch to "no audit yet" — so one
+  // bad poll in the middle of a live run replaced the progress bar with a badge saying no run had
+  // ever happened. An endpoint we could not read is not a run that never started.
+  const denied = classify({ error: 'Sign in to continue.', needsSignIn: true }, { seq: 9, rank: 2 }, { now: at(3) });
+  check('a refused status read is its own state, not "no audit yet"',
+    denied.action === 'render' && denied.state === 'unavailable', denied.state);
+  check('and it carries the reason and the sign-in flag through',
+    denied.message === 'Sign in to continue.' && denied.needsSignIn === true, JSON.stringify(denied));
+  check('it is not terminal, so polling keeps going and a blip heals itself',
+    denied.terminal === false, String(denied.terminal));
+
+  // A real record that merely happens to carry a message must not be mistaken for one.
+  const real = classify({ seq: 10, status: 'running', total: 180, completed: 36, engineCount: 3,
+    promptsTotal: 60, error: '', startedAt: beat(0), lastProgressAt: beat(1) }, { seq: 9, rank: 2 }, { now: at(2) });
+  check('a real running record is still running', real.state === 'running', real.state);
+}
+
+console.log('\nEvery state the classifier can return is drawn by the page:\n');
+{
+  // This is the check that the bug above needed. audit-status.js gained "unavailable" and
+  // index.html was never taught to draw it, so the classifier said "render this" and the page
+  // silently rendered the fallback instead. A state with no branch is invisible by construction.
+  const fs = require('fs'), path = require('path');
+  const page = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const RANK = require('../js/audit-status.js').RANK;
+  const classifier = fs.readFileSync(path.join(__dirname, '..', 'js', 'audit-status.js'), 'utf8');
+
+  // Every state name the classifier can emit: the ranked ones, plus any state: 'x' it returns.
+  const emitted = new Set(Object.keys(RANK));
+  for (const m of classifier.matchAll(/state:\s*'([a-z]+)'/g)) emitted.add(m[1]);
+  emitted.delete('none');   // deliberately the page's fallback, not a branch
+
+  for (const state of [...emitted].sort()) {
+    check('index.html draws "' + state + '"',
+      page.includes("state === '" + state + "'"), 'no branch for it');
+  }
+}
+
 console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
 process.exit(failures ? 1 : 0);

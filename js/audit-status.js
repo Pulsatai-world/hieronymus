@@ -46,6 +46,17 @@
       view.seq = data.seq;
     }
 
+    // An endpoint that refused us is not a run that has not started yet. /api/audit-job answers
+    // errors as JSON with a 4xx, and the panel used to fall straight through to "waiting for the
+    // run to report" and spin there forever — so a session problem, a missing company, anything at
+    // all, looked identical to a slow cold start. Say what came back.
+    if (data.error && !data.status && !Number.isFinite(data.total)) {
+      return { action: 'render', state: 'unavailable', view, message: String(data.error),
+               needsSignIn: !!data.needsSignIn, terminal: false,
+               total: 0, completed: 0, promptsDone: 0, promptsTotal: 0, pct: 0,
+               idleFor: 0, elapsed: 0, etaMs: 0, cited: 0, continuations: 0, phase: '', finishedAt: '' };
+    }
+
     const total = num(data.total);
     const completed = num(data.completed);
     const hasShape = total > 0;
