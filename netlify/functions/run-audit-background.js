@@ -360,7 +360,24 @@ let jobUpdateQueue = Promise.resolve();
 function updateJob(store, key, patch) {
   const run = async () => {
     const existing = (await store.get(key, { type: 'json' })) || {};
-    await store.setJSON(key, { ...existing, ...patch });
+    const next = { ...existing, ...patch, seq: ((existing.seq || 0) + 1) };
+
+    // Progress only ever moves forward. This is a read-modify-write, and at the platform's time
+    // limit two invocations of the same run briefly overlap — each with its own write queue — so
+    // one could read before the other's write and put a smaller `completed` back. That is what made
+    // the bar jump backwards at a handoff.
+    if (Number.isFinite(existing.completed) && Number.isFinite(next.completed)
+        && next.completed < existing.completed) {
+      next.completed = existing.completed;
+    }
+
+    // A heartbeat the reader can trust. "Stalled" used to mean the browser noticing a number had
+    // not changed, which is indistinguishable from a chunk legitimately taking minutes; the server
+    // is the only thing that knows the difference between quiet and dead.
+    if (patch.completed !== undefined || patch.phase !== undefined) {
+      next.lastProgressAt = new Date().toISOString();
+    }
+    await store.setJSON(key, next);
   };
   const result = jobUpdateQueue.then(run);
   jobUpdateQueue = result.catch(() => {});
@@ -424,10 +441,17 @@ export default async (request, context) => {
   // Mark as running immediately so a poll moments after triggering already sees 'running'.
   // A continuation must not reset the counters or the start time — it is the same run, and zeroing
   // them here would make the progress bar restart from nothing at every handoff.
+  //
+  // `seq` climbs on every write and never restarts, including across a fresh run. Blobs can answer
+  // a read with an older version of a record, and the panel used to re-decide the whole state from
+  // whatever each poll happened to return — so a stale read mid-run rendered "hasn't started", the
+  // next read put it back, and the status appeared to flap. A reader that ignores anything older
+  // than what it has already seen cannot be fooled that way.
+  const nextSeq = ((existingJob && existingJob.seq) || 0) + 1;
   if (isContinuation && existingJob) {
-    await jobsStore.setJSON(jobKey, { ...existingJob, status: 'running', message: '' });
+    await jobsStore.setJSON(jobKey, { ...existingJob, status: 'running', message: '', seq: nextSeq, lastProgressAt: new Date().toISOString() });
   } else {
-    await jobsStore.setJSON(jobKey, { status: 'running', company, startedAt: new Date().toISOString(), completed: 0, total: 0, cited: 0, message: '' });
+    await jobsStore.setJSON(jobKey, { status: 'running', company, startedAt: new Date().toISOString(), completed: 0, total: 0, cited: 0, message: '', seq: nextSeq, lastProgressAt: new Date().toISOString() });
   }
 
   // Background Functions get their long execution window from Netlify itself — the platform
@@ -531,7 +555,7 @@ export default async (request, context) => {
       const stale = existing.filter(r => r.data && r.data.brand === company && r.data.run_type !== 'monitoring');
       await Promise.all(stale.map(r => rowsStore.delete(r.key)));
       clearedRows = stale.length;
-      await updateJob(jobsStore, jobKey, { clearedRows });
+      await updateJob(jobsStore, jobKey, { clearedRows, phase: 'clearing' });
     }
 
     let completed = 0, citedCount = 0, erroredCount = 0;
@@ -587,7 +611,7 @@ export default async (request, context) => {
         } catch { /* one failed save shouldn't abort the whole run */ }
         completed++;
       }
-      await updateJob(jobsStore, jobKey, { completed: baseCompleted + completed, cited: baseCited + citedCount });
+      await updateJob(jobsStore, jobKey, { completed: baseCompleted + completed, cited: baseCited + citedCount, phase: 'running' });
     }
 
     // A Netlify Background Function is capped at roughly 15 minutes by the platform — that ceiling is

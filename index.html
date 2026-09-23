@@ -10,6 +10,7 @@
 <script src="/js/auth.js"></script>
 <script>window.akoreAuth.useStaffSession();</script>
 <script src="/js/enroll-dialog.js"></script>
+<script src="/js/audit-status.js"></script>
 <script>
 // Who is signed in comes from the session the server validated on load.
 
@@ -434,6 +435,9 @@ const T = {
   auditEta: { en: (e) => `~${e} left`, es: (e) => `~${e} restante` },
   auditUnits: { en: (c, tt) => `${c} of ${tt} answers graded`, es: (c, tt) => `${c} de ${tt} respuestas evaluadas` },
   auditPrompts: { en: (d, tt) => `prompt ${d} of ${tt}`, es: (d, tt) => `prompt ${d} de ${tt}` },
+  promptProgress: { en: (d, tt) => `Prompt ${d} of ${tt}`, es: (d, tt) => `Prompt ${d} de ${tt}` },
+  auditPart: { en: n => `part ${n}`, es: n => `parte ${n}` },
+  phaseClearing: { en: 'Clearing the previous diagnosis first…', es: 'Primero se borra el diagnóstico anterior…' },
   auditCited: { en: (n) => `${n} recommended so far`, es: (n) => `${n} recomendados hasta ahora` },
   endedIncompleteLabel: { en: 'Ended incomplete', es: 'Terminó incompleta' },
   endedIncompleteDetail: { en: (d, tt) => `The run stopped after ${d} of ${tt} answers. Background runs are cut off at roughly 15 minutes, and a large prompt set across several engines can exceed that. Resuming continues from where it stopped instead of paying for the whole set again.`, es: (d, tt) => `La ejecución se detuvo tras ${d} de ${tt} respuestas. Las ejecuciones en segundo plano se cortan alrededor de los 15 minutos, y un conjunto grande de prompts en varios motores puede pasarse. Reanudar continúa donde se detuvo en vez de pagar todo el conjunto otra vez.` },
@@ -1018,6 +1022,7 @@ async function clearResults() {
 // audit was ever run while one is spinning up.
 const AUDIT_PENDING_PREFIX = 'geo_audit_pending_';
 function markAuditPending(company) {
+  resetJobView(company);   // a new run is a new story; forget the last one
   try { sessionStorage.setItem(AUDIT_PENDING_PREFIX + company, String(Date.now())); } catch (e) { /* private mode */ }
 }
 function clearAuditPending(company) {
@@ -1112,6 +1117,20 @@ function resumePromptIndex(data) {
   return Math.floor((data.completed || 0) / engines);
 }
 
+// What the panel has already been told, per customer.
+//
+// The status used to be re-derived from scratch on every poll — seven independent branches, each
+// deciding the whole state from whatever that one response happened to contain. Blobs is eventually
+// consistent and readily answers with an older version of a record, so consecutive polls genuinely
+// disagreed: running, then "hasn't started", then running again. Remembering the highest `seq` seen
+// and never moving backwards through the states is what stops that.
+const jobView = {};
+function viewOf(company) {
+  return jobView[company] || (jobView[company] = { seq: 0, rank: 0, refreshed: false });
+}
+function resetJobView(company) { delete jobView[company]; }
+
+
 async function pollJobStatus(company, opts) {
   opts = opts || {};
   window.__resultsAuthNoPrompt = true;
@@ -1120,132 +1139,132 @@ async function pollJobStatus(company, opts) {
   const runBtn = document.getElementById('run-audit-btn');
   const cancelBtn = document.getElementById('cancel-audit-btn');
   if (!block) return;
+
+  const view = viewOf(company);
+  const again = (ms, o) => { jobPollTimer = setTimeout(() => pollJobStatus(company, o || opts), ms); };
+
+  let data;
   try {
     const res = await fetch(await window.apiQuery('/api/audit-job', { company }));
-    const data = await res.json();
-    // Netlify Blobs can occasionally return a read shortly after a write with a field missing
-    // (eventual consistency, not a real state change) — the 'status' key has been the one that
-    // drops most often. Rather than chase that at the storage layer, infer "still running" from
-    // total/completed being present and not yet finished, so a dropped status field doesn't make
-    // a genuinely in-progress run look like "no audit yet".
-    const inferredRunning = data.status === 'running' || (!data.status && data.total > 0 && (data.completed || 0) < data.total && !data.finishedAt);
-    const inferredDone = data.status === 'done' || (!data.status && data.total > 0 && (data.completed || 0) >= data.total);
-
-    // A 'done' or 'error' record that predates the run we just triggered belongs to the PREVIOUS
-    // run. Trusting it is what made a live run look finished — the panel showed "last run: 198 rows,
-    // finished 13:29" while a new one was actually grinding away. Keep waiting until the record is
-    // newer than the trigger, bounded so a genuinely dead trigger doesn't wait forever.
-    const pendingSince = auditPendingSince(company);
-    const recordStartedMs = Date.parse(data.startedAt || '') || 0;
-    const waitingForFreshRecord = !!pendingSince &&
-      (Date.now() - pendingSince) < 3 * 60 * 1000 &&
-      (!recordStartedMs || recordStartedMs < pendingSince - 2000);
-    if (inferredRunning) {
-      clearAuditPending(company);
-      const done = data.completed || 0;
-      const total = data.total || 0;
-      const pct = total ? Math.round((done / total) * 100) : 0;
-      const startedMs = data.startedAt ? new Date(data.startedAt).getTime() : 0;
-      const elapsed = startedMs ? Date.now() - startedMs : 0;
-      const idleFor = trackProgress(company, done);
-      const stalled = idleFor > STALL_AFTER_MS;
-
-      // ETA only once there's enough signal to mean anything — a projection off one or two
-      // data points is noise dressed up as information.
-      let eta = '';
-      if (!stalled && done >= 3 && total > done && elapsed > 0) {
-        const perUnit = elapsed / done;
-        eta = t('auditEta', fmtDuration(perUnit * (total - done)));
-      }
-
-      const promptIdx = resumePromptIndex(data);
-      const facts = [
-        total ? t('auditUnits', done, total) : '',
-        (promptIdx !== null && data.promptsTotal) ? t('auditPrompts', Math.min(promptIdx + 1, data.promptsTotal), data.promptsTotal) : '',
-        t('auditCited', data.cited || 0),
-        elapsed ? t('auditElapsed', fmtDuration(elapsed)) : '',
-        eta
-      ].filter(Boolean).join(' · ');
-
-      block.innerHTML =
-        `<div class="row" style="align-items:center;">` +
-          `<span class="badge badge-partial">${stalled ? t('stalledLabel') : t('runningLabel')}</span>` +
-          `<span class="field-hint">${facts}</span>` +
-          (total ? `<span class="field-hint progress-pct">${pct}%</span>` : '') +
-        `</div>` +
-        `<div class="progress-wrap"><div class="progress-bar ${total ? (stalled ? 'stalled' : 'active') : 'indeterminate'}"${total ? ` style="width:${pct}%"` : ''}></div></div>` +
-        (stalled
-          ? `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('stalledDetail', fmtDuration(idleFor))}</div>` +
-            (promptIdx !== null
-              ? `<div class="row" style="margin-top:10px;"><button class="btn btn-sm" onclick="resumeAudit(${promptIdx})">${t('resumeBtn', promptIdx + 1)}</button></div>`
-              : '')
-          : '');
-
-      // While stalled the run button comes back: the operator may prefer a clean re-run to a resume.
-      if (runBtn) { runBtn.disabled = !stalled; runBtn.textContent = stalled ? t('runAuditBtn') : t('runningBtnLabel'); }
-      if (cancelBtn) cancelBtn.style.display = '';
-      jobPollTimer = setTimeout(() => pollJobStatus(company), stalled ? 10000 : 3000);
-    } else if (waitingForFreshRecord || opts.graceRetriesLeft > 0) {
-      // A run was triggered but the job record hasn't reached 'running' yet. This window used to be
-      // ~5s of drawing nothing, which is why a real run looked like a no-op and then reverted: the
-      // platform routinely needs longer than that to start a background function. Now it draws an
-      // explicit waiting state, and waits long enough to actually cover a cold start.
-      renderAuditQueued(block, company, data);
-      if (runBtn) { runBtn.disabled = true; runBtn.textContent = t('startingBtnLabel'); }
-      jobPollTimer = setTimeout(() => pollJobStatus(company, { graceRetriesLeft: Math.max(opts.graceRetriesLeft - 1, waitingForFreshRecord ? 1 : 0) }), 1500);
-    } else if (data.status === 'error') {
-      clearAuditPending(company);
-      block.innerHTML = `<span class="badge badge-error">${t('errorLabel')}</span> <span class="field-hint">${esc(data.message)}</span>`;
-      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
-      if (cancelBtn) cancelBtn.style.display = 'none';
-    } else if (data.total > 0 && (data.completed || 0) < data.total && (data.finishedAt || data.status === 'done')) {
-      // Finished, but short of its own total: the platform cut the run off. This previously matched
-      // neither the running nor the done branch and fell through to "hasn't started", which is the
-      // opposite of what happened — the run did start, did work, and then died partway.
-      clearAuditPending(company);
-      const promptIdx = resumePromptIndex(data);
-      // `completed` can be absent on a job record (Blobs occasionally returns a read with a field
-      // dropped), and dividing undefined by total rendered "NaN%" plus a width of NaN — which CSS
-      // discards, leaving the bar at full width and a failed run looking complete.
-      const doneUnits = Number.isFinite(data.completed) ? data.completed : 0;
-      const totalUnits = Number.isFinite(data.total) && data.total > 0 ? data.total : 0;
-      const pctDone = totalUnits ? Math.round((doneUnits / totalUnits) * 100) : 0;
-      block.innerHTML =
-        `<div class="row" style="align-items:center;">` +
-          `<span class="badge badge-error">${t('endedIncompleteLabel')}</span>` +
-          `<span class="field-hint">${t('auditUnits', doneUnits, totalUnits || '?')}</span>` +
-          `<span class="field-hint progress-pct">${pctDone}%</span>` +
-        `</div>` +
-        `<div class="progress-wrap"><div class="progress-bar stalled" style="width:${pctDone}%"></div></div>` +
-        `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('endedIncompleteDetail', doneUnits, totalUnits || '?')}</div>` +
-        (promptIdx !== null
-          ? `<div class="row" style="margin-top:10px;"><button class="btn btn-sm" onclick="resumeAudit(${promptIdx})">${t('resumeBtn', promptIdx + 1)}</button></div>`
-          : '');
-      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
-      if (cancelBtn) cancelBtn.style.display = 'none';
-    } else if (inferredDone) {
-      clearAuditPending(company);
-      block.innerHTML = `<span class="badge badge-done">${t('lastRunLabel', data.completed, data.cited || 0)}</span> <span class="field-hint">${t('finishedAt')}${esc((data.finishedAt || '').slice(0, 16).replace('T', ' '))}</span>`;
-      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
-      if (cancelBtn) cancelBtn.style.display = 'none';
-    } else if (auditPendingSince(company)) {
-      // We know a run was triggered in this session, so this is not "no audit yet" — it is a run
-      // that never reported. Say that, and offer a way to re-check without reloading.
-      block.innerHTML = `<span class="badge badge-error">${t('notStartedLabel')}</span> <span class="field-hint">${t('notStartedHint')}</span>` +
-        `<div class="row" style="margin-top:10px;"><button class="btn btn-ghost btn-sm" onclick="recheckAuditStatus()">${t('checkAgainBtn')}</button></div>`;
-      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
-      if (cancelBtn) cancelBtn.style.display = 'none';
-    } else {
-      block.innerHTML = `<span class="badge badge-pending">${t('noAuditYet')}</span>`;
-      // The run button has to be restored here too. Reaching this branch right after a trigger
-      // means the run never registered, and leaving the button disabled on "Starting…" stranded
-      // the operator with no way to retry short of reloading the page.
-      if (runBtn) { runBtn.disabled = false; runBtn.textContent = t('runAuditBtn'); }
-      if (cancelBtn) cancelBtn.style.display = 'none';
-    }
+    data = await res.json();
   } catch {
-    block.innerHTML = `<span class="field-hint">${t('couldNotLoadStatus')}</span>`;
+    // A failed request is no news, not a state. Leave whatever is on screen.
+    if (!view.rank) block.innerHTML = `<span class="field-hint">${t('couldNotLoadStatus')}</span>`;
+    return again(4000);
   }
+
+  // The decision lives in js/audit-status.js so it can be tested without a browser. The flapping
+  // was never one wrong branch — it was several branches each re-deciding the whole state from a
+  // single response that Blobs may have served stale or with fields missing.
+  const verdict = window.akoreAuditStatus.classify(data, view, {
+    now: Date.now(),
+    pending: !!auditPendingSince(company),
+    graceLeft: opts.graceRetriesLeft || 0,
+    stallAfterMs: STALL_AFTER_MS
+  });
+  // classify() returns a fresh view; carry the "already refreshed" flag across it or the
+  // completion refresh below fires on every poll and the page reloads itself in a loop.
+  const wasRefreshed = view.refreshed;
+  jobView[company] = verdict.view;
+  jobView[company].refreshed = wasRefreshed;
+  if (verdict.action === 'ignore') return again(3000);
+
+  const state = verdict.state;
+  const total = verdict.total, completed = verdict.completed;
+  const promptsDone = verdict.promptsDone, promptsTotal = verdict.promptsTotal;
+  const pct = verdict.pct, idleFor = verdict.idleFor, elapsed = verdict.elapsed;
+  const eta = verdict.etaMs ? t('auditEta', fmtDuration(verdict.etaMs)) : '';
+  const headline = promptsTotal ? t('promptProgress', promptsDone, promptsTotal) : '';
+  const detail = [
+    total ? t('auditUnits', completed, total) : '',
+    t('auditCited', data.cited || 0),
+    elapsed ? t('auditElapsed', fmtDuration(elapsed)) : '',
+    eta,
+    data.continuations ? t('auditPart', data.continuations + 1) : ''
+  ].filter(Boolean).join(' · ');
+
+  const bar = cls => `<div class="progress-wrap"><div class="progress-bar ${cls}"${promptsTotal || total ? ` style="width:${pct}%"` : ''}></div></div>`;
+  const promptIdx = resumePromptIndex(data);
+  const resumeRow = promptIdx !== null
+    ? `<div class="row" style="margin-top:10px;"><button class="btn btn-sm" onclick="resumeAudit(${promptIdx})">${t('resumeBtn', promptIdx + 1)}</button></div>` : '';
+
+  const setButtons = (runEnabled, runLabel, showCancel) => {
+    if (runBtn) { runBtn.disabled = !runEnabled; runBtn.textContent = runLabel; }
+    if (cancelBtn) cancelBtn.style.display = showCancel ? '' : 'none';
+  };
+
+  // Finishing refreshes the page's own data once, so the results table, the row count and the
+  // dashboard links stop showing the run's starting state. Guarded so it happens once per run.
+  const finishAndRefresh = async () => {
+    if (jobView[company].refreshed) return;
+    jobView[company].refreshed = true;
+    await loadCompany(company);
+  };
+
+  if (state === 'running' || state === 'stalled') {
+    clearAuditPending(company);
+    const stalled = state === 'stalled';
+    block.innerHTML =
+      `<div class="row" style="align-items:center;">` +
+        `<span class="badge badge-partial">${stalled ? t('stalledLabel') : t('runningLabel')}</span>` +
+        (headline ? `<span style="font-weight:650;">${headline}</span>` : '') +
+        `<span class="field-hint progress-pct">${pct}%</span>` +
+      `</div>` +
+      bar(stalled ? 'stalled' : 'active') +
+      (detail ? `<div class="field-hint" style="margin-top:6px;">${detail}</div>` : '') +
+      (data.phase === 'clearing' ? `<div class="field-hint" style="margin-top:6px;">${t('phaseClearing')}</div>` : '') +
+      (stalled
+        ? `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('stalledDetail', fmtDuration(idleFor))}</div>` + resumeRow
+        : '');
+    setButtons(stalled, stalled ? t('runAuditBtn') : t('runningBtnLabel'), true);
+    return again(stalled ? 10000 : 3000);
+  }
+
+  if (state === 'queued') {
+    renderAuditQueued(block, company, data);
+    setButtons(false, t('startingBtnLabel'), false);
+    return again(1500, { graceRetriesLeft: Math.max((opts.graceRetriesLeft || 0) - 1, 0) });
+  }
+
+  if (state === 'error') {
+    clearAuditPending(company);
+    block.innerHTML = `<span class="badge badge-error">${t('errorLabel')}</span> <span class="field-hint">${esc(data.message || '')}</span>` + resumeRow;
+    setButtons(true, t('runAuditBtn'), false);
+    return finishAndRefresh();
+  }
+
+  if (state === 'incomplete') {
+    clearAuditPending(company);
+    block.innerHTML =
+      `<div class="row" style="align-items:center;">` +
+        `<span class="badge badge-error">${t('endedIncompleteLabel')}</span>` +
+        (headline ? `<span style="font-weight:650;">${headline}</span>` : '') +
+        `<span class="field-hint progress-pct">${pct}%</span>` +
+      `</div>` + bar('stalled') +
+      `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('endedIncompleteDetail', completed, total || '?')}</div>` +
+      resumeRow;
+    setButtons(true, t('runAuditBtn'), false);
+    return finishAndRefresh();
+  }
+
+  if (state === 'done') {
+    clearAuditPending(company);
+    block.innerHTML =
+      `<span class="badge badge-done">${t('lastRunLabel', completed, data.cited || 0)}</span> ` +
+      `<span class="field-hint">${t('finishedAt')}${esc((data.finishedAt || '').slice(0, 16).replace('T', ' '))}</span>`;
+    setButtons(true, t('runAuditBtn'), false);
+    return finishAndRefresh();
+  }
+
+  if (auditPendingSince(company)) {
+    block.innerHTML = `<span class="badge badge-error">${t('notStartedLabel')}</span> <span class="field-hint">${t('notStartedHint')}</span>` +
+      `<div class="row" style="margin-top:10px;"><button class="btn btn-ghost btn-sm" onclick="recheckAuditStatus()">${t('checkAgainBtn')}</button></div>`;
+    setButtons(true, t('runAuditBtn'), false);
+    return;
+  }
+
+  block.innerHTML = `<span class="badge badge-pending">${t('noAuditYet')}</span>`;
+  setButtons(true, t('runAuditBtn'), false);
 }
 
 async function cancelAudit() {
