@@ -15,7 +15,7 @@
 // apart with certainty.
 
 import { findAccount } from './lib/accounts.js';
-import { verifyCode } from './lib/totp.js';
+import { verifyCode, AUTH_DRIFT } from './lib/totp.js';
 import { consumeRecoveryCode, recoveryRemaining } from './lib/recovery.js';
 import { readSession, revokeSession } from './lib/session.js';
 import { sessionFor, whoPayload } from './lib/identity.js';
@@ -104,7 +104,7 @@ export default async (request) => {
   // recovery code is what gets someone back in when the phone holding the authenticator is gone;
   // it is single-use, and consuming it mutates `auth` so the save below records it as spent.
   const sixDigits = /^\d{6}$/.test(code.replace(/\s/g, ''));
-  const res = sixDigits ? verifyCode(auth.secret, code, { drift: 1 }) : { ok: false, step: null };
+  const res = sixDigits ? verifyCode(auth.secret, code, { drift: AUTH_DRIFT }) : { ok: false, step: null };
   const viaRecovery = sixDigits ? { ok: false } : consumeRecoveryCode(auth.recovery, code);
 
   // Codes move forward and are never reused. Refusing only the exact last one was not enough: the

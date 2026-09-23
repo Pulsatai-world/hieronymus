@@ -167,12 +167,27 @@ function scrypt(pw) {
     check('a code from the SECOND QR is accepted too', res.status === 200, 'status ' + res.status);
   }
 
+  // Setup and login accept the same window, and that is the property worth asserting — not how wide
+  // it is. A window setup could pass and login could not meant a clock-skewed phone enrolled
+  // perfectly and was then locked out forever, five tries at a time, with the matched step written
+  // into the future so even genuine codes read as replays.
   console.log('\nA person taking their time, and a device with a wandering clock:');
-  for (const stepsOff of [-3, -1, 0, 1, 3]) {
+  for (const stepsOff of [-2, -1, 0, 1, 2]) {
     reset();
     const started = await (await POST(enroll, { username: 'akore-roy', password: PW })).json();
     const res = await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(scanned(started), nowStep() + stepsOff) });
     check('a code ' + (stepsOff * 30) + 's out is accepted at setup', res.status === 200, 'status ' + res.status);
+  }
+  {
+    // The invariant: anything setup accepts, a login must also accept.
+    reset();
+    const started = await (await POST(enroll, { username: 'akore-roy', password: PW })).json();
+    const secret = scanned(started);
+    const enrolled = await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(secret, nowStep() - 2) });
+    check('a setup accepted at the edge of the window still leaves a usable account',
+      enrolled.status === 200, 'status ' + enrolled.status);
+    const signIn = await POST(login, { username: 'akore-roy', password: PW, code: codeAt(secret, nowStep() + 1) });
+    check('and the next code from that same app signs in', signIn.status === 200, 'status ' + signIn.status);
   }
   {
     reset();
@@ -189,8 +204,8 @@ function scrypt(pw) {
     const first = await POST(enroll, { username: 'akore-roy', password: PW, code });
     const second = await POST(enroll, { username: 'akore-roy', password: PW, code });
     check('the first succeeds', first.status === 200, 'status ' + first.status);
-    check('and the second succeeds too, rather than failing on a set-up account',
-      second.status === 200 && (await second.json()).repeat === true, 'status ' + second.status);
+    check('and the second is refused rather than minting a session from a spent code',
+      second.status === 409 && (await second.json()).alreadyEnrolled === true, 'status ' + second.status);
   }
 
   console.log('\nA setup dialog left open until it expired:');
@@ -352,24 +367,36 @@ function scrypt(pw) {
   }
 
   // ── An authenticator that was set up but never worked ──
-  // The state that trapped the account repeatedly: enrolled server-side, but the app holds an entry
-  // from an earlier attempt, so no code it produces is accepted. The reset needs an admin, and the
-  // locked-out person may BE the only admin. An authenticator nobody has ever signed in with has
-  // proved nothing, so its owner can replace it with the same password that created it.
-  console.log('\nAn authenticator that was set up but never used:');
+  // The state that trapped accounts repeatedly: enrolled server-side, but the app holds an entry
+  // from an earlier attempt, so no code it produces is accepted.
+  //
+  // This used to be answered by letting the owner replace an "unproven" authenticator with their
+  // password alone. That was a full account takeover for anyone holding a stolen password: nothing
+  // ever set `lastUsedAt` at enrollment, so EVERY freshly enrolled account was unproven, and the
+  // gate stood down for all of them. Enrollment now counts as the sign-in it is — a password and a
+  // live code, the same two things a login checks — and the way back from an authenticator that
+  // does not work is a recovery code, which enrollment hands over for exactly this.
+  console.log('\nAn authenticator that was set up but never worked:');
   reset();
   {
     const started = await (await POST(enroll, { username: 'akore-roy', password: PW })).json();
-    await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(scanned(started), nowStep()) });
+    const first = await (await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(scanned(started), nowStep()) })).json();
     const rec = () => store('hieronymus-staff-users')['akore-roy'][AUTH];
     check('it is enrolled', !!rec().enabledAt, 'not enrolled');
-    check('but not yet proven', !rec().lastUsedAt, 'marked as used too early');
+    check('and enrolling counts as having proved it', !!rec().lastUsedAt, 'left unproven');
 
-    // Their app cannot produce a code for it, so they start over with their password.
+    const stolen = await POST(enroll, { username: 'akore-roy', password: PW });
+    check('a password alone cannot start a replacement', stolen.status === 403, 'status ' + stolen.status);
+    check('and hands out no secret to scan', !(await stolen.json()).secret, 'a secret was issued');
+    check('the existing authenticator is untouched', rec().secret === scanned(started), 'it was replaced');
+
+    // The real way out: a recovery code, then a replacement with the password that just worked.
+    const back = await POST(login, { username: 'akore-roy', password: PW, code: first.recoveryCodes[0] });
+    check('a recovery code still signs them in', back.status === 200, 'status ' + back.status);
     const again = await POST(enroll, { username: 'akore-roy', password: PW });
     const body = await again.json();
-    check('starting over is allowed', again.status === 200 && !!body.secret, 'status ' + again.status);
-    check('the old secret is still in place until the new one is confirmed',
+    check('and that opens a replacement', again.status === 200 && !!body.secret, 'status ' + again.status);
+    check('the old secret stays until the new one is confirmed',
       rec().secret === scanned(started), 'replaced before being confirmed');
 
     const done = await POST(enroll, { username: 'akore-roy', password: PW, code: codeAt(scanned(body), nowStep()) });
@@ -536,7 +563,9 @@ function scrypt(pw) {
   {
     const { body } = await enrolAndSignIn('akore-rene');
     const old = body.recoveryCodes;
-    const fresh = await POST(enroll, { action: 'recovery', username: 'akore-rene', session: body.session });
+    const noPw = await POST(enroll, { action: 'recovery', username: 'akore-rene', session: body.session });
+    check('a session alone cannot mint a new set', noPw.status === 401, 'status ' + noPw.status);
+    const fresh = await POST(enroll, { action: 'recovery', username: 'akore-rene', session: body.session, password: PW });
     const freshBody = await fresh.json();
     check('a signed-in person can get a new set', fresh.status === 200 && freshBody.recoveryCodes.length === 10,
       fresh.status + ' ' + JSON.stringify(freshBody).slice(0, 120));

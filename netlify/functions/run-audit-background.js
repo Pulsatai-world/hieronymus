@@ -1,4 +1,5 @@
 import { getStore } from '@netlify/blobs';
+import { requireStaff } from './lib/authorize.js';
 
 // Server-side port of index.html's multi-engine answer+grade pipeline. Runs as a Netlify
 // Background Function (note the -background filename) so it can keep going well past the
@@ -379,6 +380,16 @@ export default async (request, context) => {
   } catch {
     return new Response('Invalid JSON body', { status: 400 });
   }
+  // Staff only. This ran for anyone who could name a company: an anonymous POST spent that
+  // customer's API key — dozens of calls, count chosen by the caller — and replaced their prompt
+  // set or wiped their diagnostic rows. Every legitimate caller is one of our own pages; the
+  // monthly cron signs itself in server-side for exactly this reason.
+  const json = (obj, status) => new Response(JSON.stringify(obj), {
+    status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }
+  });
+  const denied = await requireStaff(new URL(request.url), body, json);
+  if (denied) return denied;
+
   const company = (body.company || '').trim();
   if (!company) return new Response('Missing company', { status: 400 });
   // Tags every row from this run. Monitoring (cron) runs pass run_type:'monitoring'; the manual

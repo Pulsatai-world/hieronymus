@@ -25,6 +25,12 @@ function json(obj, status) {
 }
 
 export default async (request) => {
+  // Before the method dispatch, not inside one branch of it. The guard used to sit inside the GET
+  // arm, so GET was staff-only while DELETE — which wipes a run's progress and its resume point —
+  // answered anyone who named a company. geo-scan-job.js has always had this the right way round.
+  const denied = await requireStaff(new URL(request.url), null, json);
+  if (denied) return denied;
+
   const url = new URL(request.url);
 
   const company = url.searchParams.get('company');
@@ -33,8 +39,6 @@ export default async (request) => {
   const key = slugify(company);
 
   if (request.method === 'GET') {
-    const denied = await requireStaff(url, null, json);
-    if (denied) return denied;
     const data = await store.get(key, { type: 'json' });
     if (!data) return json({ status: 'none' }, 200);
     return json(data, 200);

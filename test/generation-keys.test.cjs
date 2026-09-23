@@ -22,9 +22,18 @@ const check = (name, cond, detail) => {
   if (!cond) failures++;
 };
 
+const crypto = require('crypto');
 const POST = (fn, body) => fn(new Request('https://x/api/generate-prompts', {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
 }), {});
+
+// Generation is staff-only now, so every call here carries a real staff session — the same thing
+// the customer page sends. A run with no session is covered in login-attacks.test.cjs.
+async function staffSession() {
+  const { createStaffSession } = await import(pathToFileURL(
+    path.resolve('netlify/functions/lib/session.js')).href);
+  return await createStaffSession('akore-rene', 'admin');
+}
 
 (async () => {
   const generate = (await import(pathToFileURL(
@@ -41,9 +50,16 @@ const POST = (fn, body) => fn(new Request('https://x/api/generate-prompts', {
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   };
 
+  const SESSION = await staffSession();
+
   const seed = () => {
     Object.keys(STORES).forEach(k => delete STORES[k]);
     store('hieronymus-intake')['acme'] = { intake: { company: 'Acme', whatTheySell: 'pumps' } };
+    // The wipe takes the session store with it; put the caller's session back.
+    store('hieronymus-staff-sessions')[SESSION] = {
+      kind: 'staff', username: 'akore-rene', role: 'admin',
+      createdAt: new Date().toISOString(), lastSeenAt: new Date().toISOString()
+    };
   };
 
   console.log('Which key generation spends:');
@@ -53,7 +69,7 @@ const POST = (fn, body) => fn(new Request('https://x/api/generate-prompts', {
   store('hieronymus-customer-keys')['acme'] = { company: 'Acme', claude: 'sk-ant-CUSTOMER-acme' };
   process.env.ANTHROPIC_API_KEY = 'sk-ant-PLATFORM-shared';
   sentKeys = [];
-  await POST(generate, { company: 'Acme', count: 5, languages: ['English'] });
+  await POST(generate, { company: 'Acme', count: 5, languages: ['English'], session: SESSION });
   check("the customer's own Claude key is what is sent",
     sentKeys.length > 0 && sentKeys.every(k => k === 'sk-ant-CUSTOMER-acme'),
     JSON.stringify(sentKeys.slice(0, 3)));
@@ -66,7 +82,7 @@ const POST = (fn, body) => fn(new Request('https://x/api/generate-prompts', {
   store('hieronymus-intake')['globex'] = { intake: { company: 'Globex' } };
   store('hieronymus-customer-keys')['globex'] = { company: 'Globex', claude: 'sk-ant-CUSTOMER-globex' };
   sentKeys = [];
-  await POST(generate, { company: 'Globex', count: 5, languages: ['English'] });
+  await POST(generate, { company: 'Globex', count: 5, languages: ['English'], session: SESSION });
   check('a second customer bills their own key, not the first one\'s',
     sentKeys.length > 0 && sentKeys.every(k => k === 'sk-ant-CUSTOMER-globex'),
     JSON.stringify(sentKeys.slice(0, 3)));
@@ -75,7 +91,7 @@ const POST = (fn, body) => fn(new Request('https://x/api/generate-prompts', {
   seed();
   process.env.ANTHROPIC_API_KEY = 'sk-ant-PLATFORM-shared';
   sentKeys = [];
-  await POST(generate, { company: 'Acme', count: 5, languages: ['English'] });
+  await POST(generate, { company: 'Acme', count: 5, languages: ['English'], session: SESSION });
   check('a customer with no key spends nothing at all', sentKeys.length === 0,
     'it called out ' + sentKeys.length + ' times');
   const job = store('hieronymus-generate-jobs')['acme'];

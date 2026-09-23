@@ -1,4 +1,5 @@
 import { getStore } from '@netlify/blobs';
+import { createStaffSession, revokeSession } from './lib/session.js';
 
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
@@ -44,6 +45,10 @@ export default async (request, context) => {
     }
     if (new Date(c.data.nextRunAt).getTime() <= now) due.push(c);
   }
+  // /api/run-audit is staff-only now, so the cron signs itself in the same way a person would
+  // rather than the endpoint staying open to everyone. A real session, short-lived and revoked
+  // below, keeps one credential model instead of adding a second shared-secret one.
+  const cronSession = await createStaffSession('system-monitoring', 'admin');
 
   let triggered = 0;
   for (const c of due) {
@@ -59,7 +64,7 @@ export default async (request, context) => {
       headers: { 'Content-Type': 'application/json' },
       // Tag as a monitoring run so these rows feed the Monitoring dashboard but never the
       // (isolated) Diagnostic dashboard.
-      body: JSON.stringify({ company: customer.company, run_type: 'monitoring' })
+      body: JSON.stringify({ company: customer.company, run_type: 'monitoring', session: cronSession })
     }).catch(() => { /* one customer's failure to kick off shouldn't block the rest */ });
     triggered++;
 

@@ -1343,7 +1343,7 @@ async function confirmRunAudit() {
   // rejected (already running) — safe to await just far enough to check that, then fall back
   // to polling the job-status endpoint for everything else, since the run itself can take minutes.
   try {
-    const res = await fetch('/api/run-audit', {
+    const res = await fetch(await window.apiQuery('/api/run-audit'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ company: currentCompany, engines })
@@ -1426,7 +1426,7 @@ async function resumeAudit(startIndex) {
   const statusBlock = document.getElementById('job-status-block');
   if (statusBlock) renderAuditQueued(statusBlock, currentCompany, null);
   try {
-    const res = await fetch('/api/run-audit', {
+    const res = await fetch(await window.apiQuery('/api/run-audit'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ company: currentCompany, startIndex, engines: lastRunEngines })
@@ -1552,7 +1552,7 @@ async function confirmGenerate() {
   // Generating a large prompt set is a long-running Claude call — this background function's
   // own HTTP response can take a while too, so this deliberately does NOT await it. Progress
   // and completion come entirely from polling /api/generate-job instead.
-  fetch('/api/generate-prompts', {
+  fetch(await window.apiQuery('/api/generate-prompts'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ company, count, languages })

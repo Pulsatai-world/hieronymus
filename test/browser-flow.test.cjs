@@ -266,16 +266,35 @@ function scrypt(pw) {
       setup.key === store('hieronymus-staff-users')['akore-rene'][AUTH].secret, 'a different secret was kept');
   }
 
-  console.log("\nA person who takes 90 seconds to type the code:");
+  // A minute of typing is fine. Beyond the window setup is refused ON PURPOSE — it used to be
+  // accepted here and then refused at every login afterwards, which enrolled the account and locked
+  // it out in one move. Failing now, with the dialog's clock warning on screen, is the better half
+  // of that trade.
+  console.log("\nA person who takes a minute to type the code:");
   reset();
   {
     const { w } = browser();
     w.akoreAuth.useStaffSession();
     const signingIn = w.akoreSignIn('akore-rene', PW, '', 'es');
-    const setup = await completeSetup(w, { delaySteps: 3 });
+    const setup = await completeSetup(w, { delaySteps: 2 });
     const attempt = await settle(signingIn);
     check('setup still completes', !setup.stillOpen && attempt && attempt.ok === true,
       'error: "' + setup.errorAfter + '"');
+  }
+
+  console.log("\nA phone whose clock is minutes out:");
+  reset();
+  {
+    const { w } = browser();
+    w.akoreAuth.useStaffSession();
+    w.akoreSignIn('akore-rene', PW, '', 'es');
+    const setup = await completeSetup(w, { delaySteps: 6 });
+    check('setup is refused rather than enrolling an account that can never sign in',
+      setup.stillOpen, 'it enrolled anyway');
+    check('and the dialog says why, in the page language',
+      /no coincide|match/i.test(setup.errorAfter), '"' + setup.errorAfter + '"');
+    // The pending secret legitimately sits under this field; what must not exist is an ENROLLED one.
+    check('the account is not enrolled', !(store('hieronymus-staff-users')['akore-rene'][AUTH] || {}).enabledAt, 'enrolled anyway');
   }
 
   console.log("\nWhen the setup endpoint cannot be reached:");

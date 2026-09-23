@@ -1496,7 +1496,16 @@ function setupTag(inputId, wrapId, arr) {
         const chip = document.createElement('span');
         chip.className = 'tag-chip';
         chip.setAttribute('data-val', v);
-        chip.innerHTML = v + '<button type="button" onclick="removeTag(\'' + wrapId + '\',\'' + v + '\',window.' + (wrapId === 'social-wrap' ? 'socialTags' : 'brandTags') + ')">×</button>';
+        // Built as nodes, not markup. This was innerHTML over the customer's own text, and that
+        // text is round-tripped from storage — so a payload typed into "Social platforms" ran later
+        // in a staff member's browser, where the staff session sits in localStorage. The inline
+        // onclick was a second way in, since the value was also spliced into an attribute.
+        chip.textContent = v;
+        const rm = document.createElement('button');
+        rm.type = 'button';
+        rm.textContent = '\u00d7';
+        rm.addEventListener('click', function () { removeTag(wrapId, v, (wrapId === 'social-wrap' ? window.socialTags : window.brandTags)); });
+        chip.appendChild(rm);
         document.getElementById(wrapId).insertBefore(chip, inp);
       }
       inp.value = '';
@@ -1774,7 +1783,12 @@ function populateForm(d) {
       const chip = document.createElement('span');
       chip.className = 'tag-chip';
       chip.setAttribute('data-val', v);
-      chip.innerHTML = v + '<button type="button" onclick="removeTag(\'social-wrap\',\'' + v + '\',window.socialTags)">×</button>';
+      chip.textContent = v;
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.textContent = '\u00d7';
+      rm.addEventListener('click', function () { removeTag('social-wrap', v, window.socialTags); });
+      chip.appendChild(rm);
       document.getElementById('social-wrap').insertBefore(chip, document.getElementById('social-input'));
     }
   });
@@ -1784,7 +1798,12 @@ function populateForm(d) {
       const chip = document.createElement('span');
       chip.className = 'tag-chip';
       chip.setAttribute('data-val', v);
-      chip.innerHTML = v + '<button type="button" onclick="removeTag(\'brands-wrap\',\'' + v + '\',window.brandTags)">×</button>';
+      chip.textContent = v;
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.textContent = '\u00d7';
+      rm.addEventListener('click', function () { removeTag('brands-wrap', v, window.brandTags); });
+      chip.appendChild(rm);
       document.getElementById('brands-wrap').insertBefore(chip, document.getElementById('brands-input'));
     }
   });
