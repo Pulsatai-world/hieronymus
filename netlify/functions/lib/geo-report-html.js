@@ -57,6 +57,9 @@ const TX = {
   method2:      { es: 'Lo que no se ha podido establecer se informa como <b>sin verificar</b> y queda excluido de la calificación, en lugar de suponerse. Cuando un sitio web está detrás de un CDN o un WAF, la prueba de user-agents no puede confirmar si los rastreadores de IA tienen paso, porque esos servicios identifican a los bots verificados por rango de IP y no por la cadena de user-agent: esos casos se marcan para confirmación manual.', en: 'Checks that could not be established are reported as <b>unverified</b> rather than as passes or failures, and are excluded from the score entirely. Where a site sits behind a CDN or WAF, user-agent testing cannot confirm whether AI crawlers are permitted, because those services identify verified bots by source IP range rather than user-agent string — such cases are flagged for manual confirmation.' },
   method3:      { es: 'Esta evaluación cubre <b>únicamente factores técnicos en página</b>. No mide la visibilidad actual en respuestas de IA, la presencia de la entidad fuera del sitio web ni la cuota de voz frente a competidores: eso se mide por separado en la auditoría de visibilidad posterior.', en: 'This assessment covers <b>on-site technical factors only</b>. It does not measure current visibility in AI answers, off-site entity presence, or competitive share of voice — each measured separately in the visibility audit that follows.' },
   howToFix:     { es: 'Cómo resolverlo', en: 'How to fix' },
+  missingPages: { es: 'Faltan páginas clave enlazadas desde la navegación', en: 'Key pages missing from the navigation' },
+  missingList:  { es: 'No hay ninguna página de {l} enlazada desde la navegación, el encabezado o el pie.', en: 'No {l} page is linked from the navigation, header or footer.' },
+  missingFix:   { es: 'Decide primero si este sitio web debe crecer a varias páginas. Si es así, crea las que falten y enlázalas desde la navegación principal o el pie.', en: 'Decide first whether this site should grow into several pages. If so, create the missing ones and link them from the main navigation or the footer.' },
   workTitle:    { es: 'Qué hay que hacer', en: 'What to do' },
   workLede:     { es: '{n} cosas por corregir, de mayor a menor alcance. Cada una es un solo trabajo, aunque toque varias páginas.', en: '{n} things to fix, widest reach first. Each is one job, however many pages it touches.' },
   workNone:     { es: 'No quedó nada por corregir en las páginas revisadas.', en: 'Nothing to fix on the pages checked.' },
@@ -134,6 +137,29 @@ export function buildReportHtml(rawData, lang = 'es') {
       Object.values(node).forEach(v => visit(v, here));
     };
     visit(data, '');
+
+    // Page discovery reports one check per page type. Missing three or more of them is a single
+    // decision about the shape of the site, so it reads as one row rather than five near-copies.
+    const DISCOVERY = ['about', 'faq', 'contact', 'services', 'blog'];
+    const missingTypes = DISCOVERY.filter(id => byId.has(id));
+    if (missingTypes.length >= 3) {
+      const names = missingTypes.map(id => {
+        const t = String(byId.get(id).title || id);
+        // Titles read "Página de About" / "About page"; the row lists the bare names.
+        return t.replace(/^P[áa]gina de\s*/i, '').replace(/\s*page$/i, '').trim();
+      });
+      const worst = missingTypes.some(id => byId.get(id).status === 'FAIL') ? 'FAIL' : 'WARNING';
+      missingTypes.forEach(id => byId.delete(id));
+      byId.set('missing-key-pages', {
+        id: 'missing-key-pages',
+        title: T('missingPages'),
+        status: worst,
+        detail: T('missingList', { l: names.join(', ') }),
+        howToFix: T('missingFix'),
+        pages: new Set()
+      });
+    }
+
     return [...byId.values()].sort((a, b) =>
       (a.status === b.status ? 0 : a.status === 'FAIL' ? -1 : 1) || (b.pages.size - a.pages.size));
   })();
