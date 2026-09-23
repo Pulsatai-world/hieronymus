@@ -13,6 +13,13 @@
 <script>
 // Who is signed in comes from the session the server validated on load.
 
+function showPasswordGate() {
+  // There is one sign-in page, and this is not it. Every page used to carry its own form — six of
+  // them, each with its own strings and its own handling of the answer. Send them to the one that
+  // exists, remembering where they were going.
+  window.akoreGoToLogin();
+}
+
 function checkAuth() {
   // Signed in means the server recognised our session on this page load — see the guarded init at
   // the end of this file. Not a stored flag, which proved nothing and granted everything.
@@ -31,93 +38,6 @@ function isAdmin() {
 async function staffLogout() {
   // Ends the session on the server too, so signing out really signs out.
   await window.staffLogoutAll('/portal.html');
-}
-
-const GATE_T = {
-  codePlaceholder: { en: '6-digit code', es: 'Código de 6 dígitos' },
-  title: { en: 'Akore Labs', es: 'Akore Labs' },
-  sub: { en: 'GEO Audit Engine — Restricted Access', es: 'Motor de Auditoría GEO · Acceso restringido' },
-  userPlaceholder: { en: 'Username', es: 'Usuario' },
-  placeholder: { en: 'Password', es: 'Contraseña' },
-  accessBtn: { en: 'Access Tool →', es: 'Acceder →' },
-  error: { en: 'Incorrect username or password. Try again.', es: 'Usuario o contraseña incorrectos. Intenta de nuevo.' },
-  footer: { en: 'Akore Labs — Internal Use Only', es: 'Akore Labs · Solo uso interno' }
-};
-function gt(key) { return GATE_T[key][localStorage.getItem('hieronymus_lang') || 'es']; }
-
-function showPasswordGate() {
-  const curLang = localStorage.getItem('hieronymus_lang') || 'es';
-  // Only <body> is replaced here — the page's own <style> block (in <head>) stays active, so
-  // this reuses the exact same classes (.card, .btn, .lang-toggle, .logo-icon) as the rest of
-  // the app, rather than a separately-themed gate design.
-  document.body.innerHTML = `
-    <style>
-      body { background: var(--bg); min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: var(--mono); padding: 24px; }
-      .gate-input { width: 100%; font-family: var(--mono); font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--border-bright); border-radius: var(--radius-sm); padding: 12px 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
-      .gate-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
-      .gate-input.error { border-color: var(--red); animation: shake 0.3s; }
-      @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
-</style>
-    <div class="card" style="width:100%; max-width:380px; box-shadow:0 8px 32px rgba(27,39,51,0.10); margin-bottom:0;">
-      <div style="display:flex; justify-content:flex-end; margin-bottom:20px;">
-        <div class="lang-toggle">
-          <button class="lang-btn" id="gate-lang-en" onclick="setGateLang('en')">EN</button>
-          <button class="lang-btn" id="gate-lang-es" onclick="setGateLang('es')">ES</button>
-        </div>
-      </div>
-      <div style="display:flex; justify-content:center; margin-bottom:20px;">
-        <div class="logo-icon" style="width:48px; height:48px;"><img src="/brand/logo-mark.png" alt="Akore Labs"></div>
-      </div>
-      <div style="font-family:var(--display); font-size:22px; font-weight:700; color:var(--text); text-align:center; margin-bottom:4px;" id="gate-title">${gt('title')}</div>
-      <div style="font-size:12px; color:var(--text-dim); text-align:center; margin-bottom:28px;" id="gate-sub">${gt('sub')}</div>
-      <input class="gate-input" id="user-input" type="text" placeholder="${gt('userPlaceholder')}" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')document.getElementById('pw-input').focus()">
-      <input class="gate-input" id="pw-input" type="password" placeholder="${gt('placeholder')}" autocomplete="current-password" style="margin-bottom:16px;" onkeydown="if(event.key==='Enter')tryAuth()">
-      <input class="gate-input" id="code-input" type="text" autocomplete="one-time-code" maxlength="13" placeholder="${gt('codePlaceholder')}" style="margin-bottom:16px; display:none; text-align:center; letter-spacing:2px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;" onkeydown="if(event.key==='Enter')tryAuth()">
-      <button class="btn" id="gate-access-btn" onclick="tryAuth()" style="width:100%; justify-content:center; padding:12px; font-size:14px;">${gt('accessBtn')}</button>
-      <div class="gate-error" id="pw-error" style="font-size:11px; color:var(--red); text-align:center; margin-top:10px; min-height:16px;"></div>
-      <div style="font-size:10px; color:var(--text-dim); text-align:center; margin-top:20px;" id="gate-footer">${gt('footer')}</div>
-    </div>`;
-  document.getElementById('gate-lang-en').classList.toggle('active', curLang === 'en');
-  document.getElementById('gate-lang-es').classList.toggle('active', curLang === 'es');
-  setTimeout(() => document.getElementById('user-input').focus(), 100);
-}
-
-function setGateLang(newLang) {
-  localStorage.setItem('hieronymus_lang', newLang);
-  showPasswordGate();
-}
-
-async function tryAuth() {
-  const userInput = document.getElementById('user-input');
-  const passInput = document.getElementById('pw-input');
-  const codeInput = document.getElementById('code-input');
-  const errEl = document.getElementById('pw-error');
-  const username = userInput.value.trim().toLowerCase();
-  const password = passInput.value.trim();
-  const code = window.akoreCodeValue(codeInput);
-  if (!username || !password) return;
-  const lang = localStorage.getItem('hieronymus_lang') || 'es';
-
-  // Three possible answers: in, needs a code, or needs an authenticator set up first. The setup
-  // dialog ends signed in, so there is no second round trip to get wrong.
-  const attempt = await window.akoreSignIn(username, password, code, lang);
-  if (attempt.cancelled) { errEl.textContent = ''; return; }
-  if (attempt.needsCode) {
-    if (codeInput) codeInput.style.display = '';
-    errEl.textContent = window.showGateCode(attempt, lang, !!code);
-    return;
-  }
-  if (!attempt.ok) {
-    passInput.classList.add('error');
-    errEl.textContent = attempt.error || (lang === 'es'
-      ? 'Usuario o contraseña incorrectos. Intenta de nuevo.'
-      : 'Incorrect username or password. Try again.');
-    passInput.value = '';
-    setTimeout(() => { passInput.classList.remove('error'); passInput.focus(); }, 400);
-    return;
-  }
-  // Where someone lands is decided by who they are, not by the page they signed in on.
-  window.akoreLand(attempt.who);
 }
 
 </script>

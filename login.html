@@ -62,6 +62,12 @@ const T = {
   sending:     { en: 'Taking you to your dashboard…', es: 'Te estamos llevando a tu panel…' },
   checking:    { en: 'Checking…', es: 'Verificando…' }
 };
+// Where they were trying to get to before being sent here. akoreLand() decides whether to honour
+// it — a customer pointed at an internal page is sent home instead of bounced.
+function nextTarget() {
+  try { return new URLSearchParams(location.search).get('next') || ''; } catch (e) { return ''; }
+}
+
 function lang() { try { return localStorage.getItem('hieronymus_lang') || 'es'; } catch (e) { return 'es'; } }
 function t(k) { return T[k][lang()]; }
 function setLang(next) { try { localStorage.setItem('hieronymus_lang', next); } catch (e) {} showForm(); }
@@ -131,14 +137,14 @@ async function tryAuth() {
   // their own. This page never makes that choice itself.
   errEl.textContent = '';
   btn.disabled = true; btn.textContent = t('sending');
-  window.akoreLand(attempt.who);
+  window.akoreLand(attempt.who, nextTarget());
 }
 
 // Already signed in? Then this page has nothing to ask, and standing here would be a dead end.
 // Tries both session stores, because either kind of person can arrive at this URL.
 document.getElementById('boot').textContent = t('checking');
 window.akoreRestoreEither().then(function (who) {
-  if (who) { window.akoreLand(who); return; }
+  if (who) { window.akoreLand(who, nextTarget()); return; }
   showForm();
 }).catch(function () { showForm(); });
 </script>

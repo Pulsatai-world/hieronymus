@@ -510,6 +510,48 @@ function scrypt(pw) {
       'filed wrongly');
   }
 
+
+  // ── One sign-in page, not six ──
+  console.log("\nOne sign-in page:");
+  {
+    for (const page of ['portal.html', 'index.html', 'intake-view.html']) {
+      const src = fs.readFileSync(page, 'utf8');
+      check(page + ' carries no sign-in form of its own',
+        !/id="pw-input"/.test(src) && !/akoreSignIn/.test(src),
+        'it still has its own gate');
+      check(page + ' sends people to the one that exists',
+        /akoreGoToLogin\s*\(/.test(src), 'it does not redirect to the login page');
+    }
+
+    // Where ?next= is honoured, and where it is not.
+    reset();
+    const { w } = browser('https://test.local/login.html?next=%2Findex.html%3Fcompany%3DFIACSA');
+    const signingIn = w.akoreSignIn('akore-rene', PW, '', 'es');
+    await completeSetup(w);
+    const staff = (await settle(signingIn)).who;
+    check('staff are returned to the page they were trying to reach',
+      w.akoreLand(staff, '/index.html?company=FIACSA') === '/index.html?company=FIACSA',
+      w.akoreLand(staff, '/index.html?company=FIACSA'));
+
+    reset();
+    const { w: c } = browser('https://test.local/login.html');
+    const signingIn2 = c.akoreSignIn('fiacsa', PW, '', 'es');
+    await completeSetup(c);
+    const cust = (await settle(signingIn2)).who;
+    check('a customer aimed at an internal page goes home instead of bouncing',
+      c.akoreLand(cust, '/portal.html') === '/client-portal.html?username=fiacsa',
+      c.akoreLand(cust, '/portal.html'));
+    check('but a customer-facing destination is honoured',
+      c.akoreLand(cust, '/prompt-review.html?username=fiacsa') === '/prompt-review.html?username=fiacsa',
+      c.akoreLand(cust, '/prompt-review.html?username=fiacsa'));
+    check('an off-site destination is refused',
+      c.akoreLand(cust, '//evil.test/steal') === '/client-portal.html?username=fiacsa',
+      c.akoreLand(cust, '//evil.test/steal'));
+    check('and so is an absolute URL',
+      c.akoreLand(cust, 'https://evil.test/steal') === '/client-portal.html?username=fiacsa',
+      c.akoreLand(cust, 'https://evil.test/steal'));
+  }
+
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
   process.exit(failures ? 1 : 0);
 })();
