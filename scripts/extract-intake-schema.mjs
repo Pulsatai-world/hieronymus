@@ -1,0 +1,171 @@
+// Turns intake.html into a question schema.
+//
+// The questions in this form ARE the markup: 11 panels of hand-written field groups, with every
+// piece of copy in data-en / data-es attributes. Nothing can be tweaked per customer until they are
+// data, and transcribing 78 fields by hand is how a question goes quietly missing — so this reads
+// the page and generates the template. Re-runnable, and checked by test/intake-schema.test.cjs.
+//
+//   node scripts/extract-intake-schema.mjs           write intake-template.default.json
+//   node scripts/extract-intake-schema.mjs --check   print a summary, write nothing
+//
+// What it deliberately does NOT invent: the mapping from a field id to where its answer is stored.
+// That lives in collectData(), so it is parsed from there rather than re-derived — a schema that
+// disagreed with collectData would save a customer's answers into the wrong place.
+
+import fs from 'node:fs';
+import * as cheerio from 'cheerio';
+
+const SRC = 'intake.html';
+const OUT = 'intake-template.default.json';
+const CHECK = process.argv.includes('--check');
+
+export function extract(source) {
+const html = source !== undefined ? source : fs.readFileSync(SRC, 'utf8');
+const $ = cheerio.load(html);
+
+  // ── Where each answer is stored, read from collectData() ──
+function readMapping() {
+  const body = html.slice(html.indexOf('function collectData()'));
+  const src = body.slice(0, body.indexOf('\n}'));
+  const mapping = {};      // field id -> [paths]
+  const special = [];      // things that are not a plain field
+  for (const line of src.split('\n')) {
+    const sec = line.match(/^\s*(\w+):\s*\{(.*)\},?\s*$/);
+    if (!sec) continue;
+    const [, section, inner] = sec;
+    for (const part of inner.split(/,\s*(?=\w+:)/)) {
+      const m = part.match(/^\s*(\w+):\s*(.+?)\s*$/);
+      if (!m) continue;
+      const [, key, expr] = m;
+      const path = `${section}.${key}`;
+      const g = expr.match(/^g\('([^']+)'\)$/);
+      if (g) { (mapping[g[1]] ||= []).push(path); continue; }
+      const tags = expr.match(/^\[\.\.\.(\w+)\]$/);
+      if (tags) { special.push({ kind: 'tags', source: tags[1], path }); continue; }
+      const fn = expr.match(/^(\w+)\(\)$/);
+      if (fn) { special.push({ kind: 'repeater', source: fn[1], path }); continue; }
+      special.push({ kind: 'unknown', source: expr, path });
+    }
+  }
+  return { mapping, special };
+}
+
+// ── Sections, in the order the tabs present them ──
+function readSections() {
+  const sections = [];
+  $('.panel').each((i, el) => {
+    const id = $(el).attr('id');
+    if (!id) return;
+    const tab = $('#' + id.replace(/^panel-/, 'tab-'));
+    const label = tab.find('.tab-label');
+    sections.push({
+      id,
+      order: i,
+      title: { en: label.attr('data-en') || label.text().trim(), es: label.attr('data-es') || label.text().trim() }
+    });
+  });
+  return sections;
+}
+
+const bilingual = el => ({
+  en: (el.attr('data-en') || el.text() || '').trim(),
+  es: (el.attr('data-es') || el.attr('data-en') || el.text() || '').trim()
+});
+
+function readFields(sections, mapping) {
+  const fields = [];
+  for (const section of sections) {
+    $('#' + section.id).find('.field-group').each((_, groupEl) => {
+      const group = $(groupEl);
+      const label = group.children('label').first();
+      const hint = group.children('.field-hint').first();
+      const control = group.children('input, textarea, select').first();
+
+      if (!control.length) {
+        // A tag widget: the control lives inside .tag-wrapper and is handled as a widget below.
+        if (group.children('.tag-wrapper').length) {
+          fields.push({
+            id: group.find('.tag-wrapper input').attr('id') || null,
+            section: section.id, type: 'tags', paths: [],
+            label: label.length ? bilingual(label) : null,
+            help: hint.length ? bilingual(hint) : null
+          });
+        }
+        return;
+      }
+
+      const id = control.attr('id');
+      if (!id) return;                                  // repeater sub-inputs (p-title etc.)
+      const tag = control.get(0).tagName;
+      const type = tag === 'textarea' ? 'textarea'
+                 : tag === 'select' ? 'select'
+                 : (control.attr('type') || 'text');
+
+      const field = {
+        id,
+        section: section.id,
+        type,
+        paths: mapping[id] || [],
+        label: label.length ? bilingual(label) : null,
+        help: hint.length ? bilingual(hint) : null,
+        placeholder: control.attr('placeholder') || ''
+      };
+      if (type === 'select') {
+        field.options = control.find('option').map((__, o) => ({
+          value: $(o).attr('value') ?? '',
+          label: bilingual($(o))
+        })).get();
+      }
+      fields.push(field);
+    });
+  }
+  return fields;
+}
+
+const { mapping, special } = readMapping();
+const sections = readSections();
+const fields = readFields(sections, mapping);
+
+return {
+  version: 1,
+  generatedFrom: SRC,
+  note: 'Generated by scripts/extract-intake-schema.mjs. Edit the generator, not this file.',
+  sections,
+  fields,
+  // Tag widgets and the two repeaters (additional sites, personas) are bespoke sub-forms rather
+  // than single controls. They are listed so nothing is silently lost, and stay hand-built for now.
+  widgets: special
+};
+}
+
+// ── CLI ──
+// Only when run directly. The suite imports extract() to regenerate in memory and compare against
+// the committed file; without this guard that import rewrote the file first, so the check could
+// never fail — it was comparing the template to itself.
+import { fileURLToPath } from 'node:url';
+const RUN_DIRECTLY = process.argv[1] && fileURLToPath(import.meta.url) === fs.realpathSync(process.argv[1]);
+if (RUN_DIRECTLY) {
+const template = extract();
+const { fields, sections, widgets: special } = template;
+const mapping = {};
+for (const f of fields) for (const p of f.paths) (mapping[f.id] ||= []).push(p);
+
+const mapped = fields.filter(f => f.paths.length).length;
+const unmapped = fields.filter(f => !f.paths.length && f.type !== 'tags');
+console.log(`sections        ${sections.length}`);
+console.log(`fields          ${fields.length}  (${mapped} mapped to a stored path)`);
+console.log(`selects         ${fields.filter(f => f.type === 'select').length}`);
+console.log(`tag widgets     ${special.filter(s => s.kind === 'tags').length}`);
+console.log(`repeaters       ${special.filter(s => s.kind === 'repeater').length}  ${special.filter(s => s.kind === 'repeater').map(s => s.path).join(', ')}`);
+const dual = Object.entries(mapping).filter(([, p]) => p.length > 1);
+if (dual.length) console.log(`stored twice    ${dual.map(([id, p]) => id + ' -> ' + p.join(' + ')).join('; ')}`);
+if (unmapped.length) console.log(`NOT STORED      ${unmapped.map(f => f.id).join(', ')}`);
+if (special.some(s => s.kind === 'unknown')) {
+  console.log(`UNRECOGNISED    ${special.filter(s => s.kind === 'unknown').map(s => s.path + ' = ' + s.source).join('; ')}`);
+}
+
+if (!CHECK) {
+  fs.writeFileSync(OUT, JSON.stringify(template, null, 2) + '\n');
+  console.log(`\nwritten to ${OUT}`);
+}
+}
