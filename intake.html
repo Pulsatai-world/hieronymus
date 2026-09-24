@@ -1880,11 +1880,12 @@ function showApp() {
   // The form was a dead end: no way back to the portal, and an inert logo.
   if (window.wireLogoHome) window.wireLogoHome(clientCompany);
   const backLink = document.getElementById('intake-back-link');
-  if (backLink && window.homeHref) {
-    backLink.href = window.homeHref(clientCompany);
-    backLink.textContent = lang === 'es' ? '← Mi portal' : '← My portal';
-    backLink.style.display = '';
-  }
+  if (backLink && window.akoreWireBack) window.akoreWireBack(backLink, clientCompany);
+
+  // Staff are not signed in as this customer, so "log out" has nothing here to end and would only
+  // be a second, more alarming way to do what back already does.
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn && isStaffBypass) logoutBtn.style.display = 'none';
   document.getElementById('app-content').style.display = '';
   const companyInput = document.getElementById('company');
   if (companyInput && !companyInput.value.trim() && clientCompany) companyInput.value = clientCompany;

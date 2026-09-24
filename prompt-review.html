@@ -271,7 +271,8 @@ function updateBackLink() {
 function showApp() {
   document.getElementById('access-gate').style.display = 'none';
   document.getElementById('main-content').style.display = 'block';
-  document.getElementById('logout-btn').style.display = '';
+  // Staff reviewing on a customer's behalf hold their own session; there is nothing here to end.
+  document.getElementById('logout-btn').style.display = isStaffReviewer ? 'none' : '';
   updateBackLink();
   loadPrompts();
 }

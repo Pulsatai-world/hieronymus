@@ -26,9 +26,9 @@ const check = (name, ok, detail) => {
 const authSrc = fs.readFileSync(path.join(ROOT, 'js', 'auth.js'), 'utf8');
 
 /** A browser holding a staff session, with the server answering the bypass. */
-function browser(search) {
+function browser(search, page) {
   const dom = new JSDOM('<!doctype html><body></body>', {
-    url: 'https://t.local/intake.html' + (search || ''),
+    url: 'https://t.local' + (page || '/intake.html') + (search || ''),
     runScripts: 'outside-only', virtualConsole: new VirtualConsole()
   });
   const w = dom.window;
@@ -100,9 +100,10 @@ function browser(search) {
     check('a bar says whose page this is', !!bar, 'no bar was drawn');
     check('and names the customer', bar && bar.textContent.indexOf('Demo Logistics') !== -1,
       bar && bar.textContent);
-    check('with a way back to them',
-      !!bar && !!bar.querySelector('a[href*="/index.html?company="]'),
-      bar && bar.innerHTML.slice(0, 120));
+    // The bar says where you are. It is deliberately NOT a second way to leave: a page gets one
+    // navigation control, and it is the page's own back link.
+    check('the bar is not a second back button', !bar.querySelector('a'),
+      bar.innerHTML.slice(0, 120));
 
     // Opening a second page must not stack bars.
     await w.akoreStaffBypass('demo-logistics');
@@ -131,6 +132,71 @@ function browser(search) {
       /function applyPreviewMode\(\)/.test(page) && /save-progress-btn/.test(page), 'not present');
     check('and it is applied after the session is adopted',
       /applyPreviewMode\(\);/.test(page.slice(page.indexOf('async function adoptSession'))), 'never called');
+  }
+
+
+  console.log('\nOne way back, and it goes where you came from:\n');
+  {
+    // A client page gets exactly one navigation control. Where it leads is not the same for both
+    // kinds of person and the page cannot know: a customer came from their own portal, a staff
+    // member came from that customer's internal page. intake.html hardcoded "my portal" and so told
+    // half its visitors the wrong thing, while prompt-review worked it out — the same decision made
+    // twice, agreeing once.
+    const w = browser();
+    await w.akoreStaffBypass('demo-logistics');
+    const el = w.document.createElement('a');
+    w.document.body.appendChild(el);
+
+    const dest = w.akoreWireBack(el, 'Demo Logistics');
+    check('staff are sent back to the customer', dest === '/index.html?company=Demo%20Logistics', dest);
+    check('and the label says so rather than "my portal"',
+      el.textContent.indexOf('Demo Logistics') !== -1 && el.textContent.indexOf('portal') === -1,
+      el.textContent);
+    check('and it is visible', el.style.display !== 'none', el.style.display);
+  }
+
+  {
+    const w = browser();
+    w.localStorage.removeItem('akore_staff_session');
+    w.sessionStorage.setItem('akore_client_session', 'client-token');
+    w.fetch = async () => ({ ok: true, status: 200, json: async () => ({
+      username: 'demo-logistics', company: 'Demo Logistics', kind: 'customer', role: 'full' }) });
+    await w.akoreAuth.restore();
+    const el = w.document.createElement('a');
+    w.document.body.appendChild(el);
+
+    const dest = w.akoreWireBack(el, 'Demo Logistics');
+    check('a customer is sent to their own portal',
+      dest.indexOf('/client-portal.html') === 0, dest);
+    check('and told so in their own words', el.textContent.indexOf('portal') !== -1, el.textContent);
+  }
+
+  {
+    // On the page it would lead to, back leads nowhere and is hidden rather than looping.
+    const w = browser('', '/client-portal.html');
+    w.localStorage.removeItem('akore_staff_session');
+    w.sessionStorage.setItem('akore_client_session', 'client-token');
+    w.fetch = async () => ({ ok: true, status: 200, json: async () => ({
+      username: 'demo-logistics', company: 'Demo Logistics', kind: 'customer', role: 'full' }) });
+    await w.akoreAuth.restore();
+    const el = w.document.createElement('a');
+    w.document.body.appendChild(el);
+    const dest = w.akoreWireBack(el, 'Demo Logistics');
+    check('on the customer portal itself there is no back button',
+      dest === '' && el.style.display === 'none', dest + ' / ' + el.style.display);
+  }
+
+  console.log('\nAnd no page offers a second way out:\n');
+  {
+    const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
+    check('intake.html hides log out for staff',
+      /logoutBtn && isStaffBypass/.test(read('intake.html')), 'still shown');
+    check('prompt-review.html hides log out for staff',
+      /isStaffReviewer \? 'none'/.test(read('prompt-review.html')), 'still shown');
+    check('client-portal.html offers back instead of log out for staff',
+      /akoreIsStaffBypass\(\)/.test(read('client-portal.html')), 'still offers log out only');
+    check('intake.html no longer hardcodes "My portal"',
+      !/← My portal/.test(read('intake.html')), 'the hardcoded label is still there');
   }
 
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));

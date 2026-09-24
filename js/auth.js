@@ -477,18 +477,51 @@
               : "You are viewing " + company + "'s page as Akore staff.");
       bar.appendChild(text);
 
-      const back = document.createElement('a');
-      back.href = '/index.html?company=' + encodeURIComponent(company);
-      back.textContent = es ? 'Volver al cliente' : 'Back to the customer';
-      back.style.cssText = 'color:#fff;background:rgba(255,255,255,.14);border-radius:999px;'
-        + 'padding:5px 12px;text-decoration:none;white-space:nowrap;font-weight:600;';
-      bar.appendChild(back);
-
       const put = () => document.body && document.body.insertBefore(bar, document.body.firstChild);
       if (document.body) put();
       else document.addEventListener('DOMContentLoaded', put);
     } catch (e) { /* the bar is a courtesy; never let it stop the page */ }
   }
+
+  /**
+   * The single navigation control a client-facing page has: back, to wherever the person looking
+   * came from.
+   *
+   * Which is not the same place for both kinds of person, and the page cannot know: a customer came
+   * from their own portal, a staff member came from that customer's internal page. intake.html
+   * hardcoded "my portal" and so said the wrong thing to half its visitors, while prompt-review
+   * worked it out for itself — the same decision, made twice, agreeing once.
+   *
+   * Returns the destination it chose, so it can be checked without a navigation.
+   */
+  window.akoreWireBack = function (el, company) {
+    if (!el) return '';
+    const who = api.who();
+    const es = (function () {
+      try { return (localStorage.getItem('hieronymus_lang') || 'es') === 'es'; } catch (e) { return true; }
+    })();
+    const name = (who && who.company) || company || '';
+
+    if (who && who.staffBypass) {
+      // The value set, not el.href back out of the element: the browser resolves that against the
+      // current page and hands back an absolute URL, which is a different thing than was chosen.
+      const href = '/index.html?company=' + encodeURIComponent(name);
+      el.href = href;
+      el.textContent = (es ? '← Volver a ' : '← Back to ') + name;
+      el.style.display = '';
+      return href;
+    }
+    const home = window.homeHref(company);
+    // On a customer's own portal there is nowhere further back to go.
+    if (!home || home.split('?')[0] === location.pathname) {
+      el.style.display = 'none';
+      return '';
+    }
+    el.href = home;
+    el.textContent = es ? '← Mi portal' : '← My portal';
+    el.style.display = '';
+    return home;
+  };
 
   /** True when this page is being viewed by staff standing in for a customer. */
   window.akoreIsStaffBypass = function () {

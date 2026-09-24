@@ -240,6 +240,7 @@ const T = {
   wfDashPreparing: { en: 'Your audit has run — we’re reviewing the results and will share your dashboard shortly.', es: 'Tu auditoría ya se corrió. Estamos revisando los resultados y en poco tiempo te compartimos tu tablero.' },
   wfOpenDashboard: { en: 'Open dashboard', es: 'Abrir tablero' },
   logoutBtn: { en: 'Log out', es: 'Cerrar sesión' },
+  backToCustomer: { en: (c) => `← Back to ${c}`, es: (c) => `← Volver a ${c}` },
   settingsTitle: { en: 'Settings', es: 'Ajustes' },
   changePasswordTitle: { en: 'Change password', es: 'Cambiar contraseña' },
   currentPasswordPlaceholder: { en: 'Current password', es: 'Contraseña actual' },
@@ -451,7 +452,13 @@ function parseCSV(text) {
 
 function titleRow() {
   const settingsBtn = clientRole === 'viewer' ? '' : `<button class="btn-ghost-sm" onclick="openSettings()">${t('settingsBtn')}</button>`;
-  return `<div class="page-title-row"><div class="page-title">${esc(clientCompany)}</div><div style="display:flex; gap:8px;">${settingsBtn}<button class="btn-ghost-sm" onclick="clientLogout()">${t('logoutBtn')}</button></div></div>`;
+  // Staff looking at a customer's portal get the one control that makes sense for them: back to
+  // that customer. They are not signed in as the customer, so there is no session here to end.
+  const viaStaff = window.akoreIsStaffBypass && window.akoreIsStaffBypass();
+  const leave = viaStaff
+    ? `<a class="btn-ghost-sm" href="/index.html?company=${encodeURIComponent(clientCompany)}">${t('backToCustomer', clientCompany)}</a>`
+    : `<button class="btn-ghost-sm" onclick="clientLogout()">${t('logoutBtn')}</button>`;
+  return `<div class="page-title-row"><div class="page-title">${esc(clientCompany)}</div><div style="display:flex; gap:8px;">${settingsBtn}${leave}</div></div>`;
 }
 function clientLogout() {
   // Ends the session on the server too, so signing out really signs out — see js/auth.js.
