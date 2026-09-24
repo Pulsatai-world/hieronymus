@@ -58,7 +58,15 @@ function problemsWith(tpl) {
     if (!f || typeof f.id !== 'string' || !f.id.trim()) { bad.push('Every field needs an id'); continue; }
     if (seen.has(f.id)) bad.push(`Two fields share the id "${f.id}"`);
     seen.add(f.id);
-    if (!Array.isArray(f.paths) || !f.paths.length) bad.push(`Field "${f.id}" has nowhere to store its answer`);
+    // Not every question is an answer. The two chip inputs are stored through their widget rather
+    // than through a path of their own, and `site-count` drives the repeater instead of being
+    // recorded — so a field with no path is normal, and rejecting it refused the default template
+    // that every customer starts from. It IS a mistake on a question staff added, because the
+    // editor always gives one an `extra.` path, so an added question without one is a broken write.
+    if (f.custom && (!Array.isArray(f.paths) || !f.paths.length)) {
+      bad.push(`Added question "${f.id}" has nowhere to store its answer`);
+    }
+    if (f.paths !== undefined && !Array.isArray(f.paths)) bad.push(`Field "${f.id}" has an invalid paths list`);
   }
 
   return bad;

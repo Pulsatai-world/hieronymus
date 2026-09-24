@@ -100,6 +100,34 @@ const okTemplate = (extra = {}) => ({
       withdrawn.status === 200 && back.template === null, JSON.stringify(back).slice(0, 80));
   }
 
+  console.log('\nThe form every customer starts from:\n');
+  {
+    // This is the template the editor opens when nobody has tailored anything yet, so it is the
+    // first thing anyone will ever press Save on. It was refused: three of its questions store
+    // nothing by design — the two chip inputs are recorded through their widget, and `site-count`
+    // drives the repeater rather than being an answer — and the validator demanded a path from
+    // every field. Every hand-written fixture in this suite had paths, so nothing caught it.
+    const fs = require('fs');
+    const real = JSON.parse(fs.readFileSync(require('path').join(__dirname, '..', 'intake-template.default.json'), 'utf8'));
+
+    const saved = await call(fn, 'POST', { body: { session: STAFF, company: 'Default Co', template: real } });
+    const body = await saved.json();
+    check('the default template can be saved unchanged', saved.status === 200,
+      saved.status + ' ' + (body.error || ''));
+    check('and it warns about nothing, because nothing is missing from it',
+      body.warnings && body.warnings.length === 0, JSON.stringify(body.warnings));
+
+    const rel = await call(fn, 'PATCH', { body: { session: STAFF, company: 'Default Co' } });
+    check('and released', rel.status === 200, String(rel.status));
+
+    // Round trip: what a customer is then served is the same form, not a stripped version.
+    const cust = await createClientSession('def-user', 'Default Co');
+    const got = await (await call(fn, 'GET', { qs: custQ(cust, '&company=Default Co') })).json();
+    check('the customer gets every question back',
+      got.template && got.template.fields.length === real.fields.length,
+      (got.template ? got.template.fields.length : 'none') + ' of ' + real.fields.length);
+  }
+
   console.log('\nWhat a template may and may not do:\n');
   {
     // Structure is enforced, because a field with no id or nowhere to store its answer is not a
@@ -108,9 +136,19 @@ const okTemplate = (extra = {}) => ({
     check('a field with no id is refused',
       (await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: noId } })).status === 400, 'accepted');
 
-    const noPath = okTemplate(); noPath.fields.push({ id: 'z', section: 'panel-0', type: 'text', paths: [] });
-    check('a field with nowhere to store its answer is refused',
-      (await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: noPath } })).status === 400, 'accepted');
+    const addedNoPath = okTemplate();
+    addedNoPath.fields.push({ id: 'z', section: 'panel-0', type: 'text', custom: true, paths: [] });
+    check('an ADDED question with nowhere to store its answer is refused',
+      (await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: addedNoPath } })).status === 400,
+      'accepted');
+
+    // But a question that stores nothing on purpose is fine, and has to be: the default template
+    // has three of them.
+    const control = okTemplate();
+    control.fields.push({ id: 'site-count', section: 'panel-0', type: 'select', paths: [] });
+    check('a question that deliberately records nothing is allowed',
+      (await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: control } })).status === 200,
+      'refused');
 
     const dupe = okTemplate(); dupe.fields.push({ id: 'company', section: 'panel-0', type: 'text', paths: ['a.b'] });
     check('two fields cannot share an id',
