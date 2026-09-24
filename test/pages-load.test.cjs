@@ -136,6 +136,55 @@ const PAGES = fs.readdirSync(ROOT).filter(f => f.endsWith('.html'));
     try { dom.window.close(); } catch (e) {}
   }
 
+
+  console.log('\nThe data is not waiting behind the session check:\n');
+  {
+    // Checking the session is its own request to its own serverless function. Making everything
+    // else wait for it put a full round trip, plus a cold start, in front of a blank page on every
+    // visit — measured locally at 283ms serial against 122ms parallel, and far worse cold.
+    //
+    // It was never what protected the data: every endpoint verifies the session itself, which is
+    // the only place it can be enforced. So the requests go out together and the answers are
+    // thrown away if the check says no.
+    const order = [];
+    const seen = [];
+    const vc = new VirtualConsole();
+
+    const dom = new JSDOM(pageWithScripts('portal.html'), {
+      url: 'https://t.local/portal.html', runScripts: 'dangerously', virtualConsole: vc,
+      beforeParse(w) {
+        w.alert = () => {}; w.confirm = () => false;
+        try { w.localStorage.setItem('akore_staff_session', 'test-session'); } catch (e) {}
+        w.fetch = async (u) => {
+          const s = String(u);
+          seen.push(s);
+          if (/\/api\/login/.test(s)) {
+            order.push('login-start');
+            // The check answers slowly. Anything that waited for it can only have been requested
+            // after this resolves, which is what the marker below separates.
+            await new Promise(r => setTimeout(r, 120));
+            order.push('login-done');
+            return { ok: true, status: 200, json: async () => ({ username: 'a', kind: 'staff', role: 'admin' }) };
+          }
+          order.push('data');
+          return { ok: true, status: 200, json: async () => ({ items: [], companies: {} }),
+                   text: async () => '' };
+        };
+      }
+    });
+
+    await new Promise(r => setTimeout(r, 300));
+    const done = order.indexOf('login-done');
+    const before = order.slice(0, done === -1 ? order.length : done).filter(x => x === 'data').length;
+    check('the customer list is requested without waiting for the session check',
+      before >= 3, 'only ' + before + ' of 3 went out first: ' + JSON.stringify(order));
+    check('and the session is still checked', order.indexOf('login-start') !== -1, JSON.stringify(order));
+    check('every data request carries the session',
+      seen.filter(u => /\/api\/(intake-codes|prompts|results)/.test(u)).every(u => /session=/.test(u)),
+      seen.filter(u => !/session=/.test(u)).join(' | '));
+    try { dom.window.close(); } catch (e) {}
+  }
+
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
   process.exit(failures ? 1 : 0);
 })();

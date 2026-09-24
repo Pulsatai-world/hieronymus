@@ -662,18 +662,30 @@ function parseCSV(text) {
 
 let allCustomerItems = [], promptsBySlug = {}, runsByCompany = {};
 
+/**
+ * The three requests the customer list is built from.
+ *
+ * Started before the session check has answered, not after it. The check is a fourth request to a
+ * fourth serverless function, and making the other three wait for it put a whole round trip — plus
+ * a cold start — in front of an empty page every single time. It is not what keeps anyone out:
+ * every one of these endpoints verifies the session itself and refuses without it, which is the
+ * only place that can be enforced anyway. If the check comes back negative the answers are simply
+ * discarded and the sign-in form is shown.
+ */
+let pendingPortalData = null;
+function fetchPortalData() {
+  return Promise.all([
+    window.apiQuery('/api/intake-codes', {}).then(fetch),
+    window.apiQuery('/api/prompts', {}).then(fetch),
+    window.apiQuery('/api/results', { summary: '1' }).then(fetch)
+  ]);
+}
+
 async function loadAll() {
   const container = document.getElementById('customers-list');
   try {
-    const [codesRes, promptsRes, summaryRes] = await Promise.all([
-      fetch(await window.apiQuery('/api/intake-codes', {})),
-      fetch(await window.apiQuery('/api/prompts', {})),
-      // Summary, not the rows. This list needs one thing from the audit history — which dates each
-      // customer has run on — and it used to get it by downloading every result row on the
-      // platform and counting them in the browser. Ten thousand rows cost ten thousand round trips
-      // to draw a list of four customers, and every audit ever run made opening the app slower.
-      fetch(await window.apiQuery('/api/results', { summary: '1' }))
-    ]);
+    const [codesRes, promptsRes, summaryRes] = await (pendingPortalData || fetchPortalData());
+    pendingPortalData = null;
     const codesData = await codesRes.json();
     const promptsData = await promptsRes.json().catch(() => ({ items: [] }));
     const summary = await summaryRes.json().catch(() => ({ companies: {} }));
@@ -1392,8 +1404,10 @@ async function removeStaffUser(username) {
 // storage is not proof of anything — a stored flag once opened the internal pages indefinitely, with
 // no code ever asked for again. If there is no live session the gate is shown, where a password and
 // a code are both required.
+// Both at once: the data cannot be shown until the gate agrees, but it can be on its way.
+pendingPortalData = fetchPortalData();
 window.akoreRequireStaff().then(function (gate) {
-  if (!gate.ok) { if (!gate.redirecting) showPasswordGate(); return; }
+  if (!gate.ok) { pendingPortalData = null; if (!gate.redirecting) showPasswordGate(); return; }
   if (isAdmin()) document.getElementById('manage-staff-nav-btn').style.display = '';
   applyStaticLang();
   loadAll();

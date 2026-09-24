@@ -642,6 +642,28 @@ let jobPollTimer = null;
 window.__resultsAuthNoPrompt = false;
 let currentPromptCount = 0;
 let currentCodeRec = null;
+
+/**
+ * Everything this page is drawn from, in one parallel batch.
+ *
+ * Started before the staff session check has answered. That check is its own request to its own
+ * serverless function, and waiting for it before asking for anything put a full round trip, plus a
+ * cold start, in front of a blank page on every visit. It is not what protects the data: each of
+ * these endpoints verifies the session itself, which is the only place it can be enforced.
+ */
+let pendingCompanyData = null;
+function fetchCompanyData(company) {
+  const j = r => (r.ok ? r.json() : null);
+  return Promise.all([
+    window.intakeQuery(company).then(fetch).then(j).catch(() => null),
+    // /api/prompts withholds the text until an Akore reviewer releases it, so this page identifies
+    // itself as staff to keep seeing unreleased sets; without that the card shows status only.
+    window.apiQuery('/api/prompts', { company }).then(fetch).then(j).catch(() => null),
+    window.resultsQuery(company).then(fetch).then(r => (r.ok ? r.text() : '')).catch(() => ''),
+    window.apiQuery('/api/intake-codes', { company }).then(fetch).then(j).catch(() => null),
+    window.apiQuery('/api/intake-template', { company }).then(fetch).then(j).catch(() => null)
+  ]);
+}
 let lastRunEngines = null;
 let currentCompany = '';
 let currentRows = [];
@@ -814,18 +836,10 @@ async function loadCompany(company) {
   // already cached — it never prompts here, because loadCompany() runs on every page view and a
   // password dialog on load would be hostile. Without it the card falls back to showing status
   // only, and the count comes from `promptCount`.
-  const promptsQuery = await window.apiQuery('/api/prompts', { company });
-
-  const tplQuery = await window.apiQuery('/api/intake-template', { company });
-  const [intakeRes, promptsRes, resultsText, codeRec, tplRec] = await Promise.all([
-    fetch(await window.intakeQuery(company)).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch(promptsQuery).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch(await window.resultsQuery(company)).then(r => r.ok ? r.text() : '').catch(() => ''),
-    fetch(await window.apiQuery('/api/intake-codes', { company })).then(r => r.ok ? r.json() : null).catch(() => null),
-    // In the parallel block, not after it. I added this as a fifth serial round trip, so every
-    // customer page waited for four requests and then waited again for a fifth.
-    fetch(tplQuery).then(r => r.ok ? r.json() : null).catch(() => null)
-  ]);
+  const [intakeRes, promptsRes, resultsText, codeRec, tplRec] =
+    await ((pendingCompanyData && pendingCompanyData.company === company)
+      ? pendingCompanyData.data : fetchCompanyData(company));
+  pendingCompanyData = null;
 
   currentCodeRec = codeRec || null;
 
@@ -2275,11 +2289,13 @@ async function pollGenerateJob(company, opts) {
   // Nothing on this page runs until the server confirms this browser holds a live session. A value
   // in storage is not proof — a stored flag once opened the internal pages indefinitely, with no
   // code ever asked for again.
-  const gate = await window.akoreRequireStaff();
-  if (!gate.ok) { if (!gate.redirecting) showPasswordGate(); return; }
-
   const params = new URLSearchParams(location.search);
   const company = params.get('company');
+  // On its way while the gate is being checked, rather than after.
+  if (company) pendingCompanyData = { company, data: fetchCompanyData(company, null) };
+
+  const gate = await window.akoreRequireStaff();
+  if (!gate.ok) { pendingCompanyData = null; if (!gate.redirecting) showPasswordGate(); return; }
   // Portal is the one place to choose/search/create a customer now — this page only makes
   // sense with a specific customer already selected, so bounce straight there instead of
   // showing a redundant bare "Select a customer" dropdown here too.
