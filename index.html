@@ -159,6 +159,18 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
 .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(8,9,12,0.5); align-items: center; justify-content: center; z-index: 200; padding: 20px; }
 .modal-backdrop.open { display: flex; }
 .modal-box { background: var(--surface); border-radius: var(--radius); padding: 28px; width: 100%; max-width: 440px; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+.modal-box.wide { max-width: 860px; }
+/* The editor's own rows. Deliberately plain: this is an internal tool and the questions themselves
+   are what the eye should land on, not the chrome around them. */
+.tpl-section { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
+.tpl-section-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--violet-50, #f6f4fe); font-weight: 650; font-size: 13.5px; }
+.tpl-row { display: grid; grid-template-columns: 26px 1fr 1fr 90px; gap: 10px; align-items: start; padding: 10px 14px; border-top: 1px solid var(--border); }
+.tpl-row.off { opacity: .5; }
+.tpl-row input[type=text], .tpl-row textarea { width: 100%; box-sizing: border-box; font-size: 13px; padding: 7px 9px; }
+.tpl-row .tpl-id { font-size: 11px; color: var(--muted, #7a8496); font-family: ui-monospace, monospace; }
+.tpl-locked { font-size: 11px; color: var(--muted, #7a8496); }
+.tpl-opts { grid-column: 2 / -1; }
+@media (max-width: 720px) { .tpl-row { grid-template-columns: 26px 1fr; } .tpl-row .tpl-opts { grid-column: 1 / -1; } }
 .field { margin-bottom: 14px; }
 .field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-dim); margin-bottom: 7px; }
 .field input, .field select { width: 100%; font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--radius-md); padding: 11px 14px; outline: none; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
@@ -224,6 +236,29 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
     <div class="row" style="margin-top:20px; justify-content:flex-end;">
       <button class="btn btn-ghost" onclick="closeRunModal()" data-t="cancelBtn">Cancel</button>
       <button class="btn" id="run-confirm-btn" onclick="confirmRunAudit()" data-t="runAuditBtn">Run Audit</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="intake-tpl-modal">
+  <div class="modal-box wide">
+    <div class="card-title" id="intake-tpl-title">Intake form</div>
+    <div class="card-caption" data-t="tplModalHint">Switch questions off, reword them in both languages, or add your own. Nothing here reaches the customer until you release it.</div>
+    <div class="field">
+      <label data-t="tplLangLabel">Language this customer fills the form in</label>
+      <select id="tpl-language">
+        <option value="both" data-t="tplLangBoth">Both, with a toggle</option>
+        <option value="es" data-t="tplLangEs">Spanish only</option>
+        <option value="en" data-t="tplLangEn">English only</option>
+      </select>
+    </div>
+    <div id="tpl-body" style="margin-top:16px;"></div>
+    <div id="tpl-status" class="field-hint" style="margin-top:12px;"></div>
+    <div class="row" style="margin-top:18px; justify-content:flex-end; flex-wrap:wrap;">
+      <button class="btn btn-ghost" onclick="closeIntakeEditor()" data-t="cancelBtn">Cancel</button>
+      <button class="btn btn-ghost" onclick="previewIntakeDraft()" data-t="tplPreviewBtn">Preview as client</button>
+      <button class="btn btn-ghost" onclick="saveIntakeDraft()" data-t="tplSaveBtn">Save draft</button>
+      <button class="btn" onclick="releaseIntakeTemplate()" data-t="tplReleaseBtn">Release to customer</button>
     </div>
   </div>
 </div>
@@ -438,6 +473,31 @@ const T = {
   giveUpWaitingBtn: { en: 'Stop waiting', es: 'Dejar de esperar' },
   checkAgainBtn: { en: 'Check again', es: 'Verificar de nuevo' },
   auditDoneLabel: { en: 'Audit complete', es: 'Auditoría completada' },
+  tplModalHint: { en: 'Switch questions off, reword them in both languages, or add your own. Nothing here reaches the customer until you release it.', es: 'Apaga preguntas, cámbiales el texto en los dos idiomas o agrega las tuyas. Nada de esto le llega al cliente hasta que lo publiques.' },
+  tplLangLabel: { en: 'Language this customer fills the form in', es: 'Idioma en el que este cliente llena el formulario' },
+  tplLangBoth: { en: 'Both, with a toggle', es: 'Los dos, con botón para cambiar' },
+  tplLangEs: { en: 'Spanish only', es: 'Solo español' },
+  tplLangEn: { en: 'English only', es: 'Solo inglés' },
+  tplPreviewBtn: { en: 'Preview as client', es: 'Ver como cliente' },
+  tplSaveBtn: { en: 'Save draft', es: 'Guardar borrador' },
+  tplReleaseBtn: { en: 'Release to customer', es: 'Publicar al cliente' },
+  tplWithdrawBtn: { en: 'Back to the default form', es: 'Volver al formulario estándar' },
+  tplEditBtn: { en: 'Edit intake form', es: 'Editar formulario' },
+  tplLabelEn: { en: 'Wording in English', es: 'Texto en inglés' },
+  tplLabelEs: { en: 'Wording in Spanish', es: 'Texto en español' },
+  tplAddBtn: { en: '+ Add a question', es: '+ Agregar pregunta' },
+  tplRemove: { en: 'Remove', es: 'Quitar' },
+  tplRequired: { en: 'always asked', es: 'siempre se pregunta' },
+  tplOptionsLabel: { en: 'Choices — one per line, as value | English | Spanish', es: 'Opciones: una por línea, como valor | inglés | español' },
+  tplUsingDefault: { en: 'This customer gets the standard questions.', es: 'Este cliente recibe las preguntas estándar.' },
+  tplTailored: { en: (n) => `Tailored form, ${n} questions asked.`, es: (n) => `Formulario a la medida, ${n} preguntas.` },
+  tplUnreleased: { en: 'You have saved changes the customer is not seeing yet.', es: 'Tienes cambios guardados que el cliente todavía no ve.' },
+  tplSaved: { en: 'Draft saved. The customer still sees the previous version.', es: 'Borrador guardado. El cliente sigue viendo la versión anterior.' },
+  tplReleased: { en: 'Released. This is the form the customer gets now.', es: 'Publicado. Este es el formulario que recibe el cliente ahora.' },
+  tplWithdrawn: { en: 'Back to the standard questions for this customer.', es: 'Este cliente vuelve a las preguntas estándar.' },
+  tplSaveFailed: { en: 'Could not save: ', es: 'No se pudo guardar: ' },
+  tplNewQuestion: { en: 'The question, in English:', es: 'La pregunta, en inglés:' },
+  tplNewQuestionEs: { en: 'The same question, in Spanish:', es: 'La misma pregunta, en español:' },
   auditDoneDetail: { en: (rows, cited) => `${rows} answers graded, ${cited} recommended. The results below are up to date.`, es: (rows, cited) => `${rows} respuestas evaluadas, ${cited} recomendadas. Los resultados de abajo ya están actualizados.` },
   statusUnreadableLabel: { en: 'Status unreadable', es: 'Estado ilegible' },
   statusUnreadableHint: { en: (m) => `Could not read the run status: ${m}. This says nothing about the run itself, which keeps going either way. It is this page that cannot see it.`, es: (m) => `No se pudo leer el estado de la ejecución: ${m}. Esto no dice nada sobre la ejecución, que sigue de todos modos. Es esta página la que no puede verla.` },
@@ -530,6 +590,7 @@ let jobPollTimer = null;
 // Pollers must never open a password dialog on a timer.
 window.__resultsAuthNoPrompt = false;
 let currentPromptCount = 0;
+let currentCodeRec = null;
 let lastRunEngines = null;
 let currentCompany = '';
 let currentRows = [];
@@ -711,6 +772,14 @@ async function loadCompany(company) {
     fetch(await window.apiQuery('/api/intake-codes', { company })).then(r => r.ok ? r.json() : null).catch(() => null)
   ]);
 
+  currentCodeRec = codeRec || null;
+  // Staff-only read: draft, released, and whether there are edits the customer has not been given.
+  let tplRec = null;
+  try {
+    const r = await fetch(await window.apiQuery('/api/intake-template', { company }));
+    if (r.ok) tplRec = await r.json();
+  } catch (e) { /* the card just reports the standard questions */ }
+
   const rows = parseCSV(resultsText).filter(r => r.brand === company);
   currentRows = rows;
   const runDates = [...new Set(rows.map(r => r.snapshot_date))].sort().reverse();
@@ -751,9 +820,25 @@ async function loadCompany(company) {
       </div>
     </div>`;
 
-  const intakeBlock = intakeRes
+  // Which questions this customer is actually asked, and whether staff have edits in hand that the
+  // customer has not been given yet — the one thing about a draft that belongs on the page rather
+  // than inside the editor, because otherwise it is invisible until someone happens to open it.
+  const tplLive = tplRec && tplRec.released;
+  const tplAsked = tplLive ? (tplLive.fields || []).filter(f => f.enabled !== false).length : 0;
+  const tplBlock =
+    `<div class="row" style="margin-top:10px; align-items:center; flex-wrap:wrap;">` +
+      `<span class="badge ${tplLive ? 'badge-submitted' : 'badge-pending'}">` +
+        (tplLive ? t('tplTailored', tplAsked) : t('tplUsingDefault')) +
+      `</span>` +
+      `<button class="btn btn-ghost btn-sm" onclick="openIntakeEditor()">${t('tplEditBtn')}</button>` +
+      (tplLive ? `<button class="btn btn-ghost btn-sm" onclick="withdrawIntakeTemplate()">${t('tplWithdrawBtn')}</button>` : '') +
+    `</div>` +
+    (tplRec && tplRec.unreleasedChanges
+      ? `<div class="field-hint" style="margin-top:6px;color:var(--warning);">${t('tplUnreleased')}</div>` : '');
+
+  const intakeBlock = (intakeRes
     ? `<span class="badge badge-submitted">${t('submittedOn')}${esc((intakeRes.savedAt || '').slice(0, 10))}</span> <a class="btn btn-ghost btn-sm" href="/intake-view.html?company=${encodeURIComponent(company)}">${t('viewResponses')}</a>`
-    : `<span class="badge badge-pending">${t('noIntakeYet')}</span>`;
+    : `<span class="badge badge-pending">${t('noIntakeYet')}</span>`) + tplBlock;
 
   // `promptsText` is present only for a verified staff request or an already-released set; the
   // withheld response still carries promptCount, so the card works either way.
@@ -1649,6 +1734,210 @@ async function setDashboardRelease(which, release) {
   } catch (err) {
     alert(t('releaseFailed') + err.message);
   }
+}
+
+// ── The intake form editor ──
+//
+// Tailoring a customer's intake: switch questions off, reword them, add your own, choose the
+// language they fill it in. Everything here edits a DRAFT. The customer keeps getting whatever was
+// last released (or the standard questions) until "Release to customer" is pressed, which is why
+// saving is safe to do as often as you like.
+//
+// The four answers the rest of the platform reads by name cannot be switched off or reworded away.
+// The endpoint refuses them regardless, at save and again at release — this only makes the rule
+// visible instead of letting someone build a form that is then rejected.
+const TPL_REQUIRED = ['general.company', 'general.industry', 'general.website', 'websites.primarySite'];
+const tplIsRequired = f => (f.paths || []).some(p => TPL_REQUIRED.includes(p));
+
+let intakeEditor = null;   // { company, template, releasedAt, unreleased }
+
+async function openIntakeEditor() {
+  if (!currentCompany) return;
+  let rec = {};
+  try {
+    const res = await fetch(await window.apiQuery('/api/intake-template', { company: currentCompany }));
+    if (res.ok) rec = await res.json();
+  } catch (e) { /* no record yet: start from the standard questions */ }
+
+  // Start from the draft if there is one, then whatever is released, then the standard set. Editing
+  // always continues from the most recent thing, never silently from an older copy.
+  let template = rec.draft || rec.released || null;
+  if (!template) {
+    try {
+      const res = await fetch('/intake-template.default.json');
+      template = res.ok ? await res.json() : null;
+    } catch (e) { template = null; }
+  }
+  if (!template) { alert(t('tplSaveFailed') + 'template'); return; }
+
+  intakeEditor = {
+    company: currentCompany,
+    template: JSON.parse(JSON.stringify(template)),
+    releasedAt: rec.releasedAt || null,
+    unreleased: !!rec.unreleasedChanges
+  };
+  document.getElementById('intake-tpl-title').textContent = t('intakeTitle') + ' — ' + currentCompany;
+  document.getElementById('tpl-language').value = intakeEditor.template.language || 'both';
+  renderIntakeEditor();
+  document.getElementById('tpl-status').textContent = intakeEditor.unreleased ? t('tplUnreleased') : '';
+  document.getElementById('intake-tpl-modal').classList.add('open');
+}
+
+function closeIntakeEditor() {
+  document.getElementById('intake-tpl-modal').classList.remove('open');
+  intakeEditor = null;
+}
+
+function renderIntakeEditor() {
+  const tpl = intakeEditor.template;
+  const body = document.getElementById('tpl-body');
+  const sections = (tpl.sections || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  body.innerHTML = sections.map(sec => {
+    const mine = (tpl.fields || []).filter(f => f.section === sec.id);
+    const rows = mine.map(f => {
+      const i = tpl.fields.indexOf(f);
+      const req = tplIsRequired(f);
+      const off = f.enabled === false;
+      const opts = f.type === 'select' && Array.isArray(f.options)
+        ? f.options.map(o => [o.value, (o.label && o.label.en) || '', (o.label && o.label.es) || ''].join(' | ')).join('\n')
+        : null;
+      return `<div class="tpl-row ${off ? 'off' : ''}">
+        <div>${req
+          ? `<span title="${esc(t('tplRequired'))}">🔒</span>`
+          : `<input type="checkbox" ${off ? '' : 'checked'} onchange="tplToggle(${i}, this.checked)" style="width:auto;">`}</div>
+        <div>
+          <input type="text" value="${esc((f.label && f.label.en) || '')}" placeholder="${esc(t('tplLabelEn'))}"
+                 oninput="tplLabel(${i},'en',this.value)">
+          <div class="tpl-id">${esc(f.id)} → ${esc((f.paths || []).join(', '))}</div>
+        </div>
+        <div>
+          <input type="text" value="${esc((f.label && f.label.es) || '')}" placeholder="${esc(t('tplLabelEs'))}"
+                 oninput="tplLabel(${i},'es',this.value)">
+        </div>
+        <div>${req ? `<span class="tpl-locked">${esc(t('tplRequired'))}</span>`
+                   : (f.custom ? `<button class="btn btn-ghost btn-sm" onclick="tplRemove(${i})">${esc(t('tplRemove'))}</button>` : '')}</div>
+        ${opts !== null ? `<div class="tpl-opts">
+           <label style="font-size:11px;">${esc(t('tplOptionsLabel'))}</label>
+           <textarea rows="${Math.min(Math.max(f.options.length, 2), 8)}" oninput="tplOptions(${i}, this.value)">${esc(opts)}</textarea>
+         </div>` : ''}
+      </div>`;
+    }).join('');
+
+    return `<div class="tpl-section">
+      <div class="tpl-section-head">
+        <span>${esc((sec.title && (sec.title[lang] || sec.title.en)) || sec.id)}</span>
+        <span style="flex:1;"></span>
+        <button class="btn btn-ghost btn-sm" onclick="tplAdd('${esc(sec.id)}')">${esc(t('tplAddBtn'))}</button>
+      </div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+function tplToggle(i, on) { intakeEditor.template.fields[i].enabled = on ? undefined : false; }
+function tplLabel(i, which, value) {
+  const f = intakeEditor.template.fields[i];
+  f.label = f.label || {};
+  f.label[which] = value;
+}
+function tplOptions(i, text) {
+  intakeEditor.template.fields[i].options = text.split('\n').map(line => {
+    const [value, en, es] = line.split('|').map(x => (x || '').trim());
+    return value ? { value, label: { en: en || value, es: es || en || value } } : null;
+  }).filter(Boolean);
+}
+function tplRemove(i) {
+  intakeEditor.template.fields.splice(i, 1);
+  renderIntakeEditor();
+}
+function tplAdd(sectionId) {
+  const en = prompt(t('tplNewQuestion'));
+  if (!en || !en.trim()) return;
+  const es = prompt(t('tplNewQuestionEs'), en) || en;
+  // Added questions are stored under `extra`, where nothing else in the platform reads — so a new
+  // question can never collide with an answer the generator or the grader depends on.
+  const slug = en.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 32) || 'question';
+  let id = 'extra-' + slug, n = 2;
+  while (intakeEditor.template.fields.some(f => f.id === id)) id = 'extra-' + slug + '-' + (n++);
+  intakeEditor.template.fields.push({
+    id, section: sectionId, custom: true, type: 'textarea',
+    paths: ['extra.' + id.replace(/^extra-/, '').replace(/-([a-z])/g, (m, c) => c.toUpperCase())],
+    label: { en: en.trim(), es: es.trim() }
+  });
+  renderIntakeEditor();
+}
+
+/** Writes the draft. Never changes what the customer is being served. */
+async function saveIntakeDraft(quiet) {
+  if (!intakeEditor) return false;
+  intakeEditor.template.language = document.getElementById('tpl-language').value;
+  try {
+    const res = await fetch(await window.apiQuery('/api/intake-template'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session: window.akoreAuth.session(),
+        company: intakeEditor.company,
+        template: intakeEditor.template
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    intakeEditor.unreleased = true;
+    if (!quiet) document.getElementById('tpl-status').textContent = t('tplSaved');
+    return true;
+  } catch (err) {
+    document.getElementById('tpl-status').textContent = t('tplSaveFailed') + err.message;
+    return false;
+  }
+}
+
+/** Saves first, so releasing can never publish an older draft than what is on screen. */
+async function releaseIntakeTemplate() {
+  if (!intakeEditor) return;
+  if (!(await confirmWithPassword(t('tplReleaseBtn'), t('pwReleaseMsg', esc(t('intakeTitle')), esc(intakeEditor.company))))) return;
+  if (!(await saveIntakeDraft(true))) return;
+  try {
+    const res = await fetch(await window.apiQuery('/api/intake-template'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session: window.akoreAuth.session(), company: intakeEditor.company })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    intakeEditor.unreleased = false;
+    document.getElementById('tpl-status').textContent = t('tplReleased');
+    await loadCompany(intakeEditor.company);
+  } catch (err) {
+    document.getElementById('tpl-status').textContent = t('tplSaveFailed') + err.message;
+  }
+}
+
+async function withdrawIntakeTemplate() {
+  if (!currentCompany) return;
+  if (!(await confirmWithPassword(t('tplWithdrawBtn'), t('pwReleaseMsg', esc(t('intakeTitle')), esc(currentCompany))))) return;
+  try {
+    const res = await fetch(await window.apiQuery('/api/intake-template'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session: window.akoreAuth.session(), company: currentCompany, withdraw: true })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await loadCompany(currentCompany);
+  } catch (err) {
+    alert(t('tplSaveFailed') + err.message);
+  }
+}
+
+/** Opens the customer's own form showing the DRAFT — the only way to see it before releasing. */
+async function previewIntakeDraft() {
+  if (!intakeEditor) return;
+  if (!(await saveIntakeDraft(true))) return;
+  const rec = currentCodeRec || {};
+  const user = rec.username || '';
+  window.open('/intake.html?username=' + encodeURIComponent(user) + '&preview=draft', '_blank');
 }
 
 // ── Generate Prompts modal ──

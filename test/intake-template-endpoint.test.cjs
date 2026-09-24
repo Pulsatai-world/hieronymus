@@ -177,6 +177,49 @@ const okTemplate = (extra = {}) => ({
       /body\.template \|\| body\.released/.test(page), 'intake.html only reads body.template');
   }
 
+
+  console.log('\nPreviewing an unreleased form:\n');
+  {
+    // Staff preview a draft by opening the customer's own intake link with ?preview=draft. That is
+    // a URL anyone can type, so the rule cannot live in the page: the draft has to be absent from
+    // what a customer is answered, whatever they ask for.
+    await call(fn, 'POST', { body: { session: STAFF, company: 'Epsilon', template: okTemplate() } });
+
+    const asStaff = await (await call(fn, 'GET', { qs: staffQ('&company=Epsilon&preview=draft') })).json();
+    check('staff get the draft, which is what the preview renders', !!asStaff.draft, Object.keys(asStaff).join(','));
+
+    const cust = await createClientSession('eps-user', 'Epsilon');
+    const asCust = await (await call(fn, 'GET', { qs: custQ(cust, '&company=Epsilon&preview=draft') })).json();
+    check('a customer asking for the draft by URL still gets none',
+      !asCust.draft && asCust.template === null, JSON.stringify(asCust).slice(0, 120));
+  }
+
+  console.log('\nThe editor and the server agree on the rules:\n');
+  {
+    // Two copies of the same list, in two languages, in two files. If they drift the editor offers
+    // to switch off a question the server then refuses, and staff meet an error with no explanation
+    // for what they did wrong.
+    const fs = require('fs');
+    const here = f => fs.readFileSync(require('path').join(__dirname, '..', f), 'utf8');
+    const listIn = (src, name) => {
+      const at = src.indexOf(name + ' = [');
+      if (at === -1) return null;
+      const body = src.slice(at, src.indexOf(']', at));
+      const quoted = body.match(/'([^']+)'/g);
+      return quoted ? quoted.map(x => x.slice(1, -1)).sort() : null;
+    };
+    const server = listIn(here('netlify/functions/intake-template.js'), 'REQUIRED_PATHS');
+    const editor = listIn(here('index.html'), 'TPL_REQUIRED');
+    check('both know which four answers are protected', !!server && !!editor,
+      'server=' + server + ' editor=' + editor);
+    check('and they are the same four', JSON.stringify(server) === JSON.stringify(editor),
+      JSON.stringify(server) + ' vs ' + JSON.stringify(editor));
+
+    // An added question must not be able to land on a path the generator or grader reads.
+    check('questions added in the editor are stored out of the way, under extra.',
+      /paths: \['extra\.'/.test(here('index.html')), 'tplAdd does not namespace its path');
+  }
+
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
   process.exit(failures ? 1 : 0);
 })();

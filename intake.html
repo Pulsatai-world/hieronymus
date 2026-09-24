@@ -1696,6 +1696,13 @@ async function loadIntakeTemplate(company) {
       const res = await fetch(await window.apiQuery('/api/intake-template', { company }));
       if (res.ok) {
         const body = await res.json();
+        // Previewing an unreleased form. The draft is only ever present in a STAFF answer — a
+        // customer adding ?preview=draft to their own link gets a response with no draft in it,
+        // so this cannot be used to see a form that was never released to them.
+        if (new URLSearchParams(location.search).get('preview') === 'draft') {
+          const drafted = usable(body && body.draft);
+          if (drafted) return drafted;
+        }
         // A customer is answered `template` (their released copy, or nothing). Staff opening the
         // same form are answered `draft` and `released` separately, because the editor needs both
         // — so staff previewing a customer's intake must be shown `released`, or they would be
@@ -1719,7 +1726,18 @@ async function loadIntakeTemplate(company) {
 
 async function applyIntakeTemplate() {
   intakeTemplate = await loadIntakeTemplate(clientCompany);
-  if (intakeTemplate && window.akoreIntakeForm) window.akoreIntakeForm.apply(intakeTemplate, lang);
+  if (!intakeTemplate) return;
+
+  // A customer can be set up to fill the form in one language. Then the toggle is not merely
+  // defaulted, it is removed: leaving it there invites a half-Spanish, half-English set of answers,
+  // and the prompts are generated from those answers.
+  const pinned = intakeTemplate.language;
+  if (pinned === 'es' || pinned === 'en') {
+    window.setLang(pinned);
+    const toggle = document.querySelector('.lang-toggle');
+    if (toggle) toggle.style.display = 'none';
+  }
+  if (window.akoreIntakeForm) window.akoreIntakeForm.apply(intakeTemplate, lang);
 }
 
 async function restoreSavedProgress() {
