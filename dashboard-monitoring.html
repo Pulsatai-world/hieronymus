@@ -1381,13 +1381,14 @@ loadData();
   const co = (params.get('company') || '').trim();
   const user = (params.get('username') || '').trim();
   const slug = s => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
-  if (!!((window.akoreAuth.who() || {}).kind === 'staff')) {
-    el.href = co ? '/index.html?company=' + encodeURIComponent(co) : '/portal.html';
-  } else if (user || co) {
-    el.href = '/client-portal.html?username=' + encodeURIComponent(user || slug(co));
-  } else {
-    el.style.display = 'none';
-  }
+  // One rule, in js/auth.js: staff of either kind go back to this customer's internal page, a
+  // customer to their own portal. Asking `kind === 'staff'` here answered "customer" for a staff
+  // member viewing through a bypass, and sent them into the client's portal.
+  // No home means nobody is signed in that this page can place. Guessing a destination from the
+  // company in the URL is how a link that said "your portal" ended up meaning someone else's.
+  const home = window.homeHref(co);
+  if (home) el.href = home;
+  else el.style.display = 'none';
 })();
 </script>
 </body></html>

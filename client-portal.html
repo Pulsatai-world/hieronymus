@@ -456,7 +456,7 @@ function titleRow() {
   // that customer. They are not signed in as the customer, so there is no session here to end.
   const viaStaff = window.akoreIsStaffBypass && window.akoreIsStaffBypass();
   const leave = viaStaff
-    ? `<a class="btn-ghost-sm" href="/index.html?company=${encodeURIComponent(clientCompany)}">${t('backToCustomer', clientCompany)}</a>`
+    ? `<a class="btn-ghost-sm" href="${window.homeHref(clientCompany)}">${t('backToCustomer', clientCompany)}</a>`
     : `<button class="btn-ghost-sm" onclick="clientLogout()">${t('logoutBtn')}</button>`;
   return `<div class="page-title-row"><div class="page-title">${esc(clientCompany)}</div><div style="display:flex; gap:8px;">${settingsBtn}${leave}</div></div>`;
 }

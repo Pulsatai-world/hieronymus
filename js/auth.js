@@ -201,13 +201,22 @@
    */
   window.homeHref = function (company) {
     const who = api.who();
-    // Staff viewing a customer's page belong back on that customer's internal page, not in the
-    // customer's own portal, which is somewhere they have no business being sent.
-    if (who && who.staffBypass) {
-      return '/index.html?company=' + encodeURIComponent(who.company || company || '');
+    if (!who) return '';
+
+    // Anyone from Akore looking at a page about one customer belongs back on THAT customer's
+    // internal page. Not in the customer's own portal, which is not theirs and tells them nothing,
+    // and not at the top-level list, which throws away the customer they were working on.
+    //
+    // Both ways of being staff have to be asked about. A bypass session reports kind 'customer' —
+    // it is the customer's payload, borrowed — so a check for kind === 'staff' silently answers
+    // "customer" for the exact case this exists to handle, which is how three separate pages came
+    // to send Akore staff into a client's portal.
+    const name = (who.staffBypass && who.company) || company || '';
+    if (who.staffBypass) return '/index.html?company=' + encodeURIComponent(name);
+    if (who.kind === 'staff') {
+      return company ? '/index.html?company=' + encodeURIComponent(company) : '/portal.html';
     }
-    if (who && who.kind === 'staff') return '/portal.html';
-    if (who && who.kind === 'customer' && who.username) {
+    if (who.kind === 'customer' && who.username) {
       return '/client-portal.html?username=' + encodeURIComponent(who.username);
     }
     return '';

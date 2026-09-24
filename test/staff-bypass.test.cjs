@@ -199,6 +199,51 @@ function browser(search, page) {
       !/← My portal/.test(read('intake.html')), 'the hardcoded label is still there');
   }
 
+
+  console.log('\nWherever "go back" appears, for whoever is looking:\n');
+  {
+    // The rule was right in js/auth.js and wrong in five places that each worked out the same answer
+    // by hand. Two of those were guarded; three were not, and sent an Akore staff member into a
+    // client's portal from prompt-review and from both dashboards. Asking "is kind staff" is what
+    // made it subtle: a bypass session carries the CUSTOMER's payload, so that question answers
+    // "no" in precisely the case it was written for.
+    const bypass = browser();
+    await bypass.akoreStaffBypass('demo-logistics');
+    check('a bypass viewer goes back to the customer',
+      bypass.homeHref('Demo Logistics') === '/index.html?company=Demo%20Logistics',
+      bypass.homeHref('Demo Logistics'));
+
+    // A dashboard opened by staff signed in as themselves, which is the other way in.
+    const staff = browser();
+    staff.fetch = async () => ({ ok: true, status: 200,
+      json: async () => ({ username: 'akore-rene', kind: 'staff', role: 'admin', company: '' }) });
+    await staff.akoreAuth.useStaffSession();
+    await staff.akoreAuth.restore();
+    check('staff signed in as themselves go back to the customer they were looking at',
+      staff.homeHref('Demo Logistics') === '/index.html?company=Demo%20Logistics',
+      staff.homeHref('Demo Logistics'));
+    check('and to the portal only when no customer is in play',
+      staff.homeHref('') === '/portal.html', staff.homeHref(''));
+  }
+
+  console.log('\nAnd no page works the answer out for itself:\n');
+  {
+    // What actually went wrong was five copies of one decision. This fails if a sixth appears.
+    const pages = ['intake.html', 'prompt-review.html', 'client-portal.html',
+                   'dashboard-diagnostic.html', 'dashboard-monitoring.html'];
+    for (const f of pages) {
+      const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+      const hand = src.split('\n')
+        .map((line, i) => ({ line, n: i + 1 }))
+        .filter(x => /['"`]\/client-portal\.html\?username=/.test(x.line))
+        // client-portal.html links to itself for its own visitor; that is not a "go home" decision.
+        .filter(x => !/isStaffReviewer|staffBypass/.test(x.line));
+      const allowed = f === 'client-portal.html' ? Infinity : 0;
+      check(f + ' does not build its own way home',
+        hand.length <= allowed, hand.map(x => x.n + ': ' + x.line.trim().slice(0, 70)).join(' | '));
+    }
+  }
+
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
   process.exit(failures ? 1 : 0);
 })();

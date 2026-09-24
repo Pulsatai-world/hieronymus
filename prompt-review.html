@@ -260,7 +260,7 @@ function updateBackLink() {
     el.textContent = t('backToCustomer', clientCompany);
     el.style.display = '';
   } else if (clientUsername) {
-    el.href = '/client-portal.html?username=' + encodeURIComponent(clientUsername);
+    el.href = window.homeHref(clientCompany);
     el.textContent = t('backToDashboards');
     el.style.display = '';
   } else {
@@ -393,7 +393,7 @@ async function loadPrompts() {
       <div class="card-title" style="margin-bottom:8px;">${t('commentsTitle')}</div>
       <div class="page-sub" style="margin:0;">${record.comments ? esc(record.comments) : '—'}</div>
       <div style="margin-top:16px;">
-        <a class="btn-accent" style="width:auto;display:inline-block;" href="/client-portal.html?username=${encodeURIComponent(clientUsername)}">${t('backToPortalBtn')}</a>
+        <a class="btn-accent" style="width:auto;display:inline-block;" href="${window.homeHref(clientCompany)}">${isStaffReviewer ? t('backToCustomer', clientCompany) : t('backToPortalBtn')}</a>
       </div>
     </div>
     ` : '') : `
@@ -477,7 +477,7 @@ async function approvePrompts() {
     // portal instead of leaving them on a page whose only action they just used up.
     if (!isStaffReviewer && clientUsername) {
       alert(t('approvedRedirect'));
-      location.href = '/client-portal.html?username=' + encodeURIComponent(clientUsername);
+      location.href = window.homeHref(clientCompany);
       return;
     }
     await loadPrompts();
