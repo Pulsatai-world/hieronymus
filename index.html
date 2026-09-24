@@ -137,6 +137,8 @@ body { font-family: var(--mono); background: var(--bg); color: var(--text); min-
 }
 @keyframes barstripe { from { transform: translateX(0); } to { transform: translateX(-22px); } }
 /* Stalled deliberately stops moving and desaturates — the absence of motion is the signal. */
+.progress-bar.done { background: linear-gradient(90deg, #2e9e6b, #1f7d52); }
+.progress-bar.done::after { content: none; }
 .progress-bar.stalled { background: linear-gradient(90deg, #c9a227, var(--yellow, #b8901f)); }
 .progress-bar.stalled::after { content: none; }
 .progress-pct { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
@@ -435,6 +437,8 @@ const T = {
   queuedStuckHint: { en: 'This has been waiting a long time. The run may have been cut off by the platform before it reported in. You can continue it from where it stopped, or start over.', es: 'Lleva mucho tiempo esperando. Puede que la plataforma haya cortado la ejecución antes de que reportara. Puedes continuarla desde donde se detuvo, o empezar de nuevo.' },
   giveUpWaitingBtn: { en: 'Stop waiting', es: 'Dejar de esperar' },
   checkAgainBtn: { en: 'Check again', es: 'Verificar de nuevo' },
+  auditDoneLabel: { en: 'Audit complete', es: 'Auditoría completada' },
+  auditDoneDetail: { en: (rows, cited) => `${rows} answers graded, ${cited} recommended. The results below are up to date.`, es: (rows, cited) => `${rows} respuestas evaluadas, ${cited} recomendadas. Los resultados de abajo ya están actualizados.` },
   statusUnreadableLabel: { en: 'Status unreadable', es: 'Estado ilegible' },
   statusUnreadableHint: { en: (m) => `Could not read the run status: ${m}. This says nothing about the run itself, which keeps going either way. It is this page that cannot see it.`, es: (m) => `No se pudo leer el estado de la ejecución: ${m}. Esto no dice nada sobre la ejecución, que sigue de todos modos. Es esta página la que no puede verla.` },
   statusSignInHint: { en: 'Your session expired. Sign in again to see the run.', es: 'Tu sesión expiró. Inicia sesión de nuevo para ver la ejecución.' },
@@ -1086,7 +1090,8 @@ async function auditRowProgress(company) {
   const rec = auditPendingRec(company);
   const out = {
     live: false,
-    promptsDone: 0,
+    completed: 0,
+    cited: 0,
     promptsTotal: (rec && rec.promptsTotal) || 0,
     engineCount: (rec && rec.engineCount) || 0
   };
@@ -1109,8 +1114,14 @@ async function auditRowProgress(company) {
   out.live = rows.length !== rec.rowsAtTrigger;
   if (!out.live) return out;
 
+  // Counted as rows, not as distinct prompts, because that is the unit the run is measured in:
+  // prompts x engines. Counting prompts would call a run complete as soon as every prompt had its
+  // first engine answered, with the second engine's half still to come.
   const latest = rows.reduce((d, r) => (r.snapshot_date > d ? r.snapshot_date : d), '');
-  out.promptsDone = new Set(rows.filter(r => r.snapshot_date === latest).map(r => r.prompt_id)).size;
+  const mine = rows.filter(r => r.snapshot_date === latest);
+  out.completed = mine.length;
+  // So the completion message can report what was found even when the job record never showed up.
+  out.cited = mine.filter(r => r.brand_cited === '1').length;
   return out;
 }
 
@@ -1123,7 +1134,11 @@ function renderAuditQueued(block, company, data) {
   // a disabled button and no action. After a minute, offer the same continue-from-where-it-stopped
   // action the stalled state has, plus a way to stop waiting — never leave the operator with nothing
   // to click.
-  const stuck = secs > 60;
+  // Two minutes, not one. A healthy run now leaves this state the moment its first rows land, so
+  // reaching this threshold means nothing has happened at all — the trigger was dropped, or the
+  // platform never started the function. At sixty seconds it was firing on runs that were perfectly
+  // fine and merely cold-starting, which put a warning about a stuck run on top of a working one.
+  const stuck = secs > 120;
   const promptIdx = data ? resumePromptIndex(data) : null;
   // The prompt count and the engines were both chosen in the Run modal seconds ago, so the bar has
   // a denominator from the very first paint: "Prompt 0 of 31" at 0%, which is a real measurement of
@@ -1357,9 +1372,17 @@ async function pollJobStatus(company, opts) {
 
   if (state === 'done') {
     clearAuditPending(company);
+    const when = esc((data.finishedAt || '').slice(0, 16).replace('T', ' '));
     block.innerHTML =
-      `<span class="badge badge-done">${t('lastRunLabel', completed, data.cited || 0)}</span> ` +
-      `<span class="field-hint">${t('finishedAt')}${esc((data.finishedAt || '').slice(0, 16).replace('T', ' '))}</span>`;
+      `<div class="row" style="align-items:center;">` +
+        `<span class="badge badge-done">${t('auditDoneLabel')}</span>` +
+        `<span style="font-weight:650;">${promptsTotal ? t('promptProgress', promptsDone, promptsTotal) : ''}</span>` +
+        `<span class="field-hint progress-pct">100%</span>` +
+      `</div>` +
+      `<div class="progress-wrap"><div class="progress-bar done" style="width:100%"></div></div>` +
+      `<div class="field-hint" style="margin-top:6px;">` +
+        t('auditDoneDetail', completed, verdict.cited) + (when ? ` · ${t('finishedAt')}${when}` : '') +
+      `</div>`;
     setButtons(true, t('runAuditBtn'), false);
     return finishAndRefresh();
   }

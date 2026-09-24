@@ -70,10 +70,18 @@
     // means these belong to the run now in flight.
     const rows = opts.rows || {};
     const rowsLive = !!rows.live;
-    const rowsDone = rowsLive ? num(rows.promptsDone) : 0;
+    const rowsCompleted = rowsLive ? num(rows.completed) : 0;
+    const shapePrompts = num(rows.promptsTotal);
+    const shapeEngines = num(rows.engineCount);
 
-    const total = num(data.total);
-    const completed = num(data.completed);
+    // Rows are counted in the job record's own unit — one row per prompt per engine — so they feed
+    // the ordinary state machine instead of running beside it. That is what lets a run whose record
+    // never arrives still finish by itself: the rows complete the shape, `completed` reaches
+    // `total`, and the run reports done without anyone reloading the page. Reading rows as a
+    // separate notion of progress got the bar moving but left such a run at 100% for ever, because
+    // nothing was ever in a position to call it finished.
+    const total = num(data.total) || (rowsLive ? shapePrompts * shapeEngines : 0);
+    const completed = Math.max(num(data.completed), rowsCompleted);
     const hasShape = total > 0;
     const finished = !!data.finishedAt;
 
@@ -87,9 +95,6 @@
     else if (hasShape && completed < total && finished) state = 'incomplete';
     else if (data.status === 'done' || (hasShape && total > 0 && completed >= total)) state = 'done';
     else if (data.status === 'running' || (hasShape && completed < total && !finished)) state = 'running';
-    // Rows landing IS the run reporting, whatever the job record says. Waiting for a record to
-    // appear while its own results accumulate is the state this panel sat in for 107 seconds.
-    else if (rowsDone > 0) state = 'running';
     else if (opts.pending || opts.graceLeft > 0) state = 'queued';
     else if (view.rank >= RANK.running) return { action: 'ignore', reason: 'no-regress', state: null, view };
     else state = 'none';
@@ -98,7 +103,10 @@
     //    cannot tell a chunk that legitimately takes minutes from a run that has died.
     const beatAt = Date.parse(data.lastProgressAt || data.startedAt || '') || 0;
     const idleFor = beatAt ? now - beatAt : 0;
-    if (state === 'running' && idleFor > stallAfter) state = 'stalled';
+    // Rows arriving that the record has not caught up with mean the record is stale, not the run.
+    // Calling that a stall puts a warning on a screen where work is visibly still landing.
+    const rowsAhead = rowsCompleted > num(data.completed);
+    if (state === 'running' && idleFor > stallAfter && !rowsAhead) state = 'stalled';
 
     // 4. Forward only.
     if (RANK[state] < view.rank) return { action: 'ignore', reason: 'no-regress', state: null, view };
@@ -112,14 +120,11 @@
     // was pressed. Without that the first paint had no denominator, so it drew an indeterminate
     // sliding block: a bar that looks like progress and measures nothing. There is never a reason
     // to show that when the numbers are already in hand.
-    const engines = num(data.engineCount) || num(rows.engineCount);
-    const promptsTotal = num(data.promptsTotal) || num(rows.promptsTotal);
-    const fromJob = engines
+    const engines = num(data.engineCount) || shapeEngines;
+    const promptsTotal = num(data.promptsTotal) || shapePrompts;
+    const promptsDone = engines
       ? (promptsTotal ? Math.min(Math.floor(completed / engines), promptsTotal) : Math.floor(completed / engines))
       : 0;
-    // The floor: never report less than the rows already on disk.
-    const promptsDone = promptsTotal ? Math.min(Math.max(fromJob, rowsDone), promptsTotal)
-                                     : Math.max(fromJob, rowsDone);
     const pct = promptsTotal ? Math.round((promptsDone / promptsTotal) * 100)
               : (total ? Math.round((completed / total) * 100) : 0);
 
@@ -132,7 +137,7 @@
       action: 'render', state, view,
       total, completed, promptsDone, promptsTotal, pct,
       idleFor, elapsed, etaMs,
-      cited: num(data.cited), continuations: num(data.continuations),
+      cited: Math.max(num(data.cited), rowsLive ? num(rows.cited) : 0), continuations: num(data.continuations),
       phase: data.phase || '', finishedAt: data.finishedAt || '', message: data.message || '',
       terminal: RANK[state] === 3
     };
