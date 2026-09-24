@@ -24,7 +24,7 @@ const inline = [...pageSrc.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/sc
 
 // Just the editor. Pulling the whole page in would drag the audit poller and its network calls with it.
 const from = inline.indexOf('const TPL_GROUND_TRUTH');
-const to = inline.indexOf('/** Writes the draft. Never changes what the customer is being served. */');
+const to = inline.indexOf('// \u2500\u2500 Generate Prompts modal \u2500\u2500');
 check('the editor block was found in index.html', from !== -1 && to > from, `${from}..${to}`);
 if (from === -1 || to <= from) { console.log('\n1 FAILURE(S)'); process.exit(1); }
 const editorSrc = inline.slice(from, to);
@@ -351,6 +351,49 @@ console.log('\nWhatever the editor produces, the server accepts:\n');
   }), {});
   check('and still accepts it after a section is deleted', res2.status === 200,
     res2.status + ' ' + ((await res2.json()).error || ''));
+}
+
+
+console.log('\n"Preview as client" has to open the client view:\n');
+{
+  // It opened the client SIGN-IN form instead, and asked the staff member who pressed it for the
+  // customer's password. The intake page resolves a staff bypass against the member named in the
+  // link; a customer record keeps its people in `members` and has had no top-level `username` since
+  // accounts became per-person, so the link named nobody and the bypass could not resolve it.
+  const w = boot(baseTemplate());
+  const opened = [];
+  w.__run(`
+    window.open = (u) => { window.__opened = window.__opened || []; window.__opened.push(u); };
+    window.apiQuery = async (e) => e;
+    window.akoreAuth = { session: () => 'staff-token' };
+    window.fetch = async () => ({ ok: true, json: async () => ({ status: 'ok', warnings: [] }) });
+    currentCompany = 'Demo Logistics';
+  `);
+
+  w.__run("currentCodeRec = { company: 'Demo Logistics', members: [{ username: 'demo-logistics', role: 'full' }] };");
+  await w.__run('previewIntakeDraft()');
+  const url = (w.__opened || [])[0] || '';
+  check('it opens the customer\'s own intake link', url.indexOf('/intake.html?username=') === 0, url);
+  check('naming a real member, which is what the staff bypass resolves',
+    url.indexOf('username=demo-logistics') !== -1, url);
+  check('and asks for the draft rather than the released form',
+    url.indexOf('preview=draft') !== -1, url);
+
+  // A viewer cannot fill the form in, so previewing as one would show the read-only notice.
+  w.__opened = [];
+  w.__run("currentCodeRec = { members: [{ username: 'read-only', role: 'viewer' }, { username: 'real-user', role: 'full' }] };");
+  await w.__run('previewIntakeDraft()');
+  check('it previews as someone who can actually fill the form in',
+    (w.__opened[0] || '').indexOf('username=real-user') !== -1, w.__opened[0]);
+
+  // And a customer with nobody to sign in as gets an explanation, not a blank tab.
+  w.__opened = [];
+  w.__run("currentCodeRec = { company: 'Nobody', members: [] };");
+  await w.__run('previewIntakeDraft()');
+  check('a customer with no login yet opens nothing', w.__opened.length === 0,
+    JSON.stringify(w.__opened));
+  check('and is told why', !!w.document.getElementById('tpl-status').textContent,
+    'nothing said');
 }
 
 console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));

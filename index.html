@@ -518,6 +518,7 @@ const T = {
   tplLangEs: { en: 'Spanish only', es: 'Solo español' },
   tplLangEn: { en: 'English only', es: 'Solo inglés' },
   tplPreviewBtn: { en: 'Preview as client', es: 'Ver como cliente' },
+  tplNoMember: { en: 'This customer has no login yet, so there is no client view to open. Create one in the Portal first.', es: 'Este cliente todavía no tiene acceso, así que no hay vista de cliente que abrir. Créala primero en el Portal.' },
   tplSaveBtn: { en: 'Save draft', es: 'Guardar borrador' },
   tplReleaseBtn: { en: 'Release to customer', es: 'Publicar al cliente' },
   tplWithdrawBtn: { en: 'Back to the default form', es: 'Volver al formulario estándar' },
@@ -2130,12 +2131,31 @@ async function withdrawIntakeTemplate() {
   }
 }
 
-/** Opens the customer's own form showing the DRAFT — the only way to see it before releasing. */
+/**
+ * Opens the customer's own form showing the DRAFT — the only way to see it before releasing.
+ *
+ * The link has to name a member of the customer, because that is what the intake page resolves the
+ * staff bypass against: holding a staff session, it asks the server for that member's payload and
+ * opens their form without a password. A customer record keeps its people in `members` and has had
+ * no top-level `username` since accounts became per-person, so reading one asked for a customer
+ * whose username was the empty string, the bypass could not resolve it, and the preview showed the
+ * client sign-in form — to the staff member who had just pressed "preview as client".
+ */
+function intakeMemberFor(rec) {
+  const members = (rec && rec.members) || [];
+  // Someone who can actually fill the form in; a viewer would be shown the read-only notice.
+  const owner = members.find(m => m.role !== 'viewer') || members[0];
+  return (owner && owner.username) || '';
+}
+
 async function previewIntakeDraft() {
   if (!intakeEditor) return;
+  const user = intakeMemberFor(currentCodeRec);
+  if (!user) {
+    document.getElementById('tpl-status').textContent = t('tplNoMember');
+    return;
+  }
   if (!(await saveIntakeDraft(true))) return;
-  const rec = currentCodeRec || {};
-  const user = rec.username || '';
   window.open('/intake.html?username=' + encodeURIComponent(user) + '&preview=draft', '_blank');
 }
 
