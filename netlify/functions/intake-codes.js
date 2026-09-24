@@ -3,6 +3,8 @@ import { revokeAllFor } from './lib/session.js';
 import crypto from 'node:crypto';
 import { callerOf, requireCompany, requireStaff, requireStaffAdmin } from './lib/authorize.js';
 import { publicRecord } from './lib/accounts.js';
+import { readDirectory, writeDirectory, patchDirectoryEntry, removeDirectoryEntry } from './lib/portal-directory.js';
+import { resultsIndex, slugify as resultSlug } from './lib/results-cache.js';
 
 
 function slugify(name) {
@@ -55,6 +57,27 @@ function json(obj, status) {
 // before this migrate the very first time they're read: the old top-level username/password
 // become members[0] (role 'full', password now hashed), so every link already handed out to a
 // customer keeps working with no manual migration step.
+/**
+ * The only way this endpoint writes a customer, so the portal's directory cannot drift out of date
+ * by someone adding a ninth write site and not knowing about it.
+ *
+ * Patching one entry rather than dropping the directory is what keeps opening the portal a single
+ * read: discarding it made the next page load rebuild from every customer record on the platform.
+ */
+async function saveGroup(store, key, data) {
+  await store.setJSON(key, data);
+  const stripped = stripHashes(data);
+  await patchDirectoryEntry(
+    item => item && item.company === stripped.company,
+    existing => Object.assign({}, existing || {}, stripped)   // keeps the badge fields
+  );
+}
+
+async function removeGroup(store, key, company) {
+  await store.delete(key);
+  await removeDirectoryEntry(item => item && item.company === company);
+}
+
 async function loadGroup(store, key) {
   const record = await store.get(key, { type: 'json' });
   if (!record) return null;
@@ -65,6 +88,7 @@ async function loadGroup(store, key) {
     ...rest,
     members: [{ username, passwordHash: hashPassword(password), role: 'full', defaultLanguage: defaultLanguage || null, createdAt: record.createdAt || new Date().toISOString() }]
   };
+  // A plain write: this is a read path, and the directory is rebuilt or patched by real writes.
   await store.setJSON(key, migrated);
   return migrated;
 }
@@ -128,7 +152,7 @@ export default async (request, context) => {
       if (allGroups.some(g => findMember(g, username))) return json({ error: 'That username is already taken' }, 409);
       record.members = record.members || [];
       record.members.push({ username, passwordHash: hashPassword(password), role, defaultLanguage: null, createdAt: new Date().toISOString() });
-      await store.setJSON(groupKey, record);
+      await saveGroup(store, groupKey, record);
       return json({ username, password }, 200);
     }
 
@@ -142,7 +166,7 @@ export default async (request, context) => {
     }
     const username = groupKey;
     const password = genPassword();
-    await store.setJSON(groupKey, {
+    await saveGroup(store, groupKey, {
       company, createdAt: new Date().toISOString(), submittedAt: null, monitoringEnabled: false,
       members: [{ username, passwordHash: hashPassword(password), role: 'full', defaultLanguage: null, createdAt: new Date().toISOString() }]
     });
@@ -171,12 +195,54 @@ export default async (request, context) => {
     const deniedList = await requireStaff(url, null, json);
     if (deniedList) return deniedList;
 
+    // Asked before anything is read. Checking afterwards meant the stored answer was only
+    // consulted once every customer blob had already been fetched to build the answer it replaces,
+    // which is the entire cost it exists to avoid.
+    const wantsDirectory = url.searchParams.get('directory') === '1';
+    if (wantsDirectory) {
+      const cached = await readDirectory();
+      if (cached) return json({ items: cached.items, builtAt: cached.builtAt, cached: true }, 200);
+    }
+
     const { blobs } = await store.list();
     // store.list() can momentarily include a key whose store.get() hasn't caught up yet
     // (Netlify Blobs eventual consistency, most visible right after creating a new customer) —
     // drop any not-yet-readable entries rather than crashing the whole listing on them.
     const items = (await Promise.all(blobs.map(async b => stripHashes(await loadGroup(store, b.key))))).filter(Boolean);
     items.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+    // The portal's whole list, in one request.
+    //
+    // It used to be three: this, every prompt set on the platform, and a summary of every
+    // customer's audit history — the last two only so each row could show "approved on <date>" and
+    // "N runs". All three are a list plus one read per blob, so a thousand customers cost a couple
+    // of thousand round trips to draw a list you are about to click one row of. The two badges are
+    // folded in here instead, and the answer is stored, so opening the portal is one read.
+    if (wantsDirectory) {
+      const promptsStore = getStore('hieronymus-prompts');
+      const [promptBlobs, runs] = await Promise.all([promptsStore.list(), resultsIndex()]);
+      const prompts = {};
+      await Promise.all(promptBlobs.blobs.map(async b => {
+        const rec = await promptsStore.get(b.key, { type: 'json' });
+        if (rec) prompts[b.key] = { approvedAt: rec.approvedAt || null, generatedAt: rec.generatedAt || null };
+      }));
+
+      const enriched = items.map(item => {
+        const owner = (item.members || [])[0];
+        const slug = (owner && owner.username) || slugify(item.company);
+        const p = prompts[slug] || {};
+        const r = (runs.companies || {})[resultSlug(item.company)] || {};
+        return Object.assign({}, item, {
+          promptsApprovedAt: p.approvedAt || null,
+          promptsGeneratedAt: p.generatedAt || null,
+          runCount: (r.dates || []).length,
+          lastRun: r.lastRun || null
+        });
+      });
+      const rec = await writeDirectory(enriched);
+      return json({ items: enriched, builtAt: rec.builtAt, cached: false }, 200);
+    }
+
     return json({ items }, 200);
   }
 
@@ -220,7 +286,7 @@ export default async (request, context) => {
         record.monitoringIntervalDays = days;
         record.nextRunAt = enabled ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString() : null;
       }
-      await store.setJSON(groupKey, record);
+      await saveGroup(store, groupKey, record);
       return json({ status: 'ok', nextRunAt: record.nextRunAt, monitoringEnabled: enabled }, 200);
     }
 
@@ -246,7 +312,7 @@ export default async (request, context) => {
         record.monitoringReleasedAt = body.monitoringReleased ? now : null;
         record.monitoringReleasedBy = body.monitoringReleased ? who : null;
       }
-      await store.setJSON(groupKey, record);
+      await saveGroup(store, groupKey, record);
       return json({
         status: 'ok',
         diagnosisReleased: !!record.diagnosisReleased,
@@ -271,7 +337,7 @@ export default async (request, context) => {
       if (np.length < 6) return json({ error: 'New password must be at least 6 characters' }, 400);
       member.passwordHash = hashPassword(np);
       await revokeAllFor(member.username);
-      await store.setJSON(entry.key, entry.data);
+      await saveGroup(store, entry.key, entry.data);
       return json({ status: 'ok' }, 200);
     }
 
@@ -317,7 +383,7 @@ export default async (request, context) => {
 
     if (body.markSubmitted) entry.data.submittedAt = new Date().toISOString();
     if (typeof body.monitoringEnabled === 'boolean') entry.data.monitoringEnabled = body.monitoringEnabled;
-    await store.setJSON(entry.key, entry.data);
+    await saveGroup(store, entry.key, entry.data);
     return json({ status: 'ok' }, 200);
   }
 
@@ -340,13 +406,15 @@ export default async (request, context) => {
       if (!entry) return json({ error: 'Unknown username' }, 404);
       entry.data.members = entry.data.members.filter(m => m.username !== username);
       await revokeAllFor(username);
-      await store.setJSON(entry.key, entry.data);
+      await saveGroup(store, entry.key, entry.data);
       return json({ status: 'ok' }, 200);
     }
 
     // Otherwise, delete the whole company group (matches the old behavior — DELETE by the
     // owner/original username removed the entire customer record).
-    await store.delete(username);
+    // The directory is keyed by company, so it has to be read before the record goes.
+    const doomed = await loadGroup(store, username);
+    await removeGroup(store, username, doomed && doomed.company);
     return json({ status: 'ok' }, 200);
   }
 

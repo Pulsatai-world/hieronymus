@@ -674,21 +674,19 @@ let allCustomerItems = [], promptsBySlug = {}, runsByCompany = {};
  */
 let pendingPortalData = null;
 function fetchPortalData() {
-  return Promise.all([
-    window.apiQuery('/api/intake-codes', {}).then(fetch),
-    window.apiQuery('/api/prompts', {}).then(fetch),
-    window.apiQuery('/api/results', { summary: '1' }).then(fetch)
-  ]);
+  // One request, not three. The other two only ever supplied two badges per row, and each was a
+  // listing that reads one blob per customer — so a thousand customers cost a couple of thousand
+  // round trips, and three separate serverless functions to cold start, to draw a list you are
+  // about to click one row of. The badges are part of the directory now.
+  return window.apiQuery('/api/intake-codes', { directory: '1' }).then(fetch);
 }
 
 async function loadAll() {
   const container = document.getElementById('customers-list');
   try {
-    const [codesRes, promptsRes, summaryRes] = await (pendingPortalData || fetchPortalData());
+    const codesRes = await (pendingPortalData || fetchPortalData());
     pendingPortalData = null;
     const codesData = await codesRes.json();
-    const promptsData = await promptsRes.json().catch(() => ({ items: [] }));
-    const summary = await summaryRes.json().catch(() => ({ companies: {} }));
 
     allCustomerItems = codesData.items || [];
     if (allCustomerItems.length === 0) {
@@ -696,12 +694,16 @@ async function loadAll() {
       return;
     }
 
+    // Both badges now arrive on the customer itself, so nothing extra is fetched to draw them.
     promptsBySlug = {};
-    (promptsData.items || []).forEach(p => { promptsBySlug[p.key] = p; });
-
     runsByCompany = {};
-    Object.values(summary.companies || {}).forEach(c => {
-      if (c && c.company) runsByCompany[c.company] = new Set(c.dates || []);
+    allCustomerItems.forEach(i => {
+      const owner = (i.members || [])[0];
+      const slug = (owner && owner.username) || slugify(i.company);
+      if (i.promptsApprovedAt || i.promptsGeneratedAt) {
+        promptsBySlug[slug] = { approvedAt: i.promptsApprovedAt, generatedAt: i.promptsGeneratedAt };
+      }
+      if (i.runCount) runsByCompany[i.company] = { size: i.runCount };
     });
 
     renderCustomerTable();

@@ -177,8 +177,17 @@ const PAGES = fs.readdirSync(ROOT).filter(f => f.endsWith('.html'));
     const done = order.indexOf('login-done');
     const before = order.slice(0, done === -1 ? order.length : done).filter(x => x === 'data').length;
     check('the customer list is requested without waiting for the session check',
-      before >= 3, 'only ' + before + ' of 3 went out first: ' + JSON.stringify(order));
+      before >= 1, 'nothing went out first: ' + JSON.stringify(order));
     check('and the session is still checked', order.indexOf('login-start') !== -1, JSON.stringify(order));
+
+    // One request, and it has to stay one. It was three, two of which existed only to draw two
+    // badges per row, and each was a listing that reads one blob per customer — so the front page
+    // got slower with every customer added, for ever.
+    const dataCalls = seen.filter(u => /\/api\//.test(u) && !/\/api\/login/.test(u));
+    check('and the whole list costs exactly one request', dataCalls.length === 1,
+      dataCalls.length + ': ' + JSON.stringify(dataCalls));
+    check('which asks for the directory, not for every prompt set and every result row',
+      /directory=1/.test(dataCalls[0] || ''), dataCalls[0] || 'none');
     check('every data request carries the session',
       seen.filter(u => /\/api\/(intake-codes|prompts|results)/.test(u)).every(u => /session=/.test(u)),
       seen.filter(u => !/session=/.test(u)).join(' | '));

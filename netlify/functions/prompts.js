@@ -1,6 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
 import { callerOf, requireCompany, requireStaff } from './lib/authorize.js';
+import { patchDirectoryEntry } from './lib/portal-directory.js';
 
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
@@ -44,6 +45,20 @@ export default async (request, context) => {
   const store = getStore('hieronymus-prompts');
   const url = new URL(request.url);
 
+  // The portal's "approved on <date>" badge comes from these records. After any write the one
+  // affected entry is patched, rather than the directory being discarded — discarding it would
+  // hand the next person who opens the front page a rebuild over every customer on the platform.
+  const touchDirectory = async (company, rec) => {
+    if (!company) return;
+    await patchDirectoryEntry(
+      item => item && item.company === company,
+      existing => existing && Object.assign({}, existing, {
+        promptsApprovedAt: (rec && rec.approvedAt) || null,
+        promptsGeneratedAt: (rec && rec.generatedAt) || null
+      })
+    );
+  };
+
   if (request.method === 'POST') {
     let body;
     try {
@@ -59,7 +74,9 @@ export default async (request, context) => {
     if (!promptsText.trim()) return json({ error: 'Missing prompts text' }, 400);
 
     const key = slugify(company);
-    await store.setJSON(key, { company, promptsText, generatedAt: new Date().toISOString() });
+    const saved = { company, promptsText, generatedAt: new Date().toISOString() };
+    await store.setJSON(key, saved);
+    await touchDirectory(company, saved);
     return json({ status: 'ok' }, 200);
   }
 
@@ -150,6 +167,7 @@ export default async (request, context) => {
       data.internalApprovedAt = new Date().toISOString();
       data.internalApprovedBy = staffUsername;
       await store.setJSON(key, data);
+      await touchDirectory(company, data);
       return json({ status: 'ok', internalApprovedAt: data.internalApprovedAt, internalApprovedBy: staffUsername }, 200);
     }
 
@@ -174,6 +192,7 @@ export default async (request, context) => {
     data.approvedAt = new Date().toISOString();
     data.comments = typeof body.comments === 'string' ? body.comments.trim() : '';
     await store.setJSON(key, data);
+    await touchDirectory(company, data);
     return json({ status: 'ok' }, 200);
   }
 

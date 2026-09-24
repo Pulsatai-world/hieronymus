@@ -1,4 +1,5 @@
 import { getStore } from '@netlify/blobs';
+import { patchDirectoryEntry } from './portal-directory.js';
 
 // Reading results without reading every result.
 //
@@ -87,6 +88,18 @@ export async function rebuildResultsCache() {
   }
   writes.push(cache.setJSON(INDEX_KEY, index));
   await Promise.all(writes);
+
+  // The portal shows a run count per customer. Patched entry by entry rather than by discarding
+  // the directory: dropping it would make the next person to open the front page rebuild it from
+  // every customer record on the platform, which is the cost this whole file exists to remove.
+  for (const [key, entry] of Object.entries(index.companies)) {
+    await patchDirectoryEntry(
+      item => item && slugify(item.company) === key,
+      existing => existing && Object.assign({}, existing, {
+        runCount: (entry.dates || []).length, lastRun: entry.lastRun || null
+      })
+    );
+  }
   return index;
 }
 
