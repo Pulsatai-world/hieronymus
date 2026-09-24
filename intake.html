@@ -1394,6 +1394,7 @@ select {
 </div><!-- /#app-content -->
 
 <script src="/js/auth.js"></script>
+<script src="/js/intake-template.js"></script>
 <script src="/js/enroll-dialog.js"></script>
 <script>
 const PANELS = ['panel-0','panel-websites','panel-1','panel-2','panel-3','panel-4','panel-5','panel-6','panel-7','panel-8','panel-complete'];
@@ -1570,7 +1571,24 @@ function getSites() {
 
 function g(id) { return (document.getElementById(id) || {}).value || ''; }
 
+// The answers object, built from the question template rather than from this function's own list.
+//
+// Both were run against the same filled form and compared key by key before this was switched over
+// — see test/intake-collect-equivalence.test.cjs. That test is the reason this is a safe edit: the
+// object it produces is read by prompt generation and by grading (`websites.primarySite`), so a key
+// that quietly moved would not show up here, it would show up weeks later as a worse prompt set.
+//
+// The four bespoke sub-forms stay owned by this page; the template names them and asks for them.
 function collectData() {
+  if (intakeTemplate && window.akoreIntakeForm) {
+    return window.akoreIntakeForm.collect(intakeTemplate, {
+      socialTags: () => [...socialTags],
+      brandTags: () => [...brandTags],
+      getSites: () => getSites(),
+      getPersonas: () => getPersonas()
+    });
+  }
+  // No template loaded (a failed fetch): the form still works, exactly as it did before.
   return {
     general: { company: g('company'), website: g('website'), industry: g('industry'), contact: g('contact'), role: g('role'), email: g('email'), language: g('language'), platform: g('platform'), googleBusinessProfile: g('gbp'), socialPlatforms: [...socialTags], googlePresence: g('google-presence') },
     websites: { primarySite: g('website'), additionalSites: getSites(), duplicates: g('duplicates'), crossLinks: g('cross-links'), authoritySite: g('authority-site'), knownIssues: g('known-issues') },
@@ -1629,6 +1647,7 @@ async function adoptSession(who) {
   clientRole = who.role || 'full';
   isStaffBypass = !!who.staffBypass;
   showApp();
+  await applyIntakeTemplate();   // before restore: an added question must exist to be filled in
   await restoreSavedProgress();
 }
 
@@ -1660,6 +1679,29 @@ window.submitGateCode = async function() {
   await adoptSession(attempt.who);
 };
 
+
+// The question template for this customer.
+//
+// One file today, the default set extracted from this page's own markup. Phase 4 turns this into a
+// per-customer read, and this is the only function that has to change when it does — everything
+// downstream already asks the template rather than the markup.
+let intakeTemplate = null;
+async function loadIntakeTemplate(company) {
+  try {
+    const res = await fetch('/intake-template.default.json');
+    if (!res.ok) return null;
+    const tpl = await res.json();
+    return tpl && Array.isArray(tpl.fields) ? tpl : null;
+  } catch (e) {
+    // A form that renders its original wording is far better than one that does not render.
+    return null;
+  }
+}
+
+async function applyIntakeTemplate() {
+  intakeTemplate = await loadIntakeTemplate(clientCompany);
+  if (intakeTemplate && window.akoreIntakeForm) window.akoreIntakeForm.apply(intakeTemplate, lang);
+}
 
 async function restoreSavedProgress() {
   if (!clientCompany) return;
@@ -1747,6 +1789,14 @@ function showApp() {
 
 // ── Restore previously saved answers for this client, if any exist ──
 function populateForm(d) {
+  // A template can switch a whole section off, and then nothing under that key is ever saved. Every
+  // line below reads d.<section>.<field> directly, so one absent section would throw and abandon the
+  // restore half-done — the customer would come back to a form that had lost the answers it did have.
+  d = d || {};
+  for (const k of ['general', 'websites', 'customer', 'problem', 'jobToBeDone',
+                   'category', 'competitors', 'searchPatterns', 'differentiators', 'proof']) {
+    d[k] = d[k] || {};
+  }
   const fields = {
     'company': d.general.company, 'website': d.general.website, 'industry': d.general.industry,
     'contact': d.general.contact, 'role': d.general.role, 'email': d.general.email,
