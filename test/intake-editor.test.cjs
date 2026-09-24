@@ -26,14 +26,21 @@ check('the editor block was found in index.html', from !== -1 && to > from, `${f
 if (from === -1 || to <= from) { console.log('\n1 FAILURE(S)'); process.exit(1); }
 const editorSrc = inline.slice(from, to);
 
+// The modal the editor draws into, as index.html declares it.
+const MODAL = `<div class="modal-backdrop" id="intake-tpl-modal"><div class="modal-box wide">
+  <div id="intake-tpl-title"></div>
+  <select id="tpl-language"><option value="both"></option><option value="es"></option><option value="en"></option></select>
+  <div id="tpl-body"></div><div id="tpl-status"></div></div></div>`;
+
 function boot(template) {
-  const dom = new JSDOM('<!doctype html><body><div id="tpl-body"></div></body>', {
+  const dom = new JSDOM('<!doctype html><body>' + MODAL + '<div id="unused"></div></body>', {
     url: 'https://test.local/index.html', runScripts: 'outside-only', virtualConsole: new VirtualConsole()
   });
   const w = dom.window;
   // The page pieces the editor leans on, stubbed to their real behaviour and nothing more.
   w.eval(`
     var lang = 'es';
+    var currentCompany = 'Demo';
     function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function t(k, a, b) { return typeof k === 'string' ? k + (a !== undefined ? ':' + a : '') : ''; }
   `);
@@ -190,5 +197,61 @@ console.log('\nReordering by dragging:\n');
   check('sections can be reordered too', order[0] === 'panel-1', JSON.stringify(order));
 }
 
+
+(async () => {
+console.log('\nOpening it, the way the button does:\n');
+{
+  // The button was dead on arrival once, because a rewrite replaced the block of the page that
+  // happened to define openIntakeEditor() and did not put it back. This suite was green through
+  // all of it: it called renderIntakeEditor() directly and never opened anything.
+  const run = async (rec) => {
+    const w = boot(baseTemplate());
+    w.__run(`
+      window.apiQuery = async (e, p) => e;
+      window.fetch = async (u) => {
+        const s = String(u);
+        const body = s.indexOf('/api/intake-template') !== -1
+          ? ${JSON.stringify('REC')}
+          : ${JSON.stringify('DEFAULT')};
+        return { ok: true, json: async () => JSON.parse(body === 'REC' ? window.__rec : window.__default) };
+      };
+    `);
+    w.__rec = JSON.stringify(rec);
+    w.__default = JSON.stringify(Object.assign(baseTemplate(), { language: 'both' }));
+    // Caught, so a missing handler is reported as a failed check rather than crashing the suite
+    // and taking every assertion after it down with it.
+    try { await w.__run('openIntakeEditor()'); }
+    catch (e) { w.__openError = String(e && e.message || e); }
+    return w;
+  };
+
+  const fresh = await run({ company: 'Demo', draft: null, released: null });
+  check('openIntakeEditor() exists and runs', !fresh.__openError, fresh.__openError || '');
+  check('the modal is actually opened',
+    fresh.document.getElementById('intake-tpl-modal').classList.contains('open'), 'never opened');
+  check('and it is populated with the standard questions',
+    fresh.document.querySelectorAll('.tpl-row').length === 4,
+    String(fresh.document.querySelectorAll('.tpl-row').length));
+
+  // A draft in progress is what you continue from, not the released copy underneath it.
+  const draft = Object.assign(baseTemplate(), { language: 'es' });
+  draft.fields = draft.fields.slice(0, 2);
+  const cont = await run({ company: 'Demo', draft, released: baseTemplate(), unreleasedChanges: true });
+  check('an unfinished draft is what reopens, not the released version',
+    cont.document.querySelectorAll('.tpl-row').length === 2,
+    String(cont.document.querySelectorAll('.tpl-row').length));
+  check('and its language setting comes back with it',
+    cont.document.getElementById('tpl-language').value === 'es',
+    cont.document.getElementById('tpl-language').value);
+  check('the unreleased-changes note is shown on open',
+    !!cont.document.getElementById('tpl-status').textContent, 'nothing said');
+
+  const closed = await run({ company: 'Demo', draft: null, released: null });
+  closed.__run('closeIntakeEditor()');
+  check('closeIntakeEditor() exists and closes it',
+    !closed.document.getElementById('intake-tpl-modal').classList.contains('open'), 'still open');
+}
+
 console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
 process.exit(failures ? 1 : 0);
+})();

@@ -517,6 +517,7 @@ const T = {
   tplReleaseBtn: { en: 'Release to customer', es: 'Publicar al cliente' },
   tplWithdrawBtn: { en: 'Back to the default form', es: 'Volver al formulario estándar' },
   tplEditBtn: { en: 'Edit intake form', es: 'Editar formulario' },
+  tplLoadFailed: { en: 'Could not load this form to edit. Reload the page and try again.', es: 'No se pudo cargar este formulario para editarlo. Recarga la página e intenta de nuevo.' },
   tplAddBtn: { en: '+ Add a question', es: '+ Agregar pregunta' },
   tplRemove: { en: 'Remove', es: 'Quitar' },
   tplChoices: { en: 'Choices', es: 'Opciones' },
@@ -1796,6 +1797,46 @@ const tplFeedsGrading = f => (f.paths || []).some(p => TPL_GROUND_TRUTH.includes
 
 let intakeEditor = null;   // { company, template, releasedAt, unreleased }
 let tplDrag = null;        // what is being dragged: { kind: 'field'|'section', id }
+
+/**
+ * Opens the editor on the most recent thing there is: the draft if one is in progress, otherwise
+ * whatever is released, otherwise the standard questions. Editing always continues from the latest
+ * copy — never silently from an older one.
+ */
+async function openIntakeEditor() {
+  if (!currentCompany) return;
+  let rec = {};
+  try {
+    const res = await fetch(await window.apiQuery('/api/intake-template', { company: currentCompany }));
+    if (res.ok) rec = await res.json();
+  } catch (e) { /* nothing saved yet: start from the standard questions */ }
+
+  let template = rec.draft || rec.released || null;
+  if (!template) {
+    try {
+      const res = await fetch('/intake-template.default.json');
+      template = res.ok ? await res.json() : null;
+    } catch (e) { template = null; }
+  }
+  if (!template || !Array.isArray(template.fields)) { alert(t('tplLoadFailed')); return; }
+
+  intakeEditor = {
+    company: currentCompany,
+    template: JSON.parse(JSON.stringify(template)),
+    releasedAt: rec.releasedAt || null,
+    unreleased: !!rec.unreleasedChanges
+  };
+  document.getElementById('intake-tpl-title').textContent = t('intakeTitle') + ' — ' + currentCompany;
+  document.getElementById('tpl-language').value = intakeEditor.template.language || 'both';
+  renderIntakeEditor();
+  document.getElementById('tpl-status').textContent = intakeEditor.unreleased ? t('tplUnreleased') : '';
+  document.getElementById('intake-tpl-modal').classList.add('open');
+}
+
+function closeIntakeEditor() {
+  document.getElementById('intake-tpl-modal').classList.remove('open');
+  intakeEditor = null;
+}
 
 /** Which wording columns are shown: a customer set to Spanish only has no English to write. */
 function tplLangs() {
