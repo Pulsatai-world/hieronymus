@@ -178,7 +178,21 @@
 
   /** Signing out, from anywhere. Ends the session on the server too. */
   window.staffLogoutAll = function (destination) { return api.logout(destination || 'reload'); };
-  window.clientLogoutAll = function () { return api.logout(location.pathname); };
+  window.clientLogoutAll = function () {
+    // Under a staff bypass there is no customer session to end; the token in play is the staff one.
+    // Ending it here would sign the staff member out everywhere, from a page they were only
+    // inspecting. Leaving the view is the only thing this can honestly mean.
+    const who = api.who();
+    if (who && who.staffBypass) {
+      const href = '/index.html?company=' + encodeURIComponent(who.company || '');
+      current = null;
+      // Returns the destination it chose, the same way akoreLand does, so the decision can be
+      // checked without a real navigation.
+      try { location.href = href; } catch (e) { /* a browser that refused; the answer stands */ }
+      return Promise.resolve(href);
+    }
+    return api.logout(location.pathname);
+  };
 
   /**
    * "Home" differs by who is looking: staff belong in the internal portal, a customer in their own.
@@ -187,6 +201,11 @@
    */
   window.homeHref = function (company) {
     const who = api.who();
+    // Staff viewing a customer's page belong back on that customer's internal page, not in the
+    // customer's own portal, which is somewhere they have no business being sent.
+    if (who && who.staffBypass) {
+      return '/index.html?company=' + encodeURIComponent(who.company || company || '');
+    }
     if (who && who.kind === 'staff') return '/portal.html';
     if (who && who.kind === 'customer' && who.username) {
       return '/client-portal.html?username=' + encodeURIComponent(who.username);
@@ -426,6 +445,58 @@
   };
 
   /**
+   * The bar shown when staff are looking at a customer's page.
+   *
+   * Without it the page is indistinguishable from the customer's own: same chrome, same buttons,
+   * their company name in the corner. A staff member pressed "preview as client", landed on a page
+   * offering "my portal" and "log out", and had no way to tell whose portal or whose session those
+   * meant. It is drawn here rather than in each of the three client pages so it cannot be added to
+   * two of them and forgotten on the third.
+   */
+  function showBypassBar(who) {
+    try {
+      if (document.getElementById('akore-bypass-bar')) return;
+      const es = (function () {
+        try { return (localStorage.getItem('hieronymus_lang') || 'es') === 'es'; } catch (e) { return true; }
+      })();
+      const preview = new URLSearchParams(location.search).get('preview') === 'draft';
+
+      const bar = document.createElement('div');
+      bar.id = 'akore-bypass-bar';
+      bar.style.cssText = 'position:sticky;top:0;z-index:9999;display:flex;align-items:center;gap:12px;'
+        + 'flex-wrap:wrap;padding:9px 16px;background:#2b2440;color:#fff;font-size:13px;'
+        + 'font-family:inherit;line-height:1.45;box-shadow:0 1px 6px rgba(0,0,0,.18);';
+
+      const text = document.createElement('span');
+      text.style.cssText = 'flex:1;min-width:200px;';
+      const company = who && who.company ? who.company : '';
+      text.textContent = preview
+        ? (es ? 'Vista previa del formulario de ' + company + '. Así lo verá el cliente. Todavía no está publicado y aquí no se guarda nada.'
+              : 'Preview of ' + company + "'s form. This is what the client will see. It is not published yet, and nothing is saved here.")
+        : (es ? 'Estás viendo la página de ' + company + ' como personal de Akore.'
+              : "You are viewing " + company + "'s page as Akore staff.");
+      bar.appendChild(text);
+
+      const back = document.createElement('a');
+      back.href = '/index.html?company=' + encodeURIComponent(company);
+      back.textContent = es ? 'Volver al cliente' : 'Back to the customer';
+      back.style.cssText = 'color:#fff;background:rgba(255,255,255,.14);border-radius:999px;'
+        + 'padding:5px 12px;text-decoration:none;white-space:nowrap;font-weight:600;';
+      bar.appendChild(back);
+
+      const put = () => document.body && document.body.insertBefore(bar, document.body.firstChild);
+      if (document.body) put();
+      else document.addEventListener('DOMContentLoaded', put);
+    } catch (e) { /* the bar is a courtesy; never let it stop the page */ }
+  }
+
+  /** True when this page is being viewed by staff standing in for a customer. */
+  window.akoreIsStaffBypass = function () {
+    const who = api.who();
+    return !!(who && who.staffBypass);
+  };
+
+  /**
    * Staff opening a customer's page. Uses the staff session already in this browser and asks the
    * server for that customer's payload; nothing is issued, and the staff session stays the
    * credential for every request the page then makes.
@@ -441,8 +512,14 @@
       if (!who || !who.company) return null;
       // Read the staff session from now on, not the (absent) customer one.
       audience = 'staff';
-      current = who;
-      return who;
+      current = Object.assign({}, who, { staffBypass: true });
+      // Every page this can open is a CLIENT page, drawn for the person whose data it shows. Left
+      // unmarked, a staff member is handed a customer's chrome: "my portal" takes them to that
+      // customer's portal, and "log out" is far worse than it looks — the session being held here is
+      // the STAFF one, so the button revokes it on the server and signs them out of the whole
+      // platform, in every tab, from a page they only meant to look at.
+      showBypassBar(current);
+      return current;
     } catch (e) { return null; }
   };
 

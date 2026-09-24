@@ -1656,6 +1656,24 @@ async function adoptSession(who) {
   showApp();
   await applyIntakeTemplate();   // before restore: an added question must exist to be filled in
   await restoreSavedProgress();
+  applyPreviewMode();
+}
+
+/**
+ * Previewing an unreleased draft is for looking at the form, and nothing else.
+ *
+ * The page it opens is the customer's real intake, wired to the customer's real answers. Saving from
+ * it would write a staff member's placeholder text over what the client had actually filled in, from
+ * a screen whose whole purpose was to check the wording. So the two ways to write are removed rather
+ * than merely discouraged. Correcting a customer's intake is still done by opening their form
+ * normally, which is a different thing that stays exactly as it was.
+ */
+function applyPreviewMode() {
+  if (new URLSearchParams(location.search).get('preview') !== 'draft') return;
+  ['save-progress-btn', 'submit-intake-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 }
 
 window.submitGateCode = async function() {
