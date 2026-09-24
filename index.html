@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="/styles/akore-tokens.css">
 <title>Akore Labs — Customer Detail</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <script src="/js/auth.js"></script>
 <script>window.akoreAuth.useStaffSession();</script>
@@ -815,20 +816,18 @@ async function loadCompany(company) {
   // only, and the count comes from `promptCount`.
   const promptsQuery = await window.apiQuery('/api/prompts', { company });
 
-  const [intakeRes, promptsRes, resultsText, codeRec] = await Promise.all([
+  const tplQuery = await window.apiQuery('/api/intake-template', { company });
+  const [intakeRes, promptsRes, resultsText, codeRec, tplRec] = await Promise.all([
     fetch(await window.intakeQuery(company)).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(promptsQuery).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(await window.resultsQuery(company)).then(r => r.ok ? r.text() : '').catch(() => ''),
-    fetch(await window.apiQuery('/api/intake-codes', { company })).then(r => r.ok ? r.json() : null).catch(() => null)
+    fetch(await window.apiQuery('/api/intake-codes', { company })).then(r => r.ok ? r.json() : null).catch(() => null),
+    // In the parallel block, not after it. I added this as a fifth serial round trip, so every
+    // customer page waited for four requests and then waited again for a fifth.
+    fetch(tplQuery).then(r => r.ok ? r.json() : null).catch(() => null)
   ]);
 
   currentCodeRec = codeRec || null;
-  // Staff-only read: draft, released, and whether there are edits the customer has not been given.
-  let tplRec = null;
-  try {
-    const r = await fetch(await window.apiQuery('/api/intake-template', { company }));
-    if (r.ok) tplRec = await r.json();
-  } catch (e) { /* the card just reports the standard questions */ }
 
   const rows = parseCSV(resultsText).filter(r => r.brand === company);
   currentRows = rows;
@@ -1221,7 +1220,7 @@ function markAuditReported(company) {
 //
 // Throttled, because it runs beside a 3-second poll and fetches the customer's whole result set.
 let auditRowProbe = { at: 0, company: '', rows: null };
-async function auditRowProgress(company) {
+async function auditRowProgress(company, opts) {
   const rec = auditPendingRec(company);
   const out = {
     live: false,
@@ -1232,8 +1231,13 @@ async function auditRowProgress(company) {
   };
   if (!rec || !Number.isFinite(rec.rowsAtTrigger)) return out;
 
+  // Only when the job record is not keeping up. It is written per prompt and costs one read, while
+  // this costs a whole result set — polling it every six seconds meant rescanning the customer's
+  // entire audit history ten times a minute for a number the record usually already had.
+  if (opts && opts.jobCompleted > 0 && !opts.jobStale) return out;
+
   if (auditRowProbe.company !== company) auditRowProbe = { at: 0, company, rows: null };
-  if (!auditRowProbe.rows || Date.now() - auditRowProbe.at > 6000) {
+  if (!auditRowProbe.rows || Date.now() - auditRowProbe.at > 20000) {
     try {
       const res = await fetch(await window.resultsQuery(company));
       if (!res.ok) return out;
@@ -1402,7 +1406,12 @@ async function pollJobStatus(company, opts) {
     pending: auditIsPending(company),
     graceLeft: opts.graceRetriesLeft || 0,
     stallAfterMs: STALL_AFTER_MS,
-    rows: await auditRowProgress(company)
+    // The record is the cheap source; the rows are the fallback for when it has stalled or never
+    // arrived, which is the case this exists for.
+    rows: await auditRowProgress(company, {
+      jobCompleted: parseInt(data.completed, 10) || 0,
+      jobStale: !data.lastProgressAt || (Date.now() - (Date.parse(data.lastProgressAt) || 0)) > 45000
+    })
   });
   // classify() returns a fresh view; carry the "already refreshed" flag across it or the
   // completion refresh below fires on every poll and the page reloads itself in a loop.

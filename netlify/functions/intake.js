@@ -1,6 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
 import { callerOf, requireCompany, requireStaff } from './lib/authorize.js';
+import { resultsIndex } from './lib/results-cache.js';
 
 function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
@@ -29,14 +30,18 @@ async function intakeLock(company) {
   if (prompts && prompts.approvedAt) return { locked: true, reason: 'prompts-approved', at: prompts.approvedAt };
 
   // Results are the ground truth for "an audit has run" — a job record can be cleared, rows cannot.
-  const rowsStore = getStore('hieronymus-results-rows');
-  const { blobs } = await rowsStore.list();
-  const want = String(company || '').trim().toLowerCase();
-  for (const b of blobs) {
-    const row = await rowsStore.get(b.key, { type: 'json' });
-    if (row && String(row.brand || '').toLowerCase() === want) {
-      return { locked: true, reason: 'audit-run', at: row.snapshot_date || null };
-    }
+  //
+  // This is a yes/no question and it used to be answered by reading every result row on the
+  // platform, one at a time, in a loop with an await in it. A customer who already had rows exited
+  // early; a customer with none read all of them sequentially. It runs on every customer page view
+  // and every intake load, which is most of why the app felt slow.
+  //
+  // The per-company summary already knows the answer. When it has not been built yet the rows are
+  // still the authority, so the index is built once and answers from then on.
+  const summary = await resultsIndex();
+  const entry = summary.companies[slugify(company)];
+  if (entry && entry.rows > 0) {
+    return { locked: true, reason: 'audit-run', at: entry.lastRun || null };
   }
   return { locked: false, reason: null, at: null };
 }

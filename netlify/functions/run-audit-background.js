@@ -1,6 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import { requireStaff } from './lib/authorize.js';
 import { createStaffSession } from './lib/session.js';
+import { invalidateResultsCache, rebuildResultsCache } from './lib/results-cache.js';
 
 // Server-side port of index.html's multi-engine answer+grade pipeline. Runs as a Netlify
 // Background Function (note the -background filename) so it can keep going well past the
@@ -769,6 +770,10 @@ export default async (request, context) => {
           finishedAt: new Date().toISOString()
         });
       }
+      // A continuation has written rows, so anything derived from them is stale. Dropped rather
+      // than rebuilt here: the next segment is about to write more, and a rebuild between segments
+      // would be paid for and thrown away.
+      await invalidateResultsCache();
       return new Response(JSON.stringify({ status: 'continued', startIndex: handedOffAt }), {
         status: 200, headers: { 'Content-Type': 'application/json' }
       });
@@ -788,8 +793,19 @@ export default async (request, context) => {
         : '',
       finishedAt: new Date().toISOString()
     });
+
+    // The run is over and the rows are final, so the caches every page reads from are rebuilt here
+    // — once, on the machine that already knows the work is done — rather than by whoever opens a
+    // dashboard next and pays for it while they wait.
+    try {
+      await rebuildResultsCache();
+    } catch (e) {
+      // A cache is rebuildable by definition; a run must not be reported as failed because of one.
+      console.error('RESULTS_CACHE_REBUILD_FAILED', e && e.message);
+    }
   } catch (err) {
     await updateJob(jobsStore, jobKey, { status: 'error', message: err.message, finishedAt: new Date().toISOString() });
+    await invalidateResultsCache();
   }
 
   return new Response(JSON.stringify({ status: 'done' }), { status: 200, headers: { 'Content-Type': 'application/json' } });

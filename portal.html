@@ -30,6 +30,7 @@
 </style>
 <title>Akore Labs — Portal</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <script src="/js/auth.js"></script>
 <script src="/js/geo-capture.bookmarklet.js"></script>
@@ -664,14 +665,18 @@ let allCustomerItems = [], promptsBySlug = {}, runsByCompany = {};
 async function loadAll() {
   const container = document.getElementById('customers-list');
   try {
-    const [codesRes, promptsRes, resultsRes] = await Promise.all([
+    const [codesRes, promptsRes, summaryRes] = await Promise.all([
       fetch(await window.apiQuery('/api/intake-codes', {})),
       fetch(await window.apiQuery('/api/prompts', {})),
-      fetch(await window.resultsQuery(''))
+      // Summary, not the rows. This list needs one thing from the audit history — which dates each
+      // customer has run on — and it used to get it by downloading every result row on the
+      // platform and counting them in the browser. Ten thousand rows cost ten thousand round trips
+      // to draw a list of four customers, and every audit ever run made opening the app slower.
+      fetch(await window.apiQuery('/api/results', { summary: '1' }))
     ]);
     const codesData = await codesRes.json();
     const promptsData = await promptsRes.json().catch(() => ({ items: [] }));
-    const resultsText = await resultsRes.text().catch(() => '');
+    const summary = await summaryRes.json().catch(() => ({ companies: {} }));
 
     allCustomerItems = codesData.items || [];
     if (allCustomerItems.length === 0) {
@@ -682,12 +687,9 @@ async function loadAll() {
     promptsBySlug = {};
     (promptsData.items || []).forEach(p => { promptsBySlug[p.key] = p; });
 
-    const allRows = parseCSV(resultsText);
     runsByCompany = {};
-    allRows.forEach(r => {
-      if (!r.brand) return;
-      runsByCompany[r.brand] = runsByCompany[r.brand] || new Set();
-      runsByCompany[r.brand].add(r.snapshot_date);
+    Object.values(summary.companies || {}).forEach(c => {
+      if (c && c.company) runsByCompany[c.company] = new Set(c.dates || []);
     });
 
     renderCustomerTable();

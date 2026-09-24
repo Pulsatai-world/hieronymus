@@ -22,21 +22,29 @@ export async function load(url, context, next) {
       shortCircuit: true,
       source: `
         const all = (globalThis.__BLOBS__ = globalThis.__BLOBS__ || {});
+        // Every store operation is a network round trip in production. Counting them is the only
+        // honest way to talk about how an endpoint scales, since an in-memory store hides the cost.
+        const ops = (globalThis.__BLOB_OPS__ = globalThis.__BLOB_OPS__ || { get: 0, set: 0, list: 0, delete: 0 });
         const bucket = name => (all[name] = all[name] || {});
         const clone = v => (v === undefined ? null : JSON.parse(JSON.stringify(v)));
 
         export function getStore(name) {
           return {
             async get(key, opts) {
+              ops.get++;
               const b = bucket(name);
               if (!(key in b)) return null;
               return opts && opts.type === 'json' ? clone(b[key]) : b[key];
             },
-            async setJSON(key, value) { bucket(name)[key] = clone(value); },
-            async set(key, value) { bucket(name)[key] = value; },
-            async delete(key) { delete bucket(name)[key]; },
-            async list() {
-              return { blobs: Object.keys(bucket(name)).map(key => ({ key })) };
+            async setJSON(key, value) { ops.set++; bucket(name)[key] = clone(value); },
+            async set(key, value) { ops.set++; bucket(name)[key] = value; },
+            async delete(key) { ops.delete++; delete bucket(name)[key]; },
+            async list(opts) {
+              ops.list++;
+              const prefix = (opts && opts.prefix) || '';
+              return { blobs: Object.keys(bucket(name))
+                .filter(key => !prefix || key.indexOf(prefix) === 0)
+                .map(key => ({ key })) };
             }
           };
         }

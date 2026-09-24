@@ -1,6 +1,8 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
 import { requireStaff, requireStaffAdmin, requireCompany } from './lib/authorize.js';
+import { cachedCompanyCsv, resultsIndex, invalidateResultsCache,
+         CSV_COLUMNS, CSV_HEADER, rowToCsvLine } from './lib/results-cache.js';
 
 
 // Each result row is stored as its own blob, keyed by run_id. This avoids the read-modify-write
@@ -29,28 +31,6 @@ function slugify(name) {
   return String(name || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
 }
 
-const CSV_COLUMNS = [
-  'run_id', 'run_type', 'snapshot_date', 'engine', 'prompt_id', 'prompt_text', 'query_intent', 'topic_cluster',
-  'brand', 'brand_mentioned', 'brand_cited', 'brand_citation_rank', 'total_brands_cited',
-  'brands_cited_list', 'top_cited_brand', 'brand_is_leader', 'linked_to_site', 'sentiment',
-  'claims_about_brand', 'incorrect_claims', 'has_incorrect_claim', 'services_correct',
-  'location_correct', 'contact_correct', 'ai_sessions', 'ai_conversions', 'ai_pipeline_usd',
-  'answer_excerpt'
-];
-const CSV_HEADER = CSV_COLUMNS.join(',') + '\n';
-
-function csvEscape(val) {
-  const s = String(val ?? '');
-  if (/[",\n]/.test(s)) {
-    return '"' + s.replace(/"/g, '""') + '"';
-  }
-  return s;
-}
-
-function rowToCsvLine(row) {
-  return CSV_COLUMNS.map(col => csvEscape(row[col])).join(',') + '\n';
-}
-
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
     status,
@@ -66,8 +46,9 @@ export default async (request, context) => {
     // The audit no longer calls this — run-audit-background.js writes rows straight to the store —
     // so the only remaining callers would be manual imports, which are a staff action. Leaving it
     // open let anyone fabricate rows in any customer's dataset.
-    const denied = await requireStaff(url, null, json);
-    if (denied) return denied;
+    // Parsed before the guard so the session can be read from the body, the way every other write
+    // in this app sends it. Checking the URL alone refused a caller that had authenticated
+    // perfectly well. Parsing first is safe: nothing is written until the guard has passed.
     let body;
     try {
       body = await request.json();
@@ -77,6 +58,8 @@ export default async (request, context) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
+    const denied = await requireStaff(url, body, json);
+    if (denied) return denied;
     if (!body.run_id) {
       return new Response(JSON.stringify({ error: 'Missing run_id' }), {
         status: 400,
@@ -85,6 +68,8 @@ export default async (request, context) => {
     }
 
     await store.setJSON(body.run_id, body);
+    // The rows changed, so everything derived from them is stale.
+    await invalidateResultsCache();
     return new Response(JSON.stringify({ status: 'ok' }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
@@ -100,13 +85,28 @@ export default async (request, context) => {
     const denied = await requireCompany(url, null, json, company);
     if (denied) return denied;
 
-    const { blobs } = await store.list();
-    let rows = (await Promise.all(blobs.map(b => store.get(b.key, { type: 'json' })))).filter(Boolean);
-    if (company) {
-      const want = company.toLowerCase();
-      rows = rows.filter(r => String(r.brand || '').toLowerCase() === want);
+    // The portal needs to know which dates each customer has runs on, and nothing else. It used to
+    // learn that by downloading every row on the platform — ten thousand rows cost ten thousand
+    // round trips to render a list of four customers.
+    if (url.searchParams.get('summary') === '1') {
+      const index = await resultsIndex();
+      if (company) {
+        const one = index.companies[company.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '')];
+        return json({ companies: one ? { [company]: one } : {} }, 200);
+      }
+      return json(index, 200);
     }
-    const csv = CSV_HEADER + rows.map(rowToCsvLine).join('');
+
+    const csv = company
+      ? await cachedCompanyCsv(company)
+      // Staff asking for everything: still the whole set, but assembled from the per-company CSVs
+      // that already exist rather than from every row individually.
+      : await (async () => {
+          const index = await resultsIndex();
+          const parts = await Promise.all(Object.keys(index.companies).map(async k =>
+            (await cachedCompanyCsv(index.companies[k].company)).slice(CSV_HEADER.length)));
+          return CSV_HEADER + parts.join('');
+        })();
     return new Response(csv, {
       status: 200,
       headers: {
@@ -140,6 +140,7 @@ export default async (request, context) => {
     const toDelete = rows.filter(r => r.data && r.data.brand === company
       && (!snapshot || r.data.snapshot_date === snapshot));
     await Promise.all(toDelete.map(r => store.delete(r.key)));
+    await invalidateResultsCache();
     return new Response(JSON.stringify({ status: 'ok', deleted: toDelete.length, snapshot_date: snapshot || null }), {
       status: 200,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
