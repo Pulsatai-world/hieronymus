@@ -159,6 +159,57 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
 .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(8,9,12,0.5); align-items: center; justify-content: center; z-index: 200; padding: 20px; }
 .modal-backdrop.open { display: flex; }
 .modal-box { background: var(--surface); border-radius: var(--radius); padding: 28px; width: 100%; max-width: 440px; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+.modal-box.wide { max-width: 900px; }
+/* The editor. Questions are the content; the controls around them stay quiet until hovered. */
+.tpl-section { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; background: var(--surface); }
+.tpl-section[draggable="true"] { transition: box-shadow .12s ease; }
+.tpl-section-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--violet-50, #f6f4fe); border-radius: 12px 12px 0 0; }
+.tpl-sec-title { flex: 1; min-width: 90px; font-weight: 650; font-size: 13.5px; padding: 7px 9px; border: 1px solid transparent; background: transparent; border-radius: 7px; }
+.tpl-sec-title:hover { border-color: var(--border); background: var(--surface); }
+.tpl-sec-title:focus { border-color: var(--accent, #6d4fe0); background: var(--surface); outline: none; }
+.tpl-rows { padding: 2px 0; }
+.tpl-empty { padding: 14px; font-size: 12.5px; color: var(--muted, #7a8496); }
+.tpl-row { display: flex; align-items: flex-start; gap: 9px; padding: 9px 12px; border-top: 1px solid var(--border); }
+.tpl-row:first-child { border-top: none; }
+.tpl-row.off { background: repeating-linear-gradient(45deg, transparent, transparent 7px, rgba(0,0,0,.02) 7px, rgba(0,0,0,.02) 14px); }
+.tpl-row.off .tpl-words input { color: var(--muted, #7a8496); }
+.tpl-words { flex: 1; display: flex; flex-wrap: wrap; gap: 7px; }
+.tpl-words > input[type=text] { flex: 1 1 200px; min-width: 150px; font-size: 13px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 7px; box-sizing: border-box; }
+.tpl-meta { flex-basis: 100%; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tpl-id { font-size: 10.5px; color: var(--muted, #7a8496); font-family: ui-monospace, monospace; }
+.tpl-note { font-size: 10.5px; color: var(--muted, #7a8496); }
+.tpl-note.warn { color: var(--warning, #b8901f); }
+.tpl-type { font-size: 11px; padding: 3px 22px 3px 7px; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface); height: auto; width: auto; }
+/* Multiple choice, in the customer's form. */
+.multi-choice { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.multi-choice-opt { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; text-transform: none; }
+.multi-choice-opt input { width: auto; margin: 0; }
+.tpl-grip { cursor: grab; color: var(--muted, #b6bdc9); font-size: 15px; line-height: 1.6; user-select: none; }
+.tpl-grip:active { cursor: grabbing; }
+.tpl-icon { border: none; background: transparent; cursor: pointer; font-size: 14px; line-height: 1; padding: 6px; border-radius: 6px; color: var(--muted, #7a8496); }
+.tpl-icon:hover { background: var(--violet-50, #f1eefe); color: var(--text); }
+.tpl-icon.danger:hover { background: #fdecec; color: #b03a3a; }
+.tpl-mini { border: 1px dashed var(--border-strong, #d6dae1); background: transparent; border-radius: 7px; padding: 5px 10px; font-size: 12px; cursor: pointer; color: var(--accent, #6d4fe0); font-family: inherit; }
+.tpl-mini:hover { border-style: solid; }
+/* On/off as a switch: a checkbox reads as "tick to agree", not "this question is asked". */
+.tpl-switch { position: relative; display: inline-block; width: 32px; height: 18px; flex: none; margin-top: 4px; }
+.tpl-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.tpl-switch span { position: absolute; inset: 0; background: #cfd5de; border-radius: 999px; transition: background .15s ease; cursor: pointer; }
+.tpl-switch span::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: transform .15s ease; }
+.tpl-switch input:checked + span { background: var(--accent, #6d4fe0); }
+.tpl-switch input:checked + span::after { transform: translateX(14px); }
+.tpl-switch input:focus-visible + span { box-shadow: 0 0 0 3px rgba(109,79,224,.25); }
+/* Dropdown choices, as rows rather than as text someone has to punctuate correctly. */
+.tpl-opts { flex-basis: 100%; margin-top: 4px; padding: 9px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg, #fafbfc); }
+.tpl-opts-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #7a8496); margin-bottom: 7px; }
+.tpl-opt { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.tpl-opt input { flex: 1 1 120px; min-width: 90px; font-size: 12.5px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; }
+.tpl-opt .tpl-opt-val { flex: 0 0 110px; font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--muted, #7a8496); }
+@media (max-width: 720px) {
+  .tpl-words > input[type=text] { flex-basis: 100%; }
+  .tpl-opt { flex-wrap: wrap; }
+  .tpl-opt .tpl-opt-val { flex-basis: 100%; }
+}
 .field { margin-bottom: 14px; }
 .field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-dim); margin-bottom: 7px; }
 .field input, .field select { width: 100%; font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--radius-md); padding: 11px 14px; outline: none; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
@@ -224,6 +275,29 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
     <div class="row" style="margin-top:20px; justify-content:flex-end;">
       <button class="btn btn-ghost" onclick="closeRunModal()" data-t="cancelBtn">Cancel</button>
       <button class="btn" id="run-confirm-btn" onclick="confirmRunAudit()" data-t="runAuditBtn">Run Audit</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="intake-tpl-modal">
+  <div class="modal-box wide">
+    <div class="card-title" id="intake-tpl-title">Intake form</div>
+    <div class="card-caption" data-t="tplModalHint">Switch questions off, reword them in both languages, or add your own. Nothing here reaches the customer until you release it.</div>
+    <div class="field">
+      <label data-t="tplLangLabel">Language this customer fills the form in</label>
+      <select id="tpl-language" onchange="tplSetLanguage(this.value)">
+        <option value="both" data-t="tplLangBoth">Both, with a toggle</option>
+        <option value="es" data-t="tplLangEs">Spanish only</option>
+        <option value="en" data-t="tplLangEn">English only</option>
+      </select>
+    </div>
+    <div id="tpl-body" style="margin-top:16px;"></div>
+    <div id="tpl-status" class="field-hint" style="margin-top:12px;"></div>
+    <div class="row" style="margin-top:18px; justify-content:flex-end; flex-wrap:wrap;">
+      <button class="btn btn-ghost" onclick="closeIntakeEditor()" data-t="cancelBtn">Cancel</button>
+      <button class="btn btn-ghost" onclick="previewIntakeDraft()" data-t="tplPreviewBtn">Preview as client</button>
+      <button class="btn btn-ghost" onclick="saveIntakeDraft()" data-t="tplSaveBtn">Save draft</button>
+      <button class="btn" onclick="releaseIntakeTemplate()" data-t="tplReleaseBtn">Release to customer</button>
     </div>
   </div>
 </div>
@@ -438,6 +512,41 @@ const T = {
   giveUpWaitingBtn: { en: 'Stop waiting', es: 'Dejar de esperar' },
   checkAgainBtn: { en: 'Check again', es: 'Verificar de nuevo' },
   auditDoneLabel: { en: 'Audit complete', es: 'Auditoría completada' },
+  tplModalHint: { en: 'Switch questions off, reword them in both languages, or add your own. Nothing here reaches the customer until you release it.', es: 'Apaga preguntas, cámbiales el texto en los dos idiomas o agrega las tuyas. Nada de esto le llega al cliente hasta que lo publiques.' },
+  tplLangLabel: { en: 'Language this customer fills the form in', es: 'Idioma en el que este cliente llena el formulario' },
+  tplLangBoth: { en: 'Both, with a toggle', es: 'Los dos, con botón para cambiar' },
+  tplLangEs: { en: 'Spanish only', es: 'Solo español' },
+  tplLangEn: { en: 'English only', es: 'Solo inglés' },
+  tplPreviewBtn: { en: 'Preview as client', es: 'Ver como cliente' },
+  tplSaveBtn: { en: 'Save draft', es: 'Guardar borrador' },
+  tplReleaseBtn: { en: 'Release to customer', es: 'Publicar al cliente' },
+  tplWithdrawBtn: { en: 'Back to the default form', es: 'Volver al formulario estándar' },
+  tplEditBtn: { en: 'Edit intake form', es: 'Editar formulario' },
+  tplLoadFailed: { en: 'Could not load this form to edit. Reload the page and try again.', es: 'No se pudo cargar este formulario para editarlo. Recarga la página e intenta de nuevo.' },
+  tplAddBtn: { en: '+ Add a question', es: '+ Agregar pregunta' },
+  tplRemove: { en: 'Remove', es: 'Quitar' },
+  tplChoices: { en: 'Choices', es: 'Opciones' },
+  tplTypeLabel: { en: 'What kind of answer', es: 'Qué tipo de respuesta' },
+  tplAddChoice: { en: '+ Add a choice', es: '+ Agregar opción' },
+  tplStoredAs: { en: 'stored as', es: 'se guarda como' },
+  tplAddSection: { en: '+ Add a section', es: '+ Agregar sección' },
+  tplDeleteSection: { en: 'Delete this section', es: 'Borrar esta sección' },
+  tplNoQuestions: { en: 'No questions in this section yet.', es: 'Esta sección todavía no tiene preguntas.' },
+  tplDragHint: { en: 'Drag to reorder', es: 'Arrastra para reordenar' },
+  tplOnHint: { en: 'Asked. Switch off to hide it from this customer.', es: 'Se pregunta. Apágala para ocultarla a este cliente.' },
+  tplOffHint: { en: 'Not asked. Switch on to bring it back.', es: 'No se pregunta. Enciéndela para traerla de vuelta.' },
+  tplGradingNote: { en: 'used to check answers', es: 'se usa para revisar respuestas' },
+  tplGradingLost: { en: 'off: answers will not be checked against this', es: 'apagada: las respuestas ya no se revisan contra esto' },
+  tplConfirmRemove: { en: (q) => `Remove "${q}" from this customer's form?`, es: (q) => `¿Quitar "${q}" del formulario de este cliente?` },
+  tplConfirmSection: { en: (s, n) => `Delete the section "${s}" and the ${n} question${n === 1 ? '' : 's'} in it?`, es: (s, n) => `¿Borrar la sección "${s}" y sus ${n} pregunta${n === 1 ? '' : 's'}?` },
+  tplWarnings: { en: (w) => `Saved. Worth knowing: ${w}.`, es: (w) => `Guardado. Para que lo sepas: ${w}.` },
+  tplUsingDefault: { en: 'This customer gets the standard questions.', es: 'Este cliente recibe las preguntas estándar.' },
+  tplTailored: { en: (n) => `Tailored form, ${n} questions asked.`, es: (n) => `Formulario a la medida, ${n} preguntas.` },
+  tplUnreleased: { en: 'You have saved changes the customer is not seeing yet.', es: 'Tienes cambios guardados que el cliente todavía no ve.' },
+  tplSaved: { en: 'Draft saved. The customer still sees the previous version.', es: 'Borrador guardado. El cliente sigue viendo la versión anterior.' },
+  tplReleased: { en: 'Released. This is the form the customer gets now.', es: 'Publicado. Este es el formulario que recibe el cliente ahora.' },
+  tplWithdrawn: { en: 'Back to the standard questions for this customer.', es: 'Este cliente vuelve a las preguntas estándar.' },
+  tplSaveFailed: { en: 'Could not save: ', es: 'No se pudo guardar: ' },
   auditDoneDetail: { en: (rows, cited) => `${rows} answers graded, ${cited} recommended. The results below are up to date.`, es: (rows, cited) => `${rows} respuestas evaluadas, ${cited} recomendadas. Los resultados de abajo ya están actualizados.` },
   statusUnreadableLabel: { en: 'Status unreadable', es: 'Estado ilegible' },
   statusUnreadableHint: { en: (m) => `Could not read the run status: ${m}. This says nothing about the run itself, which keeps going either way. It is this page that cannot see it.`, es: (m) => `No se pudo leer el estado de la ejecución: ${m}. Esto no dice nada sobre la ejecución, que sigue de todos modos. Es esta página la que no puede verla.` },
@@ -530,6 +639,7 @@ let jobPollTimer = null;
 // Pollers must never open a password dialog on a timer.
 window.__resultsAuthNoPrompt = false;
 let currentPromptCount = 0;
+let currentCodeRec = null;
 let lastRunEngines = null;
 let currentCompany = '';
 let currentRows = [];
@@ -711,6 +821,14 @@ async function loadCompany(company) {
     fetch(await window.apiQuery('/api/intake-codes', { company })).then(r => r.ok ? r.json() : null).catch(() => null)
   ]);
 
+  currentCodeRec = codeRec || null;
+  // Staff-only read: draft, released, and whether there are edits the customer has not been given.
+  let tplRec = null;
+  try {
+    const r = await fetch(await window.apiQuery('/api/intake-template', { company }));
+    if (r.ok) tplRec = await r.json();
+  } catch (e) { /* the card just reports the standard questions */ }
+
   const rows = parseCSV(resultsText).filter(r => r.brand === company);
   currentRows = rows;
   const runDates = [...new Set(rows.map(r => r.snapshot_date))].sort().reverse();
@@ -751,9 +869,25 @@ async function loadCompany(company) {
       </div>
     </div>`;
 
-  const intakeBlock = intakeRes
+  // Which questions this customer is actually asked, and whether staff have edits in hand that the
+  // customer has not been given yet — the one thing about a draft that belongs on the page rather
+  // than inside the editor, because otherwise it is invisible until someone happens to open it.
+  const tplLive = tplRec && tplRec.released;
+  const tplAsked = tplLive ? (tplLive.fields || []).filter(f => f.enabled !== false).length : 0;
+  const tplBlock =
+    `<div class="row" style="margin-top:10px; align-items:center; flex-wrap:wrap;">` +
+      `<span class="badge ${tplLive ? 'badge-submitted' : 'badge-pending'}">` +
+        (tplLive ? t('tplTailored', tplAsked) : t('tplUsingDefault')) +
+      `</span>` +
+      `<button class="btn btn-ghost btn-sm" onclick="openIntakeEditor()">${t('tplEditBtn')}</button>` +
+      (tplLive ? `<button class="btn btn-ghost btn-sm" onclick="withdrawIntakeTemplate()">${t('tplWithdrawBtn')}</button>` : '') +
+    `</div>` +
+    (tplRec && tplRec.unreleasedChanges
+      ? `<div class="field-hint" style="margin-top:6px;color:var(--warning);">${t('tplUnreleased')}</div>` : '');
+
+  const intakeBlock = (intakeRes
     ? `<span class="badge badge-submitted">${t('submittedOn')}${esc((intakeRes.savedAt || '').slice(0, 10))}</span> <a class="btn btn-ghost btn-sm" href="/intake-view.html?company=${encodeURIComponent(company)}">${t('viewResponses')}</a>`
-    : `<span class="badge badge-pending">${t('noIntakeYet')}</span>`;
+    : `<span class="badge badge-pending">${t('noIntakeYet')}</span>`) + tplBlock;
 
   // `promptsText` is present only for a verified staff request or an already-released set; the
   // withheld response still carries promptCount, so the card works either way.
@@ -1649,6 +1783,360 @@ async function setDashboardRelease(which, release) {
   } catch (err) {
     alert(t('releaseFailed') + err.message);
   }
+}
+
+// ── The intake form editor ──
+//
+// Tailoring a customer's intake: switch questions off, reword them, add your own, choose the
+// language they fill it in. Everything here edits a DRAFT. The customer keeps getting whatever was
+// last released (or the standard questions) until "Release to customer" is pressed, which is why
+// saving is safe to do as often as you like.
+//
+// The four answers the rest of the platform reads by name cannot be switched off or reworded away.
+// The endpoint refuses them regardless, at save and again at release — this only makes the rule
+// visible instead of letting someone build a form that is then rejected.
+// Grading reads these as ground truth. Switching one off is allowed — grading is written to cope,
+// returning null for the checks it can no longer make — so this is a note about what it costs, not
+// a lock. Everything in this form is the operator's to change.
+const TPL_GROUND_TRUTH = ['general.industry', 'general.website', 'websites.primarySite'];
+// What kind of answer a question wants. `tags` is the two chip inputs the intake page owns itself;
+// it is offered only on a question that already is one, because nothing can build another.
+const TPL_TYPES = [
+  ['textarea', { en: 'Long text', es: 'Texto largo' }],
+  ['text', { en: 'Short text', es: 'Texto corto' }],
+  ['select', { en: 'Single choice', es: 'Opción única' }],
+  ['multi', { en: 'Multiple choice', es: 'Opción múltiple' }],
+  ['number', { en: 'Number', es: 'Número' }],
+  ['date', { en: 'Date', es: 'Fecha' }],
+  ['url', { en: 'Website', es: 'Sitio web' }],
+  ['email', { en: 'Email', es: 'Correo' }]
+];
+const TPL_TAGS_TYPE = ['tags', { en: 'Tag list', es: 'Lista de etiquetas' }];
+const tplHasChoices = f => f.type === 'select' || f.type === 'multi';
+const tplFeedsGrading = f => (f.paths || []).some(p => TPL_GROUND_TRUTH.includes(p));
+
+let intakeEditor = null;   // { company, template, releasedAt, unreleased }
+let tplDrag = null;        // what is being dragged: { kind: 'field'|'section', id }
+
+/**
+ * Opens the editor on the most recent thing there is: the draft if one is in progress, otherwise
+ * whatever is released, otherwise the standard questions. Editing always continues from the latest
+ * copy — never silently from an older one.
+ */
+async function openIntakeEditor() {
+  if (!currentCompany) return;
+  let rec = {};
+  try {
+    const res = await fetch(await window.apiQuery('/api/intake-template', { company: currentCompany }));
+    if (res.ok) rec = await res.json();
+  } catch (e) { /* nothing saved yet: start from the standard questions */ }
+
+  let template = rec.draft || rec.released || null;
+  if (!template) {
+    try {
+      const res = await fetch('/intake-template.default.json');
+      template = res.ok ? await res.json() : null;
+    } catch (e) { template = null; }
+  }
+  if (!template || !Array.isArray(template.fields)) { alert(t('tplLoadFailed')); return; }
+
+  intakeEditor = {
+    company: currentCompany,
+    template: JSON.parse(JSON.stringify(template)),
+    releasedAt: rec.releasedAt || null,
+    unreleased: !!rec.unreleasedChanges
+  };
+  document.getElementById('intake-tpl-title').textContent = t('intakeTitle') + ' — ' + currentCompany;
+  document.getElementById('tpl-language').value = intakeEditor.template.language || 'both';
+  renderIntakeEditor();
+  document.getElementById('tpl-status').textContent = intakeEditor.unreleased ? t('tplUnreleased') : '';
+  document.getElementById('intake-tpl-modal').classList.add('open');
+}
+
+function closeIntakeEditor() {
+  document.getElementById('intake-tpl-modal').classList.remove('open');
+  intakeEditor = null;
+}
+
+/** Which wording columns are shown: a customer set to Spanish only has no English to write. */
+function tplLangs() {
+  const pinned = (intakeEditor && intakeEditor.template.language) || 'both';
+  return pinned === 'es' ? ['es'] : pinned === 'en' ? ['en'] : ['en', 'es'];
+}
+const TPL_LANG_NAME = { en: { en: 'English', es: 'Inglés' }, es: { en: 'Spanish', es: 'Español' } };
+
+function tplSetLanguage(value) {
+  intakeEditor.template.language = value;
+  renderIntakeEditor();          // the wording columns change with it, so redraw
+}
+
+function renderIntakeEditor() {
+  const tpl = intakeEditor.template;
+  const langs = tplLangs();
+  const body = document.getElementById('tpl-body');
+  const sections = (tpl.sections || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+
+  body.innerHTML = sections.map(sec => {
+    const mine = (tpl.fields || []).filter(f => f.section === sec.id);
+    const rows = mine.map(f => tplFieldRow(f, tpl.fields.indexOf(f), langs)).join('')
+      || `<div class="tpl-empty">${esc(t('tplNoQuestions'))}</div>`;
+
+    const titles = langs.map(l => `<input type="text" class="tpl-sec-title" value="${esc((sec.title && sec.title[l]) || '')}"
+        placeholder="${esc(TPL_LANG_NAME[l][lang])}" oninput="tplSectionTitle('${esc(sec.id)}','${l}',this.value)">`).join('');
+
+    return `<div class="tpl-section" draggable="true"
+                 ondragstart="tplDragStart(event,'section','${esc(sec.id)}')"
+                 ondragover="tplDragOver(event)" ondrop="tplDrop(event,'section','${esc(sec.id)}')">
+      <div class="tpl-section-head">
+        <span class="tpl-grip" title="${esc(t('tplDragHint'))}">⠿</span>
+        ${titles}
+        <button class="tpl-icon" title="${esc(t('tplAddBtn'))}" onclick="tplAdd('${esc(sec.id)}')">＋</button>
+        <button class="tpl-icon danger" title="${esc(t('tplDeleteSection'))}" onclick="tplDeleteSection('${esc(sec.id)}')">🗑</button>
+      </div>
+      <div class="tpl-rows">${rows}</div>
+    </div>`;
+  }).join('') + `<button class="btn btn-ghost btn-sm" onclick="tplAddSection()">${esc(t('tplAddSection'))}</button>`;
+}
+
+function tplFieldRow(f, i, langs) {
+  const off = f.enabled === false;
+  const words = langs.map(l => `<input type="text" value="${esc((f.label && f.label[l]) || '')}"
+      placeholder="${esc(TPL_LANG_NAME[l][lang])}" oninput="tplLabel(${i},'${l}',this.value)">`).join('');
+
+  const opts = tplHasChoices(f)
+    ? `<div class="tpl-opts">
+         <div class="tpl-opts-title">${esc(t('tplChoices'))}</div>
+         ${(f.options || []).map((o, oi) => `<div class="tpl-opt">
+            <input type="text" class="tpl-opt-val" value="${esc(o.value || '')}" placeholder="${esc(t('tplStoredAs'))}"
+                   oninput="tplOption(${i},${oi},'value',this.value)">
+            ${langs.map(l => `<input type="text" value="${esc((o.label && o.label[l]) || '')}"
+                   placeholder="${esc(TPL_LANG_NAME[l][lang])}" oninput="tplOption(${i},${oi},'${l}',this.value)">`).join('')}
+            <button class="tpl-icon danger" title="${esc(t('tplRemove'))}" onclick="tplRemoveOption(${i},${oi})">×</button>
+          </div>`).join('')}
+         <button class="tpl-mini" onclick="tplAddOption(${i})">${esc(t('tplAddChoice'))}</button>
+       </div>`
+    : '';
+
+  return `<div class="tpl-row ${off ? 'off' : ''}" draggable="true"
+               ondragstart="tplDragStart(event,'field','${esc(f.id)}')"
+               ondragover="tplDragOver(event)" ondrop="tplDrop(event,'field','${esc(f.id)}')">
+    <span class="tpl-grip" title="${esc(t('tplDragHint'))}">⠿</span>
+    <label class="tpl-switch" title="${esc(off ? t('tplOffHint') : t('tplOnHint'))}">
+      <input type="checkbox" ${off ? '' : 'checked'} onchange="tplToggle(${i}, this.checked)"><span></span>
+    </label>
+    <div class="tpl-words">
+      ${words}
+      <div class="tpl-meta">
+        <select class="tpl-type" onchange="tplType(${i}, this.value)" title="${esc(t('tplTypeLabel'))}">
+          ${(f.type === 'tags' ? [TPL_TAGS_TYPE].concat(TPL_TYPES) : TPL_TYPES)
+            .map(([v, name]) => `<option value="${v}"${f.type === v ? ' selected' : ''}>${esc(name[lang] || name.en)}</option>`).join('')}
+        </select>
+        <span class="tpl-id">${esc(f.id)}</span>
+        ${tplFeedsGrading(f) && !off ? `<span class="tpl-note">${esc(t('tplGradingNote'))}</span>` : ''}
+        ${tplFeedsGrading(f) && off ? `<span class="tpl-note warn">${esc(t('tplGradingLost'))}</span>` : ''}
+      </div>
+      ${opts}
+    </div>
+    <button class="tpl-icon danger" title="${esc(t('tplRemove'))}" onclick="tplRemove(${i})">🗑</button>
+  </div>`;
+}
+
+// ── Editing ──
+function tplToggle(i, on) { intakeEditor.template.fields[i].enabled = on ? undefined : false; renderIntakeEditor(); }
+function tplType(i, value) {
+  const f = intakeEditor.template.fields[i];
+  f.type = value;
+  // A choice question with no choices is a dead end in the form, so it starts with two empty ones
+  // ready to type into rather than an empty box and no way to tell what is missing.
+  if (tplHasChoices(f) && !(f.options && f.options.length)) {
+    f.options = [{ value: '', label: { en: '', es: '' } }, { value: '', label: { en: '', es: '' } }];
+  }
+  renderIntakeEditor();
+}
+function tplLabel(i, which, value) {
+  const f = intakeEditor.template.fields[i];
+  f.label = f.label || {};
+  f.label[which] = value;
+}
+function tplSectionTitle(id, which, value) {
+  const sec = intakeEditor.template.sections.find(x => x.id === id);
+  if (!sec) return;
+  sec.title = sec.title || {};
+  sec.title[which] = value;
+}
+function tplOption(i, oi, which, value) {
+  const o = intakeEditor.template.fields[i].options[oi];
+  if (which === 'value') o.value = value;
+  else { o.label = o.label || {}; o.label[which] = value; }
+}
+function tplAddOption(i) {
+  const f = intakeEditor.template.fields[i];
+  f.options = f.options || [];
+  f.options.push({ value: '', label: { en: '', es: '' } });
+  renderIntakeEditor();
+}
+function tplRemoveOption(i, oi) {
+  intakeEditor.template.fields[i].options.splice(oi, 1);
+  renderIntakeEditor();
+}
+function tplRemove(i) {
+  const f = intakeEditor.template.fields[i];
+  if (!confirm(t('tplConfirmRemove', (f.label && (f.label[lang] || f.label.en)) || f.id))) return;
+  intakeEditor.template.fields.splice(i, 1);
+  renderIntakeEditor();
+}
+
+/** A blank question, added straight into the section and focused — no dialog to type into. */
+function tplAdd(sectionId) {
+  const tpl = intakeEditor.template;
+  let n = 1, id = 'extra-question';
+  while (tpl.fields.some(f => f.id === id)) id = 'extra-question-' + (++n);
+  // Added questions live under `extra.`, where nothing else in the platform reads, so a new
+  // question can never land on an answer the generator or the grader depends on.
+  const field = {
+    id, section: sectionId, custom: true, type: 'textarea',
+    paths: ['extra.' + id.replace(/-([a-z0-9])/g, (m, c) => c.toUpperCase())],
+    label: { en: '', es: '' }
+  };
+  // Straight after the last question already in this section, not at the end of everything.
+  const last = tpl.fields.map(f => f.section).lastIndexOf(sectionId);
+  tpl.fields.splice(last === -1 ? tpl.fields.length : last + 1, 0, field);
+  renderIntakeEditor();
+  const el = document.getElementById('tpl-body').querySelector(`[ondragstart*="'${id}'"] input[type=text]`);
+  if (el) el.focus();
+}
+
+function tplAddSection() {
+  const tpl = intakeEditor.template;
+  let n = 1, id = 'extra-section';
+  while (tpl.sections.some(x => x.id === id)) id = 'extra-section-' + (++n);
+  const order = Math.max(0, ...tpl.sections.map(x => x.order || 0)) + 1;
+  tpl.sections.push({ id, order, title: { en: '', es: '' }, custom: true });
+  renderIntakeEditor();
+}
+
+function tplDeleteSection(id) {
+  const tpl = intakeEditor.template;
+  const sec = tpl.sections.find(x => x.id === id);
+  const count = tpl.fields.filter(f => f.section === id).length;
+  if (!confirm(t('tplConfirmSection', (sec && sec.title && (sec.title[lang] || sec.title.en)) || id, count))) return;
+  tpl.sections = tpl.sections.filter(x => x.id !== id);
+  tpl.fields = tpl.fields.filter(f => f.section !== id);
+  renderIntakeEditor();
+}
+
+// ── Reordering ──
+// The order questions appear in is part of how a form reads, so it is editable like anything else.
+function tplDragStart(ev, kind, id) {
+  tplDrag = { kind, id };
+  ev.stopPropagation();
+  try { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', id); } catch (e) {}
+}
+function tplDragOver(ev) { if (tplDrag) { ev.preventDefault(); ev.stopPropagation(); } }
+function tplDrop(ev, kind, targetId) {
+  if (!tplDrag || tplDrag.kind !== kind || tplDrag.id === targetId) { tplDrag = null; return; }
+  ev.preventDefault();
+  ev.stopPropagation();
+  const tpl = intakeEditor.template;
+
+  if (kind === 'section') {
+    const order = tpl.sections.slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+    const from = order.findIndex(x => x.id === tplDrag.id);
+    const to = order.findIndex(x => x.id === targetId);
+    order.splice(to, 0, order.splice(from, 1)[0]);
+    order.forEach((x, i) => { x.order = i; });
+  } else {
+    const from = tpl.fields.findIndex(f => f.id === tplDrag.id);
+    const to = tpl.fields.findIndex(f => f.id === targetId);
+    if (from === -1 || to === -1) { tplDrag = null; return; }
+    // Read the target BEFORE removing anything: pulling the dragged question out first shifts every
+    // index after it, so looking the target up afterwards finds its neighbour, or nothing at all.
+    const targetSection = tpl.fields[to].section;
+    const moved = tpl.fields.splice(from, 1)[0];
+    // Dropping onto a question in another section moves it there, which is the obvious reading.
+    moved.section = targetSection;
+    // Dragged down, it lands after the target; dragged up, before it. Both are index `to` once the
+    // dragged question has been taken out, because removing it shifts the target left by one.
+    tpl.fields.splice(to, 0, moved);
+  }
+  tplDrag = null;
+  renderIntakeEditor();
+}
+
+/** Writes the draft. Never changes what the customer is being served. */
+async function saveIntakeDraft(quiet) {
+  if (!intakeEditor) return false;
+  intakeEditor.template.language = document.getElementById('tpl-language').value;
+  try {
+    const res = await fetch(await window.apiQuery('/api/intake-template'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session: window.akoreAuth.session(),
+        company: intakeEditor.company,
+        template: intakeEditor.template
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    intakeEditor.unreleased = true;
+    // Switching off a question grading uses is allowed, and costs something. Say what, once, here
+    // rather than refusing the save or putting a warning beside every row.
+    if (!quiet) {
+      document.getElementById('tpl-status').textContent = (data.warnings && data.warnings.length)
+        ? t('tplWarnings', data.warnings.join('; ')) : t('tplSaved');
+    }
+    return true;
+  } catch (err) {
+    document.getElementById('tpl-status').textContent = t('tplSaveFailed') + err.message;
+    return false;
+  }
+}
+
+/** Saves first, so releasing can never publish an older draft than what is on screen. */
+async function releaseIntakeTemplate() {
+  if (!intakeEditor) return;
+  if (!(await confirmWithPassword(t('tplReleaseBtn'), t('pwReleaseMsg', esc(t('intakeTitle')), esc(intakeEditor.company))))) return;
+  if (!(await saveIntakeDraft(true))) return;
+  try {
+    const res = await fetch(await window.apiQuery('/api/intake-template'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session: window.akoreAuth.session(), company: intakeEditor.company })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    intakeEditor.unreleased = false;
+    document.getElementById('tpl-status').textContent = t('tplReleased');
+    await loadCompany(intakeEditor.company);
+  } catch (err) {
+    document.getElementById('tpl-status').textContent = t('tplSaveFailed') + err.message;
+  }
+}
+
+async function withdrawIntakeTemplate() {
+  if (!currentCompany) return;
+  if (!(await confirmWithPassword(t('tplWithdrawBtn'), t('pwReleaseMsg', esc(t('intakeTitle')), esc(currentCompany))))) return;
+  try {
+    const res = await fetch(await window.apiQuery('/api/intake-template'), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session: window.akoreAuth.session(), company: currentCompany, withdraw: true })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    await loadCompany(currentCompany);
+  } catch (err) {
+    alert(t('tplSaveFailed') + err.message);
+  }
+}
+
+/** Opens the customer's own form showing the DRAFT — the only way to see it before releasing. */
+async function previewIntakeDraft() {
+  if (!intakeEditor) return;
+  if (!(await saveIntakeDraft(true))) return;
+  const rec = currentCodeRec || {};
+  const user = rec.username || '';
+  window.open('/intake.html?username=' + encodeURIComponent(user) + '&preview=draft', '_blank');
 }
 
 // ── Generate Prompts modal ──

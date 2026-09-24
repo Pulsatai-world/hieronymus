@@ -110,6 +110,11 @@ body { font-family: var(--mono); background: var(--bg); color: var(--text); min-
 <script>
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function kv(label, value) {
+  // A multiple-choice answer is a list. Passed through esc() it rendered as "cost,quality", joined
+  // by a comma the customer never typed and indistinguishable from one answer containing a comma.
+  if (Array.isArray(value)) {
+    return `<div class="kv"><div class="k">${esc(label)}</div><div class="v${value.length ? '' : ' empty'}">${tagList(value)}</div></div>`;
+  }
   const v = value === undefined || value === null || value === '' ? '' : esc(value);
   return `<div class="kv"><div class="k">${esc(label)}</div><div class="v${v ? '' : ' empty'}">${v}</div></div>`;
 }
@@ -141,10 +146,42 @@ async function load() {
     return;
   }
 
+  // Questions staff added to this customer's form. They are stored under `extra.` and every card
+  // below is a hand-written list of the original questions, so without this the answers were
+  // collected and shown to no one — the form could ask something staff could never read.
+  //
+  // The wording comes from the customer's own template when it can be fetched, because the key is a
+  // slug ("shiftPattern") and the question was "¿Qué turnos manejan?".
+  let extraLabels = {};
+  try {
+    const tplRes = await fetch(await window.apiQuery('/api/intake-template', { company }));
+    if (tplRes.ok) {
+      const rec = await tplRes.json();
+      const tpl = rec.released || rec.draft;
+      for (const f of (tpl && tpl.fields) || []) {
+        for (const path of f.paths || []) {
+          if (path.indexOf('extra.') === 0) extraLabels[path.slice(6)] = (f.label && (f.label.es || f.label.en)) || '';
+        }
+      }
+    }
+  } catch (e) { /* the keys alone are still better than nothing */ }
+
   const d = record.intake || {};
   const g = d.general || {}, w = d.websites || {}, c = d.customer || {}, p = d.problem || {},
         j = d.jobToBeDone || {}, cat = d.category || {}, comp = d.competitors || {},
         sp = d.searchPatterns || {}, diff = d.differentiators || {}, pf = d.proof || {};
+
+  const extra = d.extra || {};
+  const extraKeys = Object.keys(extra).filter(k => {
+    const v = extra[k];
+    return Array.isArray(v) ? v.length : (v !== undefined && v !== null && v !== '');
+  });
+  const extraCard = extraKeys.length
+    ? `<div class="card">
+         <div class="card-title">Added questions</div>
+         ${extraKeys.map(k => kv(extraLabels[k] || k, extra[k])).join('')}
+       </div>`
+    : '';
 
   main.innerHTML = `
     <div class="page-title">${esc(record.company || company)}</div>
@@ -250,6 +287,8 @@ async function load() {
       ${kv('Reviews', pf.reviews)}
       <div class="kv"><div class="k">Brands mentioned</div><div class="v">${tagList(pf.brands)}</div></div>
     </div>
+
+    ${extraCard}
   `;
 }
 

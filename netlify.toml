@@ -12,6 +12,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/intake-template"
+  to = "/.netlify/functions/intake-template"
+  status = 200
+
+[[redirects]]
   from = "/api/intake-codes"
   to = "/.netlify/functions/intake-codes"
   status = 200
