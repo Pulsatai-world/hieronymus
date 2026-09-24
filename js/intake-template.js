@@ -45,6 +45,100 @@
     cur[last] = value;
   }
 
+  // The kinds of question a form can ask. `tags` is the two bespoke chip inputs the page owns; it is
+  // listed so a template round-trips one, but it is never built or replaced here.
+  const CONTROL_TYPES = ['textarea', 'text', 'number', 'url', 'email', 'date', 'select', 'multi', 'tags'];
+
+  const isMulti = el => !!(el && el.getAttribute && el.getAttribute('data-multi'));
+
+  /** What kind of question the page is currently asking, read off the control itself. */
+  function domTypeOf(el) {
+    if (!el) return null;
+    if (isMulti(el)) return 'multi';
+    if (el.tagName === 'TEXTAREA') return 'textarea';
+    if (el.tagName === 'SELECT') return 'select';
+    if (el.tagName === 'INPUT') return (el.getAttribute('type') || 'text').toLowerCase();
+    return null;
+  }
+
+  function fillOptions(el, field, lang) {
+    const chosen = el.value;
+    el.innerHTML = '';
+    for (const opt of field.options || []) {
+      const o = document.createElement('option');
+      o.value = opt.value;
+      setBilingual(o, opt.label);
+      o.textContent = (opt.label && (opt.label[lang] || opt.label.en)) || opt.value;
+      el.appendChild(o);
+    }
+    if (chosen) el.value = chosen;                  // keep what the customer already picked
+  }
+
+  /**
+   * Builds the control for a question's type. `old` is the control being replaced, if any — its
+   * classes and rows are carried over so a retyped question still looks like the form around it.
+   */
+  function buildControl(field, lang, old) {
+    let el;
+    if (field.type === 'textarea') {
+      el = document.createElement('textarea');
+      if (old && old.rows) el.rows = old.rows;
+    } else if (field.type === 'select') {
+      el = document.createElement('select');
+      fillOptions(el, field, lang);
+    } else if (field.type === 'multi') {
+      // More than one answer, so it cannot be an <input value>. The container carries the id and
+      // the answer is the set of ticked values — collect() and populate() both know to look.
+      el = document.createElement('div');
+      el.setAttribute('data-multi', '1');
+      el.className = 'multi-choice';
+      for (const opt of field.options || []) {
+        const label = document.createElement('label');
+        label.className = 'multi-choice-opt';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = opt.value;
+        const span = document.createElement('span');
+        setBilingual(span, opt.label);
+        span.textContent = (opt.label && (opt.label[lang] || opt.label.en)) || opt.value;
+        label.appendChild(cb);
+        label.appendChild(span);
+        el.appendChild(label);
+      }
+    } else {
+      el = document.createElement('input');
+      el.type = CONTROL_TYPES.indexOf(field.type) === -1 ? 'text' : field.type;
+    }
+    el.id = field.id;
+    if (old) {
+      if (old.className && field.type !== 'multi') el.className = old.className;
+      if (old.placeholder) el.placeholder = old.placeholder;
+    }
+    if (typeof field.placeholder === 'string' && 'placeholder' in el) el.placeholder = field.placeholder;
+    return el;
+  }
+
+  /** Reads one control, whichever kind it turned out to be. */
+  function readControl(el) {
+    if (!el) return '';
+    if (isMulti(el)) {
+      return Array.prototype.slice.call(el.querySelectorAll('input[type=checkbox]'))
+        .filter(c => c.checked).map(c => c.value);
+    }
+    return el.value || '';
+  }
+
+  function writeControl(el, value) {
+    if (!el) return;
+    if (isMulti(el)) {
+      const picked = Array.isArray(value) ? value : (value ? [value] : []);
+      Array.prototype.slice.call(el.querySelectorAll('input[type=checkbox]'))
+        .forEach(c => { c.checked = picked.indexOf(c.value) !== -1; });
+      return;
+    }
+    el.value = value;
+  }
+
   /** A question added by staff, rendered into its section rather than woven into the layout. */
   function renderCustom(field, lang) {
     const group = document.createElement('div');
@@ -63,24 +157,7 @@
       group.appendChild(hint);
     }
 
-    let control;
-    if (field.type === 'textarea') {
-      control = document.createElement('textarea');
-    } else if (field.type === 'select') {
-      control = document.createElement('select');
-      for (const opt of field.options || []) {
-        const o = document.createElement('option');
-        o.value = opt.value;
-        setBilingual(o, opt.label);
-        o.textContent = (opt.label && (opt.label[lang] || opt.label.en)) || opt.value;
-        control.appendChild(o);
-      }
-    } else {
-      control = document.createElement('input');
-      control.type = field.type || 'text';
-    }
-    control.id = field.id;
-    if (field.placeholder) control.placeholder = field.placeholder;
+    const control = buildControl(field, lang, null);
     group.appendChild(control);
     return group;
   }
@@ -112,7 +189,7 @@
 
       for (const field of template.fields) {
         if (field.custom) continue;                       // added questions are rendered below
-        const el = byId(field.id);
+        let el = byId(field.id);
         if (!el) continue;
         const group = groupOf(el) || el.parentElement;
 
@@ -122,21 +199,29 @@
         }
         if (group) group.style.display = '';
 
+        // The type is a property of the question, not of the markup it was born with. Switching a
+        // long-text question to a single choice has to replace the control, or the editor would
+        // offer a change the customer's form quietly ignores. `tags` is left alone: those two chip
+        // inputs are bespoke sub-forms the page owns, not controls this can rebuild.
+        if (field.type && field.type !== 'tags') {
+          const has = domTypeOf(el);
+          if (has && has !== field.type) {
+            const fresh = buildControl(field, l, el);
+            el.parentNode.replaceChild(fresh, el);
+            el = fresh;
+          }
+        }
+
         if (group && field.label) setBilingual(group.querySelector('label'), field.label);
         if (group && field.help) setBilingual(group.querySelector('.field-hint'), field.help);
         if (typeof field.placeholder === 'string') el.placeholder = field.placeholder;
 
-        if (field.type === 'select' && Array.isArray(field.options)) {
-          const chosen = el.value;
-          el.innerHTML = '';
-          for (const opt of field.options) {
-            const o = document.createElement('option');
-            o.value = opt.value;
-            setBilingual(o, opt.label);
-            o.textContent = (opt.label && (opt.label[l] || opt.label.en)) || opt.value;
-            el.appendChild(o);
-          }
-          if (chosen) el.value = chosen;                  // keep what the customer already picked
+        if (field.type === 'select' && Array.isArray(field.options)) fillOptions(el, field, l);
+        if (field.type === 'multi' && Array.isArray(field.options)) {
+          // Rebuilt from the template, but the ticks the customer already made are put back.
+          const picked = readControl(el);
+          el.parentNode.replaceChild(buildControl(field, l, el), el);
+          writeControl(byId(field.id), picked);
         }
       }
 
@@ -194,8 +279,7 @@
       const out = {};
       for (const field of template.fields || []) {
         if (field.enabled === false) continue;
-        const el = byId(field.id);
-        const value = el ? (el.value || '') : '';
+        const value = readControl(byId(field.id));
         for (const path of field.paths || []) setPath(out, path, value);
       }
       for (const w of template.widgets || []) {
@@ -213,7 +297,7 @@
         if (!el) continue;
         for (const path of field.paths || []) {
           const v = getPath(data, path);
-          if (v !== undefined && v !== null && v !== '') { el.value = v; break; }
+          if (v !== undefined && v !== null && v !== '') { writeControl(el, v); break; }
         }
       }
       for (const w of template.widgets || []) {

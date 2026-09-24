@@ -174,5 +174,95 @@ console.log('\nReordering reaches the customer\'s form:\n');
     'still in its old section');
 }
 
+
+console.log('\nChanging what kind of answer a question wants:\n');
+{
+  // The type used to be whatever the markup was born with. Making it editable is only real if the
+  // control in the customer's form is actually replaced — otherwise the editor offers a change the
+  // form quietly ignores, which is worse than not offering it.
+  const w = freshPage();
+  const tpl = clone();
+  const f = fieldOf(tpl, 'competitors');
+  check('it starts as the markup declares', w.document.getElementById('competitors').tagName === 'TEXTAREA',
+    w.document.getElementById('competitors').tagName);
+
+  f.type = 'select';
+  f.options = [{ value: 'few', label: { en: 'A few', es: 'Pocos' } }, { value: 'many', label: { en: 'Many', es: 'Muchos' } }];
+  w.akoreIntakeForm.apply(tpl, 'es');
+  const sel = w.document.getElementById('competitors');
+  check('long text becomes a dropdown', sel.tagName === 'SELECT', sel.tagName);
+  check('with the choices that were typed in', [...sel.options].map(o => o.value).join(',') === 'few,many',
+    [...sel.options].map(o => o.value).join(','));
+  sel.value = 'many';
+  check('and it is collected like any other answer',
+    w.akoreIntakeForm.collect(tpl, {}).competitors.competitors === 'many',
+    JSON.stringify(w.akoreIntakeForm.collect(tpl, {}).competitors));
+
+  // A number is a number, so the browser's own keyboard and validation apply.
+  const w2 = freshPage();
+  const tpl2 = clone();
+  fieldOf(tpl2, 'years-business').type = 'number';
+  w2.akoreIntakeForm.apply(tpl2, 'es');
+  const num = w2.document.getElementById('years-business');
+  check('a question can be made a number', num.tagName === 'INPUT' && num.type === 'number',
+    num.tagName + '/' + num.type);
+
+  // And back again, because a staff member will change their mind.
+  const tpl3 = clone();
+  w2.akoreIntakeForm.apply(tpl3, 'es');
+  check('and changed back to what it was', w2.document.getElementById('years-business').type === 'text',
+    w2.document.getElementById('years-business').type);
+}
+
+console.log('\nMultiple choice:\n');
+{
+  const w = freshPage();
+  const tpl = clone();
+  const f = fieldOf(tpl, 'pain-type');
+  f.type = 'multi';
+  f.options = [
+    { value: 'cost', label: { en: 'Cost', es: 'Costo' } },
+    { value: 'downtime', label: { en: 'Downtime', es: 'Paro de línea' } },
+    { value: 'quality', label: { en: 'Quality', es: 'Calidad' } }
+  ];
+  w.akoreIntakeForm.apply(tpl, 'es');
+
+  const box = w.document.getElementById('pain-type');
+  const boxes = box.querySelectorAll('input[type=checkbox]');
+  check('every choice gets its own tick box', boxes.length === 3, String(boxes.length));
+  check('worded in the language the form is in',
+    box.querySelectorAll('span')[1].textContent === 'Paro de línea',
+    box.querySelectorAll('span')[1].textContent);
+
+  // More than one answer means the answer is a list, not a string.
+  boxes[0].checked = true; boxes[2].checked = true;
+  const saved = w.akoreIntakeForm.collect(tpl, {});
+  check('more than one answer can be given',
+    JSON.stringify(saved.problem.painType) === JSON.stringify(['cost', 'quality']),
+    JSON.stringify(saved.problem.painType));
+
+  // And comes back on a return visit, which is the half that silently does not work if populate()
+  // only knows how to assign to .value.
+  const w2 = freshPage();
+  w2.akoreIntakeForm.apply(tpl, 'es');
+  w2.akoreIntakeForm.populate(tpl, saved, {});
+  const back = [...w2.document.getElementById('pain-type').querySelectorAll('input[type=checkbox]')]
+    .filter(c => c.checked).map(c => c.value);
+  check('and is restored when the customer comes back',
+    JSON.stringify(back) === JSON.stringify(['cost', 'quality']), JSON.stringify(back));
+}
+
+console.log('\nThe tag inputs are left alone:\n');
+{
+  // social-input and brand-input are bespoke chip sub-forms the page owns. Nothing here can rebuild
+  // one, so a template naming them must not try — replacing the input would strip the chips.
+  const w = freshPage();
+  const tpl = clone();
+  const before = w.document.getElementById('social-input').outerHTML;
+  w.akoreIntakeForm.apply(tpl, 'es');
+  check('a tag question is not rebuilt as a plain text box',
+    w.document.getElementById('social-input').outerHTML === before, 'it was replaced');
+}
+
 console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
 process.exit(failures ? 1 : 0);

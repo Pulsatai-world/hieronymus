@@ -179,6 +179,11 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
 .tpl-id { font-size: 10.5px; color: var(--muted, #7a8496); font-family: ui-monospace, monospace; }
 .tpl-note { font-size: 10.5px; color: var(--muted, #7a8496); }
 .tpl-note.warn { color: var(--warning, #b8901f); }
+.tpl-type { font-size: 11px; padding: 3px 22px 3px 7px; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface); height: auto; width: auto; }
+/* Multiple choice, in the customer's form. */
+.multi-choice { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.multi-choice-opt { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; text-transform: none; }
+.multi-choice-opt input { width: auto; margin: 0; }
 .tpl-grip { cursor: grab; color: var(--muted, #b6bdc9); font-size: 15px; line-height: 1.6; user-select: none; }
 .tpl-grip:active { cursor: grabbing; }
 .tpl-icon { border: none; background: transparent; cursor: pointer; font-size: 14px; line-height: 1; padding: 6px; border-radius: 6px; color: var(--muted, #7a8496); }
@@ -521,6 +526,7 @@ const T = {
   tplAddBtn: { en: '+ Add a question', es: '+ Agregar pregunta' },
   tplRemove: { en: 'Remove', es: 'Quitar' },
   tplChoices: { en: 'Choices', es: 'Opciones' },
+  tplTypeLabel: { en: 'What kind of answer', es: 'Qué tipo de respuesta' },
   tplAddChoice: { en: '+ Add a choice', es: '+ Agregar opción' },
   tplStoredAs: { en: 'stored as', es: 'se guarda como' },
   tplAddSection: { en: '+ Add a section', es: '+ Agregar sección' },
@@ -1793,6 +1799,20 @@ async function setDashboardRelease(which, release) {
 // returning null for the checks it can no longer make — so this is a note about what it costs, not
 // a lock. Everything in this form is the operator's to change.
 const TPL_GROUND_TRUTH = ['general.industry', 'general.website', 'websites.primarySite'];
+// What kind of answer a question wants. `tags` is the two chip inputs the intake page owns itself;
+// it is offered only on a question that already is one, because nothing can build another.
+const TPL_TYPES = [
+  ['textarea', { en: 'Long text', es: 'Texto largo' }],
+  ['text', { en: 'Short text', es: 'Texto corto' }],
+  ['select', { en: 'Single choice', es: 'Opción única' }],
+  ['multi', { en: 'Multiple choice', es: 'Opción múltiple' }],
+  ['number', { en: 'Number', es: 'Número' }],
+  ['date', { en: 'Date', es: 'Fecha' }],
+  ['url', { en: 'Website', es: 'Sitio web' }],
+  ['email', { en: 'Email', es: 'Correo' }]
+];
+const TPL_TAGS_TYPE = ['tags', { en: 'Tag list', es: 'Lista de etiquetas' }];
+const tplHasChoices = f => f.type === 'select' || f.type === 'multi';
 const tplFeedsGrading = f => (f.paths || []).some(p => TPL_GROUND_TRUTH.includes(p));
 
 let intakeEditor = null;   // { company, template, releasedAt, unreleased }
@@ -1883,7 +1903,7 @@ function tplFieldRow(f, i, langs) {
   const words = langs.map(l => `<input type="text" value="${esc((f.label && f.label[l]) || '')}"
       placeholder="${esc(TPL_LANG_NAME[l][lang])}" oninput="tplLabel(${i},'${l}',this.value)">`).join('');
 
-  const opts = f.type === 'select'
+  const opts = tplHasChoices(f)
     ? `<div class="tpl-opts">
          <div class="tpl-opts-title">${esc(t('tplChoices'))}</div>
          ${(f.options || []).map((o, oi) => `<div class="tpl-opt">
@@ -1907,6 +1927,10 @@ function tplFieldRow(f, i, langs) {
     <div class="tpl-words">
       ${words}
       <div class="tpl-meta">
+        <select class="tpl-type" onchange="tplType(${i}, this.value)" title="${esc(t('tplTypeLabel'))}">
+          ${(f.type === 'tags' ? [TPL_TAGS_TYPE].concat(TPL_TYPES) : TPL_TYPES)
+            .map(([v, name]) => `<option value="${v}"${f.type === v ? ' selected' : ''}>${esc(name[lang] || name.en)}</option>`).join('')}
+        </select>
         <span class="tpl-id">${esc(f.id)}</span>
         ${tplFeedsGrading(f) && !off ? `<span class="tpl-note">${esc(t('tplGradingNote'))}</span>` : ''}
         ${tplFeedsGrading(f) && off ? `<span class="tpl-note warn">${esc(t('tplGradingLost'))}</span>` : ''}
@@ -1919,6 +1943,16 @@ function tplFieldRow(f, i, langs) {
 
 // ── Editing ──
 function tplToggle(i, on) { intakeEditor.template.fields[i].enabled = on ? undefined : false; renderIntakeEditor(); }
+function tplType(i, value) {
+  const f = intakeEditor.template.fields[i];
+  f.type = value;
+  // A choice question with no choices is a dead end in the form, so it starts with two empty ones
+  // ready to type into rather than an empty box and no way to tell what is missing.
+  if (tplHasChoices(f) && !(f.options && f.options.length)) {
+    f.options = [{ value: '', label: { en: '', es: '' } }, { value: '', label: { en: '', es: '' } }];
+  }
+  renderIntakeEditor();
+}
 function tplLabel(i, which, value) {
   const f = intakeEditor.template.fields[i];
   f.label = f.label || {};

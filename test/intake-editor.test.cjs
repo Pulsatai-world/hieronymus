@@ -145,6 +145,48 @@ console.log('\nDropdown choices are edited as choices:\n');
     JSON.stringify(w.__ed().template.fields[2].options.map(o => o.value)));
 }
 
+console.log('\nEvery question says what kind of answer it wants:\n');
+{
+  const w = boot(baseTemplate());
+  const typeSel = id => rowOf(w, id).querySelector('.tpl-type');
+  check('each question has a type selector', !!typeSel('company') && !!typeSel('ideal'), 'missing');
+  check('it shows the type the question currently is', typeSel('ideal').value === 'textarea',
+    typeSel('ideal').value);
+  check('and offers the kinds a form can ask for',
+    ['textarea', 'text', 'select', 'multi', 'number', 'date', 'url', 'email']
+      .every(v => [...typeSel('company').options].some(o => o.value === v)),
+    [...typeSel('company').options].map(o => o.value).join(','));
+
+  // Choosing a choice type with nothing to choose from is a dead end in the form, so it arrives
+  // with empty choices ready to type into.
+  w.__run("tplType(0, 'select')");
+  check('switching to single choice records it', w.__ed().template.fields[0].type === 'select',
+    w.__ed().template.fields[0].type);
+  check('and seeds empty choices rather than none', (w.__ed().template.fields[0].options || []).length === 2,
+    String((w.__ed().template.fields[0].options || []).length));
+  check('which are shown as choice rows straight away',
+    rowOf(w, 'company').querySelectorAll('.tpl-opt').length === 2,
+    String(rowOf(w, 'company').querySelectorAll('.tpl-opt').length));
+
+  // Multiple choice edits its choices the same way single choice does.
+  w.__run("tplType(3, 'multi')");
+  check('multiple choice also gets a choices editor',
+    rowOf(w, 'ideal').querySelectorAll('.tpl-opt').length === 2,
+    String(rowOf(w, 'ideal').querySelectorAll('.tpl-opt').length));
+
+  // Choices already written are kept when the type changes between the two choice kinds.
+  w.__run("tplType(2, 'multi')");
+  check('an existing dropdown keeps its choices when it becomes multiple choice',
+    w.__ed().template.fields[2].options.map(o => o.value).join(',') === 'yes,no',
+    JSON.stringify(w.__ed().template.fields[2].options.map(o => o.value)));
+
+  // A plain-text question has nothing to choose from, and must not show an empty choices box.
+  w.__run("tplType(1, 'number')");
+  check('a number question shows no choices editor',
+    rowOf(w, 'industry').querySelectorAll('.tpl-opt').length === 0,
+    String(rowOf(w, 'industry').querySelectorAll('.tpl-opt').length));
+}
+
 console.log('\nSections:\n');
 {
   const w = boot(baseTemplate());
