@@ -1402,8 +1402,10 @@ select {
 <script src="/js/intake-template.js"></script>
 <script src="/js/enroll-dialog.js"></script>
 <script>
-const PANELS = ['panel-0','panel-websites','panel-1','panel-2','panel-3','panel-4','panel-5','panel-6','panel-7','panel-8','panel-complete'];
-const TAB_IDS = ['tab-0','tab-websites','tab-1','tab-2','tab-3','tab-4','tab-5','tab-6','tab-7','tab-8','tab-complete'];
+// Rebuilt from the customer's template once it loads — a section can be switched off or added,
+// and this pair of arrays is what the whole wizard navigates by.
+let PANELS = ['panel-0','panel-websites','panel-1','panel-2','panel-3','panel-4','panel-5','panel-6','panel-7','panel-8','panel-complete'];
+let TAB_IDS = ['tab-0','tab-websites','tab-1','tab-2','tab-3','tab-4','tab-5','tab-6','tab-7','tab-8','tab-complete'];
 const LABELS_EN = ['General Info','Website Inventory','The Customer','The Problem','Job to Be Done','Category & Language','Competitors','Search Patterns','Differentiators','Proof & Credibility','Complete'];
 const LABELS_ES = ['Datos generales','Inventario web','El cliente','El problema','Trabajo a realizar','Categoría y lenguaje','Competidores','Patrones de búsqueda','Diferenciadores','Prueba y credibilidad','Completado'];
 
@@ -1691,6 +1693,18 @@ window.submitGateCode = async function() {
 // per-customer read, and this is the only function that has to change when it does — everything
 // downstream already asks the template rather than the markup.
 let intakeTemplate = null;
+// The template is fetched before the customer's saved answers are put back, so a request that
+// never settles does not merely delay the wording — it leaves them looking at an empty form with
+// everything they had already written still on the server. fetch has no timeout of its own, so a
+// wedged request waits on Node's default of minutes. Six seconds, then carry on without it.
+const TEMPLATE_FETCH_MS = 6000;
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => resolve(null), ms))
+  ]);
+}
+
 async function loadIntakeTemplate(company) {
   const usable = tpl => (tpl && Array.isArray(tpl.fields) && tpl.fields.length ? tpl : null);
 
@@ -1698,8 +1712,8 @@ async function loadIntakeTemplate(company) {
   // is never served here — the endpoint does not return it to a customer at all.
   if (company) {
     try {
-      const res = await fetch(await window.apiQuery('/api/intake-template', { company }));
-      if (res.ok) {
+      const res = await withTimeout(fetch(await window.apiQuery('/api/intake-template', { company })), TEMPLATE_FETCH_MS);
+      if (res && res.ok) {
         const body = await res.json();
         // Previewing an unreleased form. The draft is only ever present in a STAFF answer — a
         // customer adding ?preview=draft to their own link gets a response with no draft in it,
@@ -1720,8 +1734,8 @@ async function loadIntakeTemplate(company) {
 
   // Everyone else, and everyone before their form is tailored: the default questions.
   try {
-    const res = await fetch('/intake-template.default.json');
-    if (!res.ok) return null;
+    const res = await withTimeout(fetch('/intake-template.default.json'), TEMPLATE_FETCH_MS);
+    if (!res || !res.ok) return null;
     return usable(await res.json());
   } catch (e) {
     // A form that renders its original wording is far better than one that does not render.
@@ -1742,7 +1756,38 @@ async function applyIntakeTemplate() {
     const toggle = document.querySelector('.lang-toggle');
     if (toggle) toggle.style.display = 'none';
   }
-  if (window.akoreIntakeForm) window.akoreIntakeForm.apply(intakeTemplate, lang);
+  if (window.akoreIntakeForm) {
+    window.akoreIntakeForm.apply(intakeTemplate, lang);
+    rebuildPanelOrder();
+  }
+}
+
+/**
+ * Re-points the wizard at the sections this customer actually has.
+ *
+ * Every tab was written with its index baked into its onclick, which was fine while there were
+ * exactly eleven panels and no way to change that. A switched-off section otherwise stays in the
+ * sequence as a step with nothing on it, and an added one is unreachable — its questions drawn into
+ * a panel no button leads to.
+ */
+function rebuildPanelOrder() {
+  const ids = window.akoreIntakeForm.sectionOrder(intakeTemplate)
+    .filter(id => document.getElementById(id));
+  if (!ids.length) return;
+  PANELS = ids.concat(['panel-complete']);
+  TAB_IDS = PANELS.map(id => window.akoreIntakeForm.tabIdFor(id));
+
+  PANELS.forEach((id, i) => {
+    const tab = document.getElementById(TAB_IDS[i]);
+    if (!tab) return;
+    tab.style.display = '';
+    tab.onclick = function () { window.goTab(i); return false; };
+  });
+  // Whatever was on screen is no longer necessarily step `current`.
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  current = 0;
+  window.goTab(0);
 }
 
 async function restoreSavedProgress() {

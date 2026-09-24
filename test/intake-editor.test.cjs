@@ -8,6 +8,9 @@
 const fs = require('fs');
 const path = require('path');
 const { JSDOM, VirtualConsole } = require('jsdom');
+const { register } = require('node:module');
+const { pathToFileURL } = require('node:url');
+register('./support/blobs-hook.mjs', pathToFileURL(__filename));
 
 const ROOT = path.join(__dirname, '..');
 let failures = 0;
@@ -292,6 +295,62 @@ console.log('\nOpening it, the way the button does:\n');
   closed.__run('closeIntakeEditor()');
   check('closeIntakeEditor() exists and closes it',
     !closed.document.getElementById('intake-tpl-modal').classList.contains('open'), 'still open');
+}
+
+
+console.log('\nWhatever the editor produces, the server accepts:\n');
+{
+  // The editor and the endpoint enforce the same rules from opposite sides, written twice. If the
+  // editor can build something the server refuses, a staff member meets a refusal with no way to
+  // tell what they did — and the only thing they did was use the buttons in front of them. So the
+  // real endpoint is asked about the real output of a long editing session.
+  const endpoint = (await import(pathToFileURL(path.resolve('netlify/functions/intake-template.js')).href)).default;
+  const { createStaffSession } = await import(pathToFileURL(path.resolve('netlify/functions/lib/session.js')).href);
+  const STORES = (globalThis.__BLOBS__ = globalThis.__BLOBS__ || {});
+  Object.keys(STORES).forEach(k => delete STORES[k]);
+  const S = await createStaffSession('akore-rene', 'admin');
+
+  const real = JSON.parse(fs.readFileSync(path.join(ROOT, 'intake-template.default.json'), 'utf8'));
+  const w = boot(real);
+
+  // Everything the editor can do, to the template every customer actually starts from.
+  w.__run("tplSetLanguage('es')");
+  w.__run("tplAddSection()");
+  const newSec = w.__ed().template.sections[w.__ed().template.sections.length - 1].id;
+  w.__run(`tplAdd('${newSec}')`);
+  w.__run(`tplAdd('${newSec}')`);
+  w.__run("tplAdd('panel-0')");
+  w.__run("tplType(0, 'multi')");
+  w.__run("tplAddOption(0)");
+  w.__run("tplOption(0, 0, 'es', 'Sí')");
+  w.__run("tplToggle(1, false)");
+  w.__run("tplLabel(2, 'es', 'Otra cosa')");
+  w.__run("tplRemove(3)");
+  // Drag a question into another section, then move a section.
+  w.__run("tplDragStart({preventDefault(){},stopPropagation(){},dataTransfer:{setData(){}}}, 'field', 'competitors')");
+  w.__run("tplDrop({preventDefault(){},stopPropagation(){},dataTransfer:{setData(){}}}, 'field', 'company')");
+  w.__run(`tplDragStart({preventDefault(){},stopPropagation(){},dataTransfer:{setData(){}}}, 'section', '${newSec}')`);
+  w.__run("tplDrop({preventDefault(){},stopPropagation(){},dataTransfer:{setData(){}}}, 'section', 'panel-0')");
+
+  const produced = JSON.parse(JSON.stringify(w.__ed().template));
+  const res = await endpoint(new Request('https://x/api/intake-template', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session: S, company: 'Edited Co', template: produced })
+  }), {});
+  const body = await res.json();
+  check('the server accepts what the editor built', res.status === 200,
+    res.status + ' ' + (body.error || ''));
+
+  // And deleting a section must not leave its questions behind pointing at nothing, which the
+  // server refuses and the editor would otherwise have no reason to notice.
+  w.__run("tplDeleteSection('panel-2')");
+  const after = JSON.parse(JSON.stringify(w.__ed().template));
+  const res2 = await endpoint(new Request('https://x/api/intake-template', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session: S, company: 'Edited Co', template: after })
+  }), {});
+  check('and still accepts it after a section is deleted', res2.status === 200,
+    res2.status + ' ' + ((await res2.json()).error || ''));
 }
 
 console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));

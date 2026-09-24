@@ -51,6 +51,17 @@
 
   const isMulti = el => !!(el && el.getAttribute && el.getAttribute('data-multi'));
 
+  // The page's tabs are named after their panels. A plain replace() was right for the eleven
+  // built-in panels and wrong for a section staff added, whose id has no `panel-` to replace — it
+  // returned the panel's own id and went looking for a tab under it.
+  function tabIdFor(sectionId) {
+    const id = String(sectionId || '');
+    return id.indexOf('panel-') === 0 ? 'tab-' + id.slice(6) : 'tab-' + id;
+  }
+
+  const orderedSections = tpl =>
+    ((tpl && tpl.sections) || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0));
+
   /** What kind of question the page is currently asking, read off the control itself. */
   function domTypeOf(el) {
     if (!el) return null;
@@ -174,10 +185,44 @@
       const l = lang === 'en' ? 'en' : 'es';
       if (!template || !Array.isArray(template.fields)) return;
 
+      // A section staff added has no panel and no tab in a page that was written before it existed,
+      // so both are built here. Without this the editor could create a section, the questions in it
+      // were never drawn, and the customer's answers to them came back empty for ever — the form
+      // looked complete and silently could not ask two of its questions.
+      for (const section of orderedSections(template)) {
+        if (section.enabled === false || byId(section.id)) continue;
+
+        const panel = document.createElement('div');
+        panel.className = 'panel';
+        panel.id = section.id;
+        const done = byId('panel-complete');
+        if (done && done.parentNode) done.parentNode.insertBefore(panel, done);
+        else document.body.appendChild(panel);
+
+        const bar = byId('tab-bar');
+        if (bar) {
+          const tab = document.createElement('a');
+          tab.className = 'tab';
+          tab.id = tabIdFor(section.id);
+          tab.href = 'javascript:void(0)';
+          const num = document.createElement('span');
+          num.className = 'tab-num';
+          num.textContent = '+';
+          const label = document.createElement('span');
+          label.className = 'tab-label';
+          setBilingual(label, section.title);
+          label.textContent = (section.title && (section.title[l] || section.title.en)) || '';
+          tab.appendChild(num);
+          tab.appendChild(label);
+          const doneTab = byId('tab-complete');
+          if (doneTab) bar.insertBefore(tab, doneTab); else bar.appendChild(tab);
+        }
+      }
+
       // Sections can be renamed and switched off too — the tab goes with the panel.
       for (const section of template.sections || []) {
         const panel = byId(section.id);
-        const tab = byId(section.id.replace(/^panel-/, 'tab-'));
+        const tab = byId(tabIdFor(section.id));
         if (tab && section.title) setBilingual(tab.querySelector('.tab-label'), section.title);
         if (section.enabled === false) {
           if (panel) panel.setAttribute('data-off', '1');
@@ -288,6 +333,18 @@
       }
       return out;
     },
+
+    /**
+     * The sections a customer will actually step through, in order. The page's navigation is a pair
+     * of index-based arrays written when there were exactly eleven panels, so it has to be rebuilt
+     * from this — otherwise a switched-off section stays in the sequence as a step with nothing in
+     * it, and an added one cannot be reached at all.
+     */
+    sectionOrder: function (template) {
+      return orderedSections(template).filter(s => s.enabled !== false).map(s => s.id);
+    },
+
+    tabIdFor: tabIdFor,
 
     /** Fills the form back in from saved answers. */
     populate: function (template, data, sinks) {

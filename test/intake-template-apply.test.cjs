@@ -264,5 +264,70 @@ console.log('\nThe tag inputs are left alone:\n');
     w.document.getElementById('social-input').outerHTML === before, 'it was replaced');
 }
 
+
+console.log('\nA section staff added:\n');
+{
+  // The page was written with eleven panels and a tab bar to match. A section added years later has
+  // neither, so its questions were drawn nowhere and its answers came back empty for ever — the
+  // form looked complete and simply could not ask them.
+  const w = freshPage();
+  const tpl = clone();
+  tpl.sections.push({ id: 'extra-ops', order: 99, title: { en: 'Operations', es: 'Operaciones' }, custom: true });
+  tpl.fields.push({ id: 'extra-shifts', section: 'extra-ops', custom: true, type: 'textarea',
+    paths: ['extra.shifts'], label: { en: 'Shifts?', es: '¿Turnos?' } });
+  w.akoreIntakeForm.apply(tpl, 'es');
+
+  const panel = w.document.getElementById('extra-ops');
+  check('a panel is created for it', !!panel && panel.classList.contains('panel'), 'no panel');
+  check('and it sits before the closing panel, not after it',
+    !!panel && !!(panel.compareDocumentPosition(w.document.getElementById('panel-complete'))
+      & w.Node.DOCUMENT_POSITION_FOLLOWING), 'it is after panel-complete');
+
+  const tab = w.document.getElementById('tab-extra-ops');
+  check('a tab is created for it', !!tab, 'no tab');
+  check('worded in the language the form is in',
+    !!tab && tab.querySelector('.tab-label').textContent === 'Operaciones',
+    tab && tab.querySelector('.tab-label').textContent);
+  check('and it sits before the closing tab',
+    !!tab && !!(tab.compareDocumentPosition(w.document.getElementById('tab-complete'))
+      & w.Node.DOCUMENT_POSITION_FOLLOWING), 'it is after tab-complete');
+
+  check("the question is drawn inside it", !!panel && panel.contains(w.document.getElementById('extra-shifts')),
+    'not in the new panel');
+
+  // Applying twice is normal, and must not build a second one.
+  w.akoreIntakeForm.apply(tpl, 'en');
+  check('applying again does not create it twice',
+    w.document.querySelectorAll('#extra-ops').length === 1
+    && w.document.querySelectorAll('#tab-extra-ops').length === 1,
+    w.document.querySelectorAll('#extra-ops').length + ' panels');
+}
+
+console.log('\nThe order the customer steps through:\n');
+{
+  const w = freshPage();
+  const tpl = clone();
+  tpl.sections.find(s => s.id === 'panel-4').enabled = false;
+  tpl.sections.push({ id: 'extra-ops', order: 99, title: { en: 'Ops', es: 'Ops' }, custom: true });
+  w.akoreIntakeForm.apply(tpl, 'es');
+
+  const order = w.akoreIntakeForm.sectionOrder(tpl);
+  check('a switched-off section is not a step any more', order.indexOf('panel-4') === -1,
+    JSON.stringify(order));
+  check('and its tab is hidden rather than left as a dead button',
+    w.document.getElementById('tab-4').style.display === 'none',
+    w.document.getElementById('tab-4').style.display);
+  check('an added section is a step', order[order.length - 1] === 'extra-ops', JSON.stringify(order.slice(-2)));
+  check('the rest keep the order they were in',
+    order[0] === 'panel-0' && order[1] === 'panel-websites', JSON.stringify(order.slice(0, 2)));
+
+  // The naming rule the page navigates by. A plain replace() of "panel-" returned the panel's own
+  // id for an added section, and the page then looked for a tab that could never exist.
+  check('a built-in section maps to its tab', w.akoreIntakeForm.tabIdFor('panel-websites') === 'tab-websites',
+    w.akoreIntakeForm.tabIdFor('panel-websites'));
+  check('and an added one gets a tab id of its own', w.akoreIntakeForm.tabIdFor('extra-ops') === 'tab-extra-ops',
+    w.akoreIntakeForm.tabIdFor('extra-ops'));
+}
+
 console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
 process.exit(failures ? 1 : 0);

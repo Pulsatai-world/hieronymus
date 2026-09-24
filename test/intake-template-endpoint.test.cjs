@@ -185,6 +185,46 @@ const okTemplate = (extra = {}) => ({
       'refused');
   }
 
+  console.log('\nIds, which end up inside the editor own markup:\n');
+  {
+    // An id is written into inline handlers in the editor. The browser decodes &#39; back to a
+    // quote BEFORE compiling a handler, so escaping on the way out does not contain a crafted id —
+    // it breaks out of the JavaScript string it sits in. Refused at the door instead.
+    for (const [why, id] of [
+      ["a quote", "x')+alert(1)+('"],
+      ['a space', 'my field'],
+      ['a tag', '<img src=x>'],
+      ['a dot, which would read as a path', 'general.company']
+    ]) {
+      const t = okTemplate();
+      t.fields.push({ id, section: 'panel-0', type: 'text', paths: ['a.b'] });
+      const res = await call(fn, 'POST', { body: { session: STAFF, company: 'Ids', template: t } });
+      check('a field id containing ' + why + ' is refused', res.status === 400, 'accepted: ' + id);
+    }
+
+    const secBad = okTemplate();
+    secBad.sections.push({ id: "s')+alert(1)+('", order: 9, title: { en: 'x', es: 'x' } });
+    check('and so is a section id', 
+      (await call(fn, 'POST', { body: { session: STAFF, company: 'Ids', template: secBad } })).status === 400,
+      'accepted');
+
+    // A question in a section that does not exist is drawn nowhere and answered by nobody — the
+    // form looks complete and silently cannot ask it.
+    const orphan = okTemplate();
+    orphan.fields.push({ id: 'lost', section: 'panel-does-not-exist', type: 'text', paths: ['a.b'] });
+    check('a question in a section that does not exist is refused',
+      (await call(fn, 'POST', { body: { session: STAFF, company: 'Ids', template: orphan } })).status === 400,
+      'accepted');
+
+    // And the ids the editor itself generates must pass, or the feature refuses its own output.
+    const mine = okTemplate();
+    mine.sections.push({ id: 'extra-section-2', order: 9, title: { en: 'x', es: 'x' } });
+    mine.fields.push({ id: 'extra-question-2', section: 'extra-section-2', custom: true, type: 'textarea', paths: ['extra.questionTwo'] });
+    check('the ids the editor generates are accepted',
+      (await call(fn, 'POST', { body: { session: STAFF, company: 'Ids', template: mine } })).status === 200,
+      'the editor cannot save its own output');
+  }
+
   console.log('\nWho may touch a template:\n');
   {
     const noSession = await call(fn, 'GET', { qs: '?company=Acme' });
@@ -210,6 +250,49 @@ const okTemplate = (extra = {}) => ({
     check('and staff can list', staffList.status === 200, String(staffList.status));
   }
 
+
+  console.log('\nNothing answers without a session:\n');
+  {
+    // Every method, with no credential at all. A background function answering 202 before it runs
+    // taught this project that a status code is not proof of anything — so these assert the refusal
+    // itself, on the one surface a customer can reach directly.
+    for (const [method, opts] of [
+      ['GET', { qs: '?company=Acme' }],
+      ['GET', { qs: '' }],
+      ['POST', { body: { company: 'Acme', template: okTemplate() } }],
+      ['PATCH', { body: { company: 'Acme' } }],
+      ['DELETE', { qs: '?company=Acme' }]
+    ]) {
+      const res = await call(fn, method, opts);
+      check(method + ' with no session is refused', res.status === 401,
+        String(res.status) + (opts.qs === '' ? ' (listing)' : ''));
+    }
+
+    const junk = await call(fn, 'GET', { qs: '?session=not-a-real-token&company=Acme' });
+    check('an invented session token is refused', junk.status === 401, String(junk.status));
+
+    const wrongMethod = await call(fn, 'PUT', { qs: '?session=' + encodeURIComponent(STAFF) });
+    check('an unsupported method is refused', wrongMethod.status === 405, String(wrongMethod.status));
+  }
+
+  console.log('\nThe listing names customers, and says nothing about their forms:\n');
+  {
+    // Staff-only, and deliberately shape-only. A listing that carried drafts would put every
+    // customer's unreleased wording into one response, for a page that only needs to know who has
+    // one and whether it is published.
+    await call(fn, 'POST', { body: { session: STAFF, company: 'Listed Co', template: okTemplate() } });
+    const res = await call(fn, 'GET', { qs: staffQ() });
+    const body = await res.json();
+    check('staff can list', res.status === 200, String(res.status));
+
+    const raw = JSON.stringify(body);
+    check('no template content appears in it',
+      raw.indexOf('"fields"') === -1 && raw.indexOf('panel-0') === -1, raw.slice(0, 160));
+    check('only who, when, and whether it is published',
+      body.items.every(i => Object.keys(i).every(k =>
+        ['key', 'company', 'savedAt', 'releasedAt', 'unreleasedChanges'].indexOf(k) !== -1)),
+      JSON.stringify(Object.keys(body.items[0] || {})));
+  }
 
   console.log('\nStaff opening a customer\'s own intake form:\n');
   {

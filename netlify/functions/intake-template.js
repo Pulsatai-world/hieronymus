@@ -47,15 +47,35 @@ function warningsFor(tpl) {
   return out;
 }
 
+// Ids are written into the editor's markup, including into inline handlers, where an id carrying a
+// quote would break out of the JavaScript string it sits in — the browser decodes &#39; back to a
+// quote before compiling the handler, so escaping on the way out does not save it. They are also
+// the keys the form is addressed by. Nothing legitimate needs anything outside this set, and
+// refusing here removes the whole class rather than escaping it in each of the places it is used.
+const ID_OK = /^[A-Za-z0-9_-]+$/;
+
 function problemsWith(tpl) {
   const bad = [];
   if (!tpl || typeof tpl !== 'object') return ['Template must be an object'];
   if (!Array.isArray(tpl.fields)) return ['Template must have a fields array'];
   if (!Array.isArray(tpl.sections)) bad.push('Template must have a sections array');
+  for (const sec of tpl.sections || []) {
+    if (!sec || typeof sec.id !== 'string' || !ID_OK.test(sec.id)) {
+      bad.push(`Section id "${sec && sec.id}" may only use letters, numbers, dashes and underscores`);
+    }
+  }
+  const sectionIds = new Set((tpl.sections || []).map(x => x && x.id));
+  for (const f of tpl.fields || []) {
+    // A question pointing at a section that is not there is drawn nowhere and answered by nobody.
+    if (f && f.section && !sectionIds.has(f.section)) {
+      bad.push(`Question "${f.id}" is in a section that does not exist ("${f.section}")`);
+    }
+  }
 
   const seen = new Set();
   for (const f of tpl.fields) {
     if (!f || typeof f.id !== 'string' || !f.id.trim()) { bad.push('Every field needs an id'); continue; }
+    if (!ID_OK.test(f.id)) { bad.push(`Field id "${f.id}" may only use letters, numbers, dashes and underscores`); continue; }
     if (seen.has(f.id)) bad.push(`Two fields share the id "${f.id}"`);
     seen.add(f.id);
     // Not every question is an answer. The two chip inputs are stored through their widget rather
