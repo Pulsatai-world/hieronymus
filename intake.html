@@ -1687,11 +1687,30 @@ window.submitGateCode = async function() {
 // downstream already asks the template rather than the markup.
 let intakeTemplate = null;
 async function loadIntakeTemplate(company) {
+  const usable = tpl => (tpl && Array.isArray(tpl.fields) && tpl.fields.length ? tpl : null);
+
+  // This customer's own released template, if staff have made and released one. A draft in progress
+  // is never served here — the endpoint does not return it to a customer at all.
+  if (company) {
+    try {
+      const res = await fetch(await window.apiQuery('/api/intake-template', { company }));
+      if (res.ok) {
+        const body = await res.json();
+        // A customer is answered `template` (their released copy, or nothing). Staff opening the
+        // same form are answered `draft` and `released` separately, because the editor needs both
+        // — so staff previewing a customer's intake must be shown `released`, or they would be
+        // looking at the default questions and believe that is what the customer gets.
+        const own = usable(body && (body.template || body.released));
+        if (own) return own;
+      }
+    } catch (e) { /* fall through to the default set */ }
+  }
+
+  // Everyone else, and everyone before their form is tailored: the default questions.
   try {
     const res = await fetch('/intake-template.default.json');
     if (!res.ok) return null;
-    const tpl = await res.json();
-    return tpl && Array.isArray(tpl.fields) ? tpl : null;
+    return usable(await res.json());
   } catch (e) {
     // A form that renders its original wording is far better than one that does not render.
     return null;
