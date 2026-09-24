@@ -100,38 +100,51 @@ const okTemplate = (extra = {}) => ({
       withdrawn.status === 200 && back.template === null, JSON.stringify(back).slice(0, 80));
   }
 
-  console.log('\nThe four answers nothing else can work without:\n');
+  console.log('\nWhat a template may and may not do:\n');
   {
-    for (const [why, mutate] of [
-      ['removed', t => { t.fields = t.fields.filter(f => f.id !== 'website'); }],
-      ['switched off', t => { t.fields.find(f => f.id === 'company').enabled = false; }],
-      ['renamed to a different path', t => { t.fields.find(f => f.id === 'industry').paths = ['general.sector']; }]
-    ]) {
-      const t = okTemplate();
-      mutate(t);
-      const res = await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: t } });
-      const body = await res.json();
-      check(`a required answer cannot be ${why}`, res.status === 400, res.status + ' ' + (body.error || ''));
-    }
+    // Structure is enforced, because a field with no id or nowhere to store its answer is not a
+    // judgement call, it is broken.
+    const noId = okTemplate(); noId.fields.push({ section: 'panel-0', type: 'text', paths: ['x.y'] });
+    check('a field with no id is refused',
+      (await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: noId } })).status === 400, 'accepted');
 
-    // websites.primarySite rides on the same field as general.website; losing just that one path is
-    // the subtle version, and grading is what breaks.
-    const t = okTemplate();
-    t.fields.find(f => f.id === 'website').paths = ['general.website'];
-    const res = await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: t } });
-    check('nor can one half of a two-path answer be dropped', res.status === 400,
-      res.status + ' ' + ((await res.json()).error || ''));
+    const noPath = okTemplate(); noPath.fields.push({ id: 'z', section: 'panel-0', type: 'text', paths: [] });
+    check('a field with nowhere to store its answer is refused',
+      (await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: noPath } })).status === 400, 'accepted');
 
-    // A record written before the rule existed must not sneak through at release time.
-    store('hieronymus-intake-templates')['gamma'] = {
-      company: 'Gamma', draft: (() => { const g = okTemplate(); g.fields = g.fields.filter(f => f.id !== 'company'); return g; })(),
-      savedAt: '2026-01-01T00:00:00Z'
-    };
-    const rel = await call(fn, 'PATCH', { body: { session: STAFF, company: 'Gamma' } });
-    check('and a bad draft already in the store is refused at release', rel.status === 400,
-      String(rel.status));
-    const served = await (await call(fn, 'GET', { qs: staffQ('&company=Gamma') })).json();
-    check('so it never becomes what a customer is served', !served.released, JSON.stringify(served.released));
+    const dupe = okTemplate(); dupe.fields.push({ id: 'company', section: 'panel-0', type: 'text', paths: ['a.b'] });
+    check('two fields cannot share an id',
+      (await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: dupe } })).status === 400, 'accepted');
+
+    // Everything else is the operator's call. These were refused outright until it turned out
+    // nothing actually breaks: grading returns null for the checks it can no longer make,
+    // generation hands Claude the whole intake rather than indexing paths, and the intake's storage
+    // key comes from the session's company. So they are allowed, and the cost is reported back.
+    const noIndustry = okTemplate();
+    noIndustry.fields.find(f => f.id === 'industry').enabled = false;
+    const r1 = await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: noIndustry } });
+    const b1 = await r1.json();
+    check('a question grading uses CAN be switched off', r1.status === 200, r1.status + ' ' + (b1.error || ''));
+    check('and the cost of doing so is reported back',
+      Array.isArray(b1.warnings) && b1.warnings.some(w => /industry/i.test(w)), JSON.stringify(b1.warnings));
+
+    const noSite = okTemplate();
+    noSite.fields = noSite.fields.filter(f => f.id !== 'website');
+    const b2 = await (await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: noSite } })).json();
+    check('dropping the website is allowed and warned about',
+      Array.isArray(b2.warnings) && b2.warnings.some(w => /site/i.test(w)), JSON.stringify(b2.warnings));
+
+    const full = await (await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: okTemplate() } })).json();
+    check('a complete form warns about nothing', full.warnings && full.warnings.length === 0,
+      JSON.stringify(full.warnings));
+
+    // Company name is not special either: the page sends it from the session, so the form never
+    // needed to ask for it.
+    const noCompany = okTemplate();
+    noCompany.fields = noCompany.fields.filter(f => f.id !== 'company');
+    check('even the company question can be removed',
+      (await call(fn, 'POST', { body: { session: STAFF, company: 'Beta', template: noCompany } })).status === 200,
+      'refused');
   }
 
   console.log('\nWho may touch a template:\n');
@@ -196,28 +209,29 @@ const okTemplate = (extra = {}) => ({
 
   console.log('\nThe editor and the server agree on the rules:\n');
   {
-    // Two copies of the same list, in two languages, in two files. If they drift the editor offers
-    // to switch off a question the server then refuses, and staff meet an error with no explanation
-    // for what they did wrong.
+    // The same list written twice in two languages in two files. If they drift, the editor marks
+    // the wrong questions as feeding grading and the warning it shows stops matching the one the
+    // server returns.
     const fs = require('fs');
     const here = f => fs.readFileSync(require('path').join(__dirname, '..', f), 'utf8');
     const listIn = (src, name) => {
       const at = src.indexOf(name + ' = [');
       if (at === -1) return null;
-      const body = src.slice(at, src.indexOf(']', at));
-      const quoted = body.match(/'([^']+)'/g);
+      const quoted = src.slice(at, src.indexOf(']', at)).match(/'([^']+)'/g);
       return quoted ? quoted.map(x => x.slice(1, -1)).sort() : null;
     };
-    const server = listIn(here('netlify/functions/intake-template.js'), 'REQUIRED_PATHS');
-    const editor = listIn(here('index.html'), 'TPL_REQUIRED');
-    check('both know which four answers are protected', !!server && !!editor,
-      'server=' + server + ' editor=' + editor);
-    check('and they are the same four', JSON.stringify(server) === JSON.stringify(editor),
+    const server = listIn(here('netlify/functions/intake-template.js'), 'GROUND_TRUTH_PATHS');
+    const editor = listIn(here('index.html'), 'TPL_GROUND_TRUTH');
+    check('both know which answers grading reads', !!server && !!editor, 'server=' + server + ' editor=' + editor);
+    check('and they are the same ones', JSON.stringify(server) === JSON.stringify(editor),
       JSON.stringify(server) + ' vs ' + JSON.stringify(editor));
 
-    // An added question must not be able to land on a path the generator or grader reads.
     check('questions added in the editor are stored out of the way, under extra.',
       /paths: \['extra\.'/.test(here('index.html')), 'tplAdd does not namespace its path');
+
+    // The editor must not offer an English box to a customer set to Spanish only.
+    check('the wording columns follow the language the customer was set to',
+      /pinned === 'es' \? \['es'\]/.test(here('index.html')), 'tplLangs does not narrow to one language');
   }
 
   console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));

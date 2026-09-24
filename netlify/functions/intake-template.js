@@ -14,12 +14,15 @@ import { callerOf, requireCompany, requireStaff } from './lib/authorize.js';
 // customer holds a working intake link, so they can call this endpoint themselves, and a rule that
 // lives only in a staff page is not a rule.
 
-// Four answers the rest of the platform reads by name. `general.website` is where the storage key
-// for a customer's intake comes from, and `websites.primarySite` is what audit grading reads to
-// know whose site it is looking at; company and industry are what the prompt brief is built on.
-// A template that drops one of them does not fail here — it produces an audit about nobody, weeks
-// later. So they cannot be removed, renamed, or switched off, whatever the editor allows.
-const REQUIRED_PATHS = ['general.company', 'general.industry', 'general.website', 'websites.primarySite'];
+// Two answers grading reads as ground truth: general.industry, and the website (general.website or
+// websites.primarySite). They used to be refused here if a template dropped them, on the assumption
+// that losing them broke an audit. They do not. Grading is written to handle their absence — it
+// returns null for the checks that need them rather than failing — generation passes the whole
+// intake to Claude rather than indexing paths, and the intake's storage key comes from the session's
+// company, not from the form. So dropping one costs some grading precision for that customer, and
+// that is a judgement for whoever is building the form, not a rule this endpoint should impose.
+// Reported back as a warning, so the cost is visible without being enforced.
+const GROUND_TRUTH_PATHS = ['general.industry', 'general.website', 'websites.primarySite'];
 
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
@@ -29,6 +32,21 @@ function json(obj, status) {
 }
 
 /** Everything wrong with a template, rather than the first thing wrong with it. */
+/** What a template costs without being wrong: reported, never enforced. */
+function warningsFor(tpl) {
+  const live = new Set();
+  for (const f of (tpl && tpl.fields) || []) {
+    if (!f || f.enabled === false || !Array.isArray(f.paths)) continue;
+    for (const p of f.paths) live.add(p);
+  }
+  const out = [];
+  if (!live.has('general.industry')) out.push('grading cannot check whether an answer named the right industry');
+  if (!live.has('general.website') && !live.has('websites.primarySite')) {
+    out.push('grading cannot check whether an answer named the right site');
+  }
+  return out;
+}
+
 function problemsWith(tpl) {
   const bad = [];
   if (!tpl || typeof tpl !== 'object') return ['Template must be an object'];
@@ -43,16 +61,6 @@ function problemsWith(tpl) {
     if (!Array.isArray(f.paths) || !f.paths.length) bad.push(`Field "${f.id}" has nowhere to store its answer`);
   }
 
-  // Asked of the fields that are actually switched on: a required question left in the template but
-  // disabled is exactly as absent, for anything reading the answers.
-  const live = new Set();
-  for (const f of tpl.fields) {
-    if (!f || f.enabled === false || !Array.isArray(f.paths)) continue;
-    for (const p of f.paths) live.add(p);
-  }
-  for (const p of REQUIRED_PATHS) {
-    if (!live.has(p)) bad.push(`"${p}" is required and cannot be removed or switched off`);
-  }
   return bad;
 }
 
@@ -127,7 +135,7 @@ export default async (request, context) => {
     rec.draft = body.template;
     rec.savedAt = new Date().toISOString();
     await store.setJSON(key, rec);
-    return json({ status: 'ok', savedAt: rec.savedAt }, 200);
+    return json({ status: 'ok', savedAt: rec.savedAt, warnings: warningsFor(body.template) }, 200);
   }
 
   // ── Releasing ── promotes the draft to the copy customers are served.
@@ -168,7 +176,7 @@ export default async (request, context) => {
     rec.releasedAt = new Date().toISOString();
     rec.releasedBy = caller ? caller.username : null;
     await store.setJSON(key, rec);
-    return json({ status: 'ok', releasedAt: rec.releasedAt, releasedBy: rec.releasedBy }, 200);
+    return json({ status: 'ok', releasedAt: rec.releasedAt, releasedBy: rec.releasedBy, warnings: warningsFor(rec.draft) }, 200);
   }
 
   if (request.method === 'DELETE') {

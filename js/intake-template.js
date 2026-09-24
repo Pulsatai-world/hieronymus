@@ -140,6 +140,31 @@
         }
       }
 
+      // Order, and which section a question belongs to.
+      //
+      // The editor can reorder questions and drag them between sections, and without this none of
+      // that would reach the customer: everything above re-words a question where it already sits.
+      //
+      // A section is left completely alone unless its order actually differs from the page's, which
+      // means the default template moves nothing at all. When it does differ, the moved questions
+      // are lifted to the top level of their panel — a question dragged out of a two-column pair
+      // cannot stay in it — so the designed layout survives everywhere it was not reordered.
+      for (const section of template.sections || []) {
+        const panel = byId(section.id);
+        if (!panel) continue;
+        const mine = (template.fields || []).filter(f => f.section === section.id && !f.custom);
+        const groups = mine.map(f => groupOf(byId(f.id))).filter(Boolean);
+        if (groups.length < 2) continue;
+
+        const inPage = groups.slice().sort((a, b) =>
+          (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1);
+        const sameOrder = groups.every((g, i) => g === inPage[i]) && groups.every(g => panel.contains(g));
+        if (sameOrder) continue;
+
+        const extra = panel.querySelector('[data-extra-questions]');
+        for (const g of groups) panel.insertBefore(g, extra || null);
+      }
+
       // Questions staff added. They go at the end of their section, in their own container, so the
       // designed layout above them is left exactly as it is.
       for (const section of template.sections || []) {

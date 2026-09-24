@@ -141,5 +141,38 @@ console.log('\nThe default template changes nothing:\n');
     String(w.document.querySelectorAll('[data-extra-questions]').length));
 }
 
+
+console.log('\nReordering reaches the customer\'s form:\n');
+{
+  // The editor can drag questions around. If apply() ignored that, reordering would look like it
+  // worked in the editor and change nothing the client ever sees - worse than not offering it.
+  const w = freshPage();
+  const tpl = clone();
+  const inSection = tpl.fields.filter(f => f.section === 'panel-0' && !f.custom).map(f => f.id);
+  const [first, second] = inSection;
+
+  // Move the second question above the first.
+  const i = tpl.fields.findIndex(f => f.id === second);
+  const moved = tpl.fields.splice(i, 1)[0];
+  tpl.fields.splice(tpl.fields.findIndex(f => f.id === first), 0, moved);
+  w.akoreIntakeForm.apply(tpl, 'es');
+
+  const a = groupOf(w.document.getElementById(first));
+  const b = groupOf(w.document.getElementById(second));
+  const bIsFirst = !!(b.compareDocumentPosition(a) & w.Node.DOCUMENT_POSITION_FOLLOWING);
+  check('a question moved above another really moves in the page', bIsFirst,
+    first + ' still precedes ' + second);
+
+  // And a question dragged into another section lands there.
+  const w2 = freshPage();
+  const tpl2 = clone();
+  const mover = tpl2.fields.find(f => f.section === 'panel-0' && !f.custom && f.id !== 'company');
+  mover.section = 'panel-2';
+  w2.akoreIntakeForm.apply(tpl2, 'es');
+  check('a question moved to another section is drawn in that section',
+    w2.document.getElementById('panel-2').contains(w2.document.getElementById(mover.id)),
+    'still in its old section');
+}
+
 console.log('\n' + (failures ? failures + ' FAILURE(S)' : 'all green'));
 process.exit(failures ? 1 : 0);
