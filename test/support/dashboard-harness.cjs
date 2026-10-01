@@ -47,7 +47,7 @@ const csvEscape = v => {
  * `brand` is the customer the rows belong to, which has to match the company the page is opened
  * for or the dashboard correctly decides it has no data. */
 function buildCsv(runType, brand) {
-  brand = brand || 'Fiacsa';
+  brand = brand || 'Northwind Hydraulics';
   const dates = runType === 'monitoring' ? DATES : [DATES[0]];
   const lines = [CSV_COLUMNS.join(',')];
   let n = 0;
@@ -147,7 +147,7 @@ const FROZEN_NOW = Date.UTC(2026, 2, 20, 12, 0, 0);
 const REGIONS = ['stats', 'count', 'wrap', 'cwrap', 'pwrap', 'foot', 'lastwk', 'lastwk2', 'schedule-block'];
 
 async function renderDashboard(page, opts = {}) {
-  const company = opts.company || 'Fiacsa';
+  const company = opts.company || 'Northwind Hydraulics';
   const runType = page.includes('monitoring') ? 'monitoring' : 'diagnostic';
   const csv = opts.csv !== undefined ? opts.csv : buildCsv(runType, company);
   const errors = [];
@@ -200,7 +200,7 @@ async function renderDashboard(page, opts = {}) {
         const body =
           /\/api\/login/.test(s) ? { username: 'akore-local', kind: 'staff', role: 'admin', company: '' } :
           /\/api\/intake-codes/.test(s) ? {
-            company, username: 'fiacsa', monitoringEnabled: true,
+            company, username: 'northwind-hydraulics', monitoringEnabled: true,
             nextRunAt: '2026-04-01T00:00:00Z', diagnosisReleased: true, monitoringReleased: true
           } : {};
         const text = isResults ? csv : JSON.stringify(body);

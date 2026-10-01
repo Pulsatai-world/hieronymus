@@ -16,8 +16,8 @@ const { renderDashboard } = require('./support/dashboard-harness.cjs');
 const SPEC_ROOT = path.join(__dirname, 'fixtures', 'specs');
 const PAGE = 'dashboard-diagnostic.html';
 
-// `fiacsa` has a fixture spec; `Someone Else` has none and must be untouched by it.
-const withSpec = (opts = {}) => renderDashboard(PAGE, Object.assign({ lang: 'en', specRoot: SPEC_ROOT, company: 'Fiacsa' }, opts));
+// `northwind-hydraulics` has a fixture spec; `Someone Else` has none and must be untouched by it.
+const withSpec = (opts = {}) => renderDashboard(PAGE, Object.assign({ lang: 'en', specRoot: SPEC_ROOT, company: 'Northwind Hydraulics' }, opts));
 const noSpec = (opts = {}) => renderDashboard(PAGE, Object.assign({ lang: 'en', specRoot: SPEC_ROOT, company: 'Someone Else' }, opts));
 
 test('a customer with no spec is completely unaffected by another customer having one', async () => {
@@ -35,7 +35,7 @@ test('layouts: a spec reorders, drops and inserts blocks', async () => {
   assert.deepEqual(r.errors, []);
   const w = r.regions.wrap;
 
-  assert.ok(/FIXTURE BANNER for Fiacsa/.test(w), 'a customer-only block rendered');
+  assert.ok(/FIXTURE BANNER for Northwind Hydraulics/.test(w), 'a customer-only block rendered');
   assert.ok(!/donut-wrap/.test(w), 'sentimentDonut was dropped by omitting it from the layout');
   assert.ok(!/class="dual"/.test(w), 'the dual group went with it');
 
@@ -134,7 +134,7 @@ const S = require(path.join(__dirname, '..', 'js', 'dash', 'spec.js'));
 test('slugify matches the server rule that names the file', () => {
   // intake-codes.js derives the username from the company name this way; the spec file is named
   // for the same slug, so a mismatch here means a spec silently never loads.
-  assert.equal(S.slugify('Fiacsa'), 'fiacsa');
+  assert.equal(S.slugify('Northwind Hydraulics'), 'northwind-hydraulics');
   assert.equal(S.slugify('  Acme Widgets, S.A. de C.V. '), 'acme-widgets-s-a-de-c-v');
   assert.equal(S.slugify('Añejo & Co'), 'a-ejo-co');
 });

@@ -80,7 +80,7 @@ test('the dataset exercises the cases that have broken before', async () => {
   const csv = buildCsv('monitoring');
   assert.ok(/Parker Hannifin México/.test(csv), 'spelling variants that must canonicalise');
   assert.ok(/Bosch Rexroth S\.A\. de C\.V\./.test(csv), 'legal-entity tails');
-  assert.ok(/is Fiacsa better than Parker/.test(csv), 'prompts naming the company, excluded from the leaderboard');
+  assert.ok(/is Northwind Hydraulics better than Parker/.test(csv), 'prompts naming the company, excluded from the leaderboard');
   assert.ok(/ERROR \(answer\)/.test(csv), 'error rows');
   assert.equal(new Set(csv.trim().split('\n').slice(1).map(l => l.split(',')[2])).size, 3, 'three snapshots for trends');
 });

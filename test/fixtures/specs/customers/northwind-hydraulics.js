@@ -1,7 +1,7 @@
 /* A fixture, not a real customer spec. It deliberately exercises every axis at once —
  * layout, block options, copy, theme, tabs, a new block, and replacing a core block —
  * so the test proves the whole capability rather than one convenient corner of it. */
-AkoreSpec.register('fiacsa', {
+AkoreSpec.register('northwind-hydraulics', {
   diagnostic: {
     layouts: {
       // Drops sentimentDonut and the dual group, adds a customer-only block, reorders.

@@ -38,17 +38,17 @@ test('properCase normalises engine spellings for display', () => {
 test('buildLeaderboard tallies citations, leads and share of voice', () => {
   const rows = [
     row(['Parker', 'SKF'], 'Parker'),
-    row(['Parker', 'Fiacsa'], 'Parker'),
+    row(['Parker', 'Northwind'], 'Parker'),
     row(['SKF'], 'SKF')
   ];
-  const lb = buildLeaderboard(rows, 'Fiacsa');
+  const lb = buildLeaderboard(rows, 'Northwind');
   const byName = Object.fromEntries(lb.brands.map(b => [b.name, b]));
 
   assert.equal(lb.totalCitations, 5);
   assert.equal(byName.Parker.cited, 2);
   assert.equal(byName.Parker.leader, 2);
   assert.equal(byName.Skf.cited, 2);
-  assert.equal(byName.Fiacsa.cited, 1);
+  assert.equal(byName.Northwind.cited, 1);
   assert.equal(Math.round(byName.Parker.sov), 40);
   assert.equal(lb.brands[0].name, 'Parker', 'sorted by citations, most cited first');
 });
@@ -58,26 +58,26 @@ test('buildLeaderboard merges spelling variants and labels with the most-cited f
     row(['Bosch Rexroth', 'Bosch Rexroth México', 'Bosch Rexroth']),
     row(['Bosch Rexroth S.A. de C.V.'])
   ];
-  const lb = buildLeaderboard(rows, 'Fiacsa');
+  const lb = buildLeaderboard(rows, 'Northwind');
   assert.equal(lb.brands.length, 1, 'four spellings are one competitor');
   assert.equal(lb.brands[0].cited, 4);
   assert.equal(lb.brands[0].name, 'Bosch Rexroth', 'most-cited spelling wins the label');
 });
 
 test('buildLeaderboard reports the true field size and the client rank', () => {
-  const rows = [row(['A', 'A', 'B', 'Fiacsa'])];
-  const lb = buildLeaderboard(rows, 'Fiacsa');
+  const rows = [row(['A', 'A', 'B', 'Northwind'])];
+  const lb = buildLeaderboard(rows, 'Northwind');
   assert.equal(lb.brands.length, 3);
-  assert.equal(lb.yourRank, 3, 'A leads with 2 cites; B and Fiacsa trail with 1 each');
-  assert.equal(lb.you.name, 'Fiacsa');
+  assert.equal(lb.yourRank, 3, 'A leads with 2 cites; B and Northwind trail with 1 each');
+  assert.equal(lb.you.name, 'Northwind');
 });
 
 test('the client keeps a row at its true rank even below the cut', () => {
   // 30 rivals each cited more than the client, so the client lands well outside the top 25.
   const list = [];
   for (let i = 0; i < 30; i++) for (let n = 0; n < 5; n++) list.push('Rival' + String(i).padStart(2, '0'));
-  list.push('Fiacsa');
-  const lb = buildLeaderboard([row(list)], 'Fiacsa');
+  list.push('Northwind');
+  const lb = buildLeaderboard([row(list)], 'Northwind');
 
   assert.equal(lb.brands.length, 31);
   assert.equal(lb.yourRank, 31, 'client really is last');
@@ -98,7 +98,7 @@ test('others folds everything below the cut', () => {
 });
 
 test('empty input does not throw or divide by zero', () => {
-  const lb = buildLeaderboard([], 'Fiacsa');
+  const lb = buildLeaderboard([], 'Northwind');
   assert.equal(lb.brands.length, 0);
   assert.equal(lb.totalCitations, 0);
   assert.equal(lb.maxCited, 1, 'guarded so a bar width never divides by zero');
