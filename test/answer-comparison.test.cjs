@@ -15,6 +15,11 @@ check('a 2-5 sentence answer fits inside the limit', m && Number(m[1]) >= 2000, 
 
 // ── answerHistory: the data side of the comparison ──
 const dash = fs.readFileSync('dashboard-monitoring.html', 'utf8');
+// The prompts table is a block now (js/dash/blocks/prompt-trend-table.js), so the markup that
+// offers the comparison lives there while answerHistory and the collapse handler stay on the page.
+// Search both, or this passes/fails on where the code sits rather than on whether it works.
+const promptBlock = fs.readFileSync('js/dash/blocks/prompt-trend-table.js', 'utf8');
+const dashUi = dash + '\n' + promptBlock;
 const start = dash.indexOf('function answerHistory(');
 const end = dash.indexOf('\n}', start) + 2;
 const ctx = { console, TAPE: [] };
@@ -54,8 +59,8 @@ ctx.TAPE = [];
 check('empty data yields an empty history', ctx.answerHistory('Q01', 'Claude').length === 0);
 
 // ── The UI wiring must exist, or the data work is invisible ──
-check('the compare button is rendered per response', /class="cmp-btn"[^>]*onclick="openCompare/.test(dash));
-check('it is only offered when there is an earlier answer', /canCompare\s*=\s*history\.length > 1/.test(dash));
+check('the compare button is rendered per response', /class="cmp-btn"[^>]*onclick="openCompare/.test(dashUi));
+check('it is only offered when there is an earlier answer', /canCompare\s*=\s*history\.length > 1/.test(dashUi));
 check('a date picker is built from the earlier runs', /class="cmp-pick"/.test(dash));
 check('both sides show whether the brand was recommended', /compareCited/.test(dash) && /compareNotCited/.test(dash));
 check('the comparison collapses on a second click', /host\.style\.display = 'none'; host\.innerHTML = ''/.test(dash));

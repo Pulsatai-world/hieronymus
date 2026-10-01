@@ -221,7 +221,7 @@
  <button class="tab" data-panel="prompts" data-t="tabPrompts">Prompts</button>
 </div>
 <div class="panel show" id="panel-trends">
- <div class="legend" style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:12px 48px 0"><span data-t="legendSolid">Solid line = run KPI</span><span data-t="legendDashed">Dashed line = <b style="color:var(--dark)">target</b></span><span data-t="legendHover">Hover = run detail</span></div>
+ <div class="legend" style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:12px 48px 0"><span data-t="legendSolid">Solid line = run KPI</span><span data-t="legendHover">Hover = run detail</span></div>
  <div class="wrap" id="wrap"></div>
 </div>
 <div class="panel" id="panel-competitors"><div class="trendhd"><span data-t="competitiveLandscape"></span> (<span id="lastwk2"></span>).</div><div class="wrap" id="cwrap"></div></div>
@@ -229,7 +229,46 @@
 <div class="foot" id="foot"></div>
 
 <script src="/js/auth.js"></script>
+<script src="/js/dash/util.js"></script>
+<script src="/js/dash/i18n.js"></script>
+<script src="/js/dash/controls.js"></script>
+<script src="/js/brands.js"></script>
+<script src="/js/dash/spec.js"></script>
+<script src="/js/dash/registry.js"></script>
+<script src="/js/dash/blocks/composite-hero.js"></script>
+<script src="/js/dash/blocks/kpi-trend-grid.js"></script>
+<script src="/js/dash/blocks/competitor-leaderboard.js"></script>
+<script src="/js/dash/blocks/competitor-trend.js"></script>
+<script src="/js/dash/blocks/rank-trend.js"></script>
+<script src="/js/dash/blocks/prompt-trend-table.js"></script>
+<script src="/specs/customers/index.js"></script>
 <script>
+
+// ── Startup guard ──────────────────────────────────────────────────────────────────────────────
+// This page used to carry its whole renderer inline: one request, all or nothing. It now loads it
+// from a dozen small files so that one customer's dashboard can be changed without forking the
+// page — which means a single failed request is newly possible, and would otherwise leave a client
+// staring at a blank screen with the reason only in devtools. Say so instead.
+(function () {
+  const need = {
+    AkoreDashUtil: 'utilities', AkoreI18n: 'translations', AkoreDashControls: 'controls',
+    AkoreBrands: 'brand model', AkoreSpec: 'customer specs', AkoreBlocks: 'renderer'
+  };
+  const missing = Object.keys(need).filter(k => !window[k]);
+  if (!missing.length) return;
+  const names = missing.map(k => need[k]).join(', ');
+  const box = document.createElement('div');
+  box.setAttribute('role', 'alert');
+  box.style.cssText = 'padding:60px 24px;text-align:center;font-family:system-ui,sans-serif;color:#08090c';
+  box.innerHTML =
+    '<p style="font-size:17px;font-weight:600;margin-bottom:8px">This dashboard did not finish loading.</p>' +
+    '<p style="margin-bottom:16px">Please refresh the page. If it keeps happening, let us know.</p>' +
+    '<p style="font-size:17px;font-weight:600;margin-bottom:8px">Este tablero no terminó de cargar.</p>' +
+    '<p>Actualiza la página. Si vuelve a ocurrir, avísanos.</p>';
+  (document.body || document.documentElement).appendChild(box);
+  // Stops the rest of this script: nothing below it can work without these.
+  throw new Error('[dash] dashboard could not start, missing: ' + names);
+})();
 // ── i18n ──
 const T = {
   diagnosticNav: { en: 'Diagnostic →', es: 'Diagnóstico →' },
@@ -264,7 +303,6 @@ const T = {
   tabCompetitors: { en: 'Competitors', es: 'Competidores' },
   tabPrompts: { en: 'Prompts', es: 'Prompts' },
   legendSolid: { en: 'Solid line = run KPI', es: 'Línea sólida = KPI de la ejecución' },
-  legendDashed: { en: 'Dashed line = <b style="color:var(--dark)">target</b>', es: 'Línea punteada = <b style="color:var(--dark)">meta</b>' },
   legendHover: { en: 'Hover = run detail', es: 'Pasar el cursor = detalle de la ejecución' },
   competitiveLandscape: { en: 'Competitive landscape in the latest run', es: 'Panorama competitivo en la ejecución más reciente' },
   perPromptStats: { en: 'Per-prompt stats for the latest run', es: 'Estadísticas por prompt de la ejecución más reciente' },
@@ -383,81 +421,46 @@ const T = {
 };
 // Most customers are based in Mexico at first contact, so the dashboard opens in Spanish
 // until someone explicitly switches — a one-line internal setting, easy to flip later.
-const DEFAULT_LANG = 'es';
-let lang = localStorage.getItem('hieronymus_lang') || DEFAULT_LANG;
-function t(key, ...args) {
-  const val = T[key][lang];
-  return typeof val === 'function' ? val(...args) : val;
-}
-function applyStaticLang() {
-  document.querySelectorAll('[data-t]').forEach(el => { el.innerHTML = t(el.getAttribute('data-t')); });
-  document.getElementById('lang-btn-en').classList.toggle('active', lang === 'en');
-  document.getElementById('lang-btn-es').classList.toggle('active', lang === 'es');
-}
-function setLang(newLang) {
-  lang = newLang;
-  localStorage.setItem('hieronymus_lang', lang);
-  applyStaticLang();
-if (window.wireLogoHome) window.wireLogoHome(typeof company !== 'undefined' ? company : '');
-  if (company) buildForCompany();
-}
 
 // ── DATA LOADING ──
 let allRows = [];
 let company = '';
 
-function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-
-// Company/brand names arrive with inconsistent casing across audit runs (e.g. "Fiacsa" vs
-// "fiacsa") — group and match on a lowercase key everywhere, but always display this proper-case form.
-function properCase(s) { return String(s || '').trim().toLowerCase().replace(/\p{L}+/gu, w => w[0].toUpperCase() + w.slice(1)); }
-
-function parseCSV(text) {
-  const rows = [];
-  let field = '', row = [], inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
-      else field += c;
-    } else {
-      if (c === '"') inQuotes = true;
-      else if (c === ',') { row.push(field); field = ''; }
-      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-      else if (c === '\r') { /* skip */ }
-      else field += c;
-    }
+// Translation runtime and the shared controls — see js/dash/i18n.js and js/dash/controls.js.
+// The dictionary T stays here; only the machinery around it is shared.
+const i18n = window.AkoreI18n.create({
+  dict: T,
+  defaultLang: 'es',
+  storageKey: 'hieronymus_lang',
+  onChange: () => {
+    if (window.wireLogoHome) window.wireLogoHome(typeof company !== 'undefined' ? company : '');
+    window.AkoreSpec.paintTabLabels(DASH_SPEC, i18n.lang, document);
+    if (company) buildForCompany();
   }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  if (!rows.length) return [];
-  const headers = rows[0];
-  return rows.slice(1)
-    .filter(r => r.length === headers.length && r.some(v => v !== ''))
-    .map(r => { const obj = {}; headers.forEach((h, idx) => obj[h] = r[idx]); return obj; });
-}
+});
+const t = i18n.t;
+const applyStaticLang = i18n.applyStaticLang;
+// Both are reached from inline markup, so they have to be callable as bare globals.
+function setLang(newLang) { i18n.setLang(newLang); }
+function toggleResponses(id, btn) { window.AkoreDashControls.toggleResponses(id, btn, t); }
+const makeMulti = (mountId, options, placeholder, onChange) => window.AkoreDashControls.makeMulti(mountId, options, placeholder, onChange, t);
+const promptNamesCompany = r => window.AkoreDashControls.promptNamesCompany(r, company);
 
-function normalizeRow(r) {
-  const num = k => (r[k] === '' || r[k] == null) ? 0 : +r[k];
-  const nullableNum = k => (r[k] === '' || r[k] == null) ? null : +r[k];
-  return {
-    ...r,
-    brand_mentioned: num('brand_mentioned'),
-    brand_cited: num('brand_cited'),
-    brand_citation_rank: nullableNum('brand_citation_rank'),
-    total_brands_cited: num('total_brands_cited'),
-    brand_is_leader: num('brand_is_leader'),
-    linked_to_site: num('linked_to_site'),
-    claims_about_brand: num('claims_about_brand'),
-    incorrect_claims: num('incorrect_claims'),
-    has_incorrect_claim: num('has_incorrect_claim'),
-    services_correct: nullableNum('services_correct'),
-    location_correct: nullableNum('location_correct'),
-    contact_correct: nullableNum('contact_correct'),
-    ai_sessions: num('ai_sessions'),
-    ai_conversions: num('ai_conversions'),
-    ai_pipeline_usd: num('ai_pipeline_usd')
-  };
-}
+// Shared with the other dashboard — see js/dash/util.js. Every one of these existed twice, once
+// per page, byte-identical but for a single parameter name.
+const { esc, mdLite, clamp, sum, avg, pct, val, basisOf, fmt, statusChip,
+        parseCSV, normalizeRow, detectLanguage,
+        INTENT_LABEL, INTENT_TKEY } = window.AkoreDashUtil;
+const intentLabel = k => window.AkoreDashUtil.intentLabel(k, t);
+
+
+// Brand identity and the competitor leaderboard model are shared with dashboard-diagnostic.html
+// (js/brands.js) so a per-customer refinement is written and fixed once, not twice.
+// properCase: names arrive with inconsistent casing across runs (e.g. "Fiacsa" vs "fiacsa") — group
+// and match on a lowercase key everywhere, but always display the proper-case form.
+const { properCase, canonicalBrand, buildLeaderboard, COMPETITOR_ROW_LIMIT } = window.AkoreBrands;
+
+
 
 async function loadData() {
   // A dashboard can be opened by staff or by the customer it belongs to, so the session is restored
@@ -488,11 +491,14 @@ async function loadData() {
       `<div class="empty" style="padding:60px 20px;text-align:center;">${t('noCompanyParam')}</div>`);
     return;
   }
+  await applySpec();
   buildForCompany();
 }
 
 
-// ── KPI DEFINITIONS (per geo_data_dictionary.md; target/lower drive the dashed line + delta direction) ──
+// ── KPI DEFINITIONS (per geo_data_dictionary.md; `lower` marks a metric where down is better,
+//    and drives the delta arrow direction + the composite score. There are deliberately no goal
+//    targets: a number nobody set for this customer is not a goal. ──
 const CATS = [
   { name: 'Visibility', ask: 'Do AI engines see you?', tkey: 'catVisibility', askKey: 'askVisibility' },
   { name: 'Competitiveness', ask: 'How do you stack up?', tkey: 'catCompetitiveness', askKey: 'askCompetitiveness' },
@@ -503,36 +509,9 @@ const CAT_ICONS = {
   'Competitiveness': '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V10M10 20V4M17 20v-7"/></svg>',
   'Quality & Trust': '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.4 8 8 9 4.6-1 8-4 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>'
 };
-const INTENT_LABEL = {
-  evaluation: "Evaluation (who's best?)", comparison: 'Comparison (X vs. Y)', informational: 'Informational (how to choose?)',
-  definition: 'Definition (what is it?)', local: 'Local (near me)', pricing: 'Pricing (how much?)',
-  trust: 'Trust (is it reliable?)', feature: 'Capability (who offers X?)', integration: 'Integration (does it work with X?)'
-};
-const INTENT_TKEY = {
-  evaluation: 'intentEvaluation', comparison: 'intentComparison', informational: 'intentInformational',
-  definition: 'intentDefinition', local: 'intentLocal', pricing: 'intentPricing',
-  trust: 'intentTrust', feature: 'intentFeature', integration: 'intentIntegration'
-};
-function intentLabel(k) { return INTENT_TKEY[k] ? t(INTENT_TKEY[k]) : (INTENT_LABEL[k] || k); }
 // No language column exists in the CSV schema, so language is inferred from the prompt text
 // itself — accented characters/¿¡ are a near-certain signal; common function words are the
 // fallback for prompts that happen to lack diacritics.
-const ES_WORDS = /\b(qué|que|cómo|como|cuál|cuáles|dónde|donde|cuándo|cuando|cuánto|cuánta|quién|quien|servicios|servicio|empresa|mejor|precio|ubicación|proveedor|ofrece|nosotros|para|con|los|las|una|son|es)\b/gi;
-const EN_WORDS = /\b(the|what|how|which|best|where|when|who|price|contact|location|provider|offers|service|services|company|is|are|for|with)\b/gi;
-function detectLanguage(txt) {
-  const s = txt || '';
-  if (/[¿¡]/.test(s)) return 'es';
-  const accented = (s.match(/[áéíóúñÁÉÍÓÚÑ]/g) || []).length;
-  const esHits = accented * 2 + (s.match(ES_WORDS) || []).length;
-  const enHits = (s.match(EN_WORDS) || []).length;
-  return esHits > enHits ? 'es' : 'en';
-}
-function sum(rs, k) { let s = 0; for (const r of rs) s += (+r[k] || 0); return s; }
-function avg(a) { return a.reduce((x, y) => x + y, 0) / a.length; }
-function pct(n, d) { return { value: d ? 100 * n / d : 0, basis: n + ' / ' + d }; }
-const val = o => typeof o === 'number' ? o : o.value;
-const basisOf = o => (typeof o === 'object' && o.basis) ? o.basis : '';
-const fmt = (v, u) => u === '%' ? v.toFixed(1) + '%' : u === 'rank' ? (v ? '#' + v.toFixed(1) : '—') : u === 'USD' ? '$' + (v >= 1000 ? (v / 1000).toFixed(0) + 'K' : Math.round(v)) : Math.round(v).toLocaleString();
 
 // excludeBrand: true means this KPI is computed only over prompts that don't name the company
 // directly (Category/Problem/Competitor/Persona) — a "What is FIACSA?" prompt trivially
@@ -540,23 +519,23 @@ const fmt = (v, u) => u === '%' ? v.toFixed(1) + '%' : u === 'rank' ? (v ? '#' +
 // without reflecting genuine, unprompted AI visibility. Quality & Trust KPIs keep all prompts,
 // since how you're described when someone does ask about you by name is still a fair signal.
 const KPIS = [
-  { cat: 'Visibility', name: 'Citation rate', tkey: 'kpiCitationRate', formulaKey: 'kpiCitationRateFormula', unit: '%', target: 60, lower: false, excludeBrand: true, fn: rs => pct(sum(rs, 'brand_cited'), rs.length) },
-  { cat: 'Visibility', name: 'Target-question coverage', tkey: 'kpiTargetCoverage', formulaKey: 'kpiTargetCoverageFormula', unit: '%', target: 80, lower: false, excludeBrand: true, fn: rs => { const q = new Set(rs.map(r => r.prompt_id)), c = new Set(rs.filter(r => r.brand_cited).map(r => r.prompt_id)); return pct(c.size, q.size); } },
-  { cat: 'Visibility', name: 'Average citation position', tkey: 'kpiAvgCitationPosition', formulaKey: 'kpiAvgCitationPositionFormula', unit: 'rank', target: 1.5, lower: true, excludeBrand: true, fn: rs => { const v = rs.filter(r => r.brand_citation_rank).map(r => r.brand_citation_rank); return { value: v.length ? avg(v) : 0, basis: t('citesLabel', v.length) }; } },
-  { cat: 'Competitiveness', name: 'Share of Voice', tkey: 'kpiShareOfVoice', formulaKey: 'kpiShareOfVoiceFormula', unit: '%', target: 35, lower: false, excludeBrand: true, fn: rs => pct(sum(rs, 'brand_cited'), sum(rs, 'total_brands_cited')) },
-  { cat: 'Competitiveness', name: 'First-mention rate', tkey: 'kpiFirstMentionRate', formulaKey: 'kpiFirstMentionRateFormula', unit: '%', target: 40, lower: false, excludeBrand: true, fn: rs => pct(sum(rs, 'brand_is_leader'), rs.length) },
-  { cat: 'Competitiveness', name: 'Answers ranking a competitor above you', tkey: 'kpiCompetitorAbove', formulaKey: 'kpiCompetitorAboveFormula', unit: '%', target: 0, lower: true, excludeBrand: true, fn: rs => { const c = rs.filter(r => r.brand_cited); return pct(c.filter(r => !r.brand_is_leader).length, c.length); } },
-  { cat: 'Competitiveness', name: "Topic clusters you're mentioned in", tkey: 'kpiClustersCitedIn', formulaKey: 'kpiClustersCitedInFormula', unit: 'count', target: 6, lower: false, excludeBrand: true, fn: rs => { const cl = new Set(rs.filter(r => r.brand_mentioned).map(r => r.topic_cluster)); return { value: cl.size, basis: t('ofClustersBasis', new Set(rs.map(r => r.topic_cluster)).size) }; } },
-  { cat: 'Quality & Trust', name: 'Positive sentiment', tkey: 'kpiPositiveSentiment', formulaKey: 'kpiPositiveSentimentFormula', unit: '%', target: 80, lower: false, fn: rs => { const m = rs.filter(r => r.brand_mentioned && r.sentiment); return pct(m.filter(r => r.sentiment === 'positive').length, m.length); } },
-  { cat: 'Quality & Trust', name: 'Verified-fact accuracy', tkey: 'kpiVerifiedAccuracy', formulaKey: 'kpiVerifiedAccuracyFormula', unit: '%', target: 95, lower: false, fn: rs => {
+  { cat: 'Visibility', name: 'Citation rate', tkey: 'kpiCitationRate', formulaKey: 'kpiCitationRateFormula', unit: '%', lower: false, excludeBrand: true, fn: rs => pct(sum(rs, 'brand_cited'), rs.length) },
+  { cat: 'Visibility', name: 'Target-question coverage', tkey: 'kpiTargetCoverage', formulaKey: 'kpiTargetCoverageFormula', unit: '%', lower: false, excludeBrand: true, fn: rs => { const q = new Set(rs.map(r => r.prompt_id)), c = new Set(rs.filter(r => r.brand_cited).map(r => r.prompt_id)); return pct(c.size, q.size); } },
+  { cat: 'Visibility', name: 'Average citation position', tkey: 'kpiAvgCitationPosition', formulaKey: 'kpiAvgCitationPositionFormula', unit: 'rank', lower: true, excludeBrand: true, fn: rs => { const v = rs.filter(r => r.brand_citation_rank).map(r => r.brand_citation_rank); return { value: v.length ? avg(v) : 0, basis: t('citesLabel', v.length) }; } },
+  { cat: 'Competitiveness', name: 'Share of Voice', tkey: 'kpiShareOfVoice', formulaKey: 'kpiShareOfVoiceFormula', unit: '%', lower: false, excludeBrand: true, fn: rs => pct(sum(rs, 'brand_cited'), sum(rs, 'total_brands_cited')) },
+  { cat: 'Competitiveness', name: 'First-mention rate', tkey: 'kpiFirstMentionRate', formulaKey: 'kpiFirstMentionRateFormula', unit: '%', lower: false, excludeBrand: true, fn: rs => pct(sum(rs, 'brand_is_leader'), rs.length) },
+  { cat: 'Competitiveness', name: 'Answers ranking a competitor above you', tkey: 'kpiCompetitorAbove', formulaKey: 'kpiCompetitorAboveFormula', unit: '%', lower: true, excludeBrand: true, fn: rs => { const c = rs.filter(r => r.brand_cited); return pct(c.filter(r => !r.brand_is_leader).length, c.length); } },
+  { cat: 'Competitiveness', name: "Topic clusters you're mentioned in", tkey: 'kpiClustersCitedIn', formulaKey: 'kpiClustersCitedInFormula', unit: 'count', lower: false, excludeBrand: true, fn: rs => { const cl = new Set(rs.filter(r => r.brand_mentioned).map(r => r.topic_cluster)); return { value: cl.size, basis: t('ofClustersBasis', new Set(rs.map(r => r.topic_cluster)).size) }; } },
+  { cat: 'Quality & Trust', name: 'Positive sentiment', tkey: 'kpiPositiveSentiment', formulaKey: 'kpiPositiveSentimentFormula', unit: '%', lower: false, fn: rs => { const m = rs.filter(r => r.brand_mentioned && r.sentiment); return pct(m.filter(r => r.sentiment === 'positive').length, m.length); } },
+  { cat: 'Quality & Trust', name: 'Verified-fact accuracy', tkey: 'kpiVerifiedAccuracy', formulaKey: 'kpiVerifiedAccuracyFormula', unit: '%', lower: false, fn: rs => {
       const m = rs.filter(r => r.brand_mentioned);
       let got = 0, assessed = 0;
       ['services_correct', 'location_correct', 'contact_correct'].forEach(k => m.forEach(r => { if (r[k] !== null) { assessed++; got += (r[k] || 0); } }));
       return pct(got, assessed);
     } },
-  { cat: 'Quality & Trust', name: 'Answers flagged for review', tkey: 'kpiFlaggedForReview', formulaKey: 'kpiFlaggedForReviewFormula', unit: '%', target: 0, lower: true, fn: rs => { const m = rs.filter(r => r.brand_mentioned); return pct(sum(m, 'has_incorrect_claim'), m.length); } },
-  { cat: 'Quality & Trust', name: 'Negative sentiment', tkey: 'kpiNegativeSentiment', formulaKey: 'kpiNegativeSentimentFormula', unit: '%', target: 0, lower: true, fn: rs => { const m = rs.filter(r => r.brand_mentioned && r.sentiment); return pct(m.filter(r => r.sentiment === 'negative').length, m.length); } },
-  { cat: 'Quality & Trust', name: 'Answers linking to your site', tkey: 'kpiLinkingToSite', formulaKey: 'kpiLinkingToSiteFormula', unit: '%', target: 60, lower: false, fn: rs => { const c = rs.filter(r => r.brand_mentioned); return pct(sum(c, 'linked_to_site'), c.length); } }
+  { cat: 'Quality & Trust', name: 'Answers flagged for review', tkey: 'kpiFlaggedForReview', formulaKey: 'kpiFlaggedForReviewFormula', unit: '%', lower: true, fn: rs => { const m = rs.filter(r => r.brand_mentioned); return pct(sum(m, 'has_incorrect_claim'), m.length); } },
+  { cat: 'Quality & Trust', name: 'Negative sentiment', tkey: 'kpiNegativeSentiment', formulaKey: 'kpiNegativeSentimentFormula', unit: '%', lower: true, fn: rs => { const m = rs.filter(r => r.brand_mentioned && r.sentiment); return pct(m.filter(r => r.sentiment === 'negative').length, m.length); } },
+  { cat: 'Quality & Trust', name: 'Answers linking to your site', tkey: 'kpiLinkingToSite', formulaKey: 'kpiLinkingToSiteFormula', unit: '%', lower: false, fn: rs => { const c = rs.filter(r => r.brand_mentioned); return pct(sum(c, 'linked_to_site'), c.length); } }
 ];
 
 // ── PER-COMPANY STATE ──
@@ -578,47 +557,8 @@ function weekly(kpi, engines, intents, prompts, langs) {
     return { date: d, value: val(o), basis: basisOf(o) };
   });
 }
-function progress(v, t, unit, lower) {
-  let p;
-  if (lower) { const span = Math.max(t + (unit === '%' ? 20 : 5), v); p = 100 * (span - v) / (span - t || 1); }
-  else { p = 100 * v / (t || 1); }
-  return Math.max(0, Math.min(100, p));
-}
 
 // ── MULTI-SELECT COMPONENT ──
-function makeMulti(mountId, options, placeholder, onChange) {
-  const root = document.getElementById(mountId);
-  root.innerHTML = '';
-  const state = new Set();
-  const btn = document.createElement('button'); btn.className = 'ms-btn'; btn.type = 'button';
-  const panel = document.createElement('div'); panel.className = 'ms-panel';
-  const tools = document.createElement('div'); tools.className = 'ms-tools';
-  const bAll = document.createElement('button'); bAll.textContent = t('msAll'); bAll.type = 'button';
-  const bNone = document.createElement('button'); bNone.textContent = t('msNone'); bNone.type = 'button';
-  tools.appendChild(bAll); tools.appendChild(bNone); panel.appendChild(tools);
-  options.forEach(o => {
-    const lab = document.createElement('label'); lab.className = 'ms-opt';
-    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = o.value;
-    cb.addEventListener('change', () => { cb.checked ? state.add(o.value) : state.delete(o.value); sync(); });
-    lab.appendChild(cb);
-    const span = document.createElement('span');
-    span.innerHTML = (o.code ? '<span class="code">' + o.code + '</span> ' : '') + o.label;
-    lab.appendChild(span); panel.appendChild(lab);
-  });
-  root.appendChild(btn); root.appendChild(panel);
-  function label() {
-    if (state.size === 0) return t('msAllSuffix', placeholder);
-    if (state.size <= 2) return [...state].map(v => { const o = options.find(x => x.value === v); return o ? (o.code || o.label) : v; }).join(', ');
-    return t('msSelected', state.size);
-  }
-  function sync() { btn.firstChild.nodeValue = label(); onChange([...state]); }
-  btn.appendChild(document.createTextNode(''));
-  btn.addEventListener('click', () => { const open = panel.classList.toggle('show'); btn.classList.toggle('open', open); });
-  bAll.addEventListener('click', () => { state.clear(); panel.querySelectorAll('input').forEach(c => c.checked = false); sync(); });
-  bNone.addEventListener('click', () => { state.clear(); panel.querySelectorAll('input').forEach(c => c.checked = false); sync(); });
-  document.addEventListener('click', e => { if (!root.contains(e.target)) { panel.classList.remove('show'); btn.classList.remove('open'); } });
-  sync();
-}
 
 function buildForCompany() {
   document.getElementById('link-diagnostic').href = '/dashboard-diagnostic.html?company=' + encodeURIComponent(company);
@@ -732,11 +672,9 @@ const stats = document.getElementById('stats'), wrap = document.getElementById('
 
 // `widthPx` is the host's real pixel width. The viewBox used to be a fixed 520 stretched to fill the
 // container with preserveAspectRatio="none", which scaled the glyphs horizontally too — that is why
-// the axis dates and the target label came out smeared. Drawing at 1:1 keeps text at its true shape.
+// the axis dates came out smeared. Drawing at 1:1 keeps text at its true shape.
 function chart(series, kpi, widthPx) {
-  // padL leaves room for Y tick labels. The scale comes from the DATA only — it used to be stretched
-  // to include kpi.target, a goal nobody set, which squashed the real values into a corner and made
-  // every movement look flat.
+  // padL leaves room for Y tick labels. The scale comes from the DATA only.
   const W = Math.max(320, Math.round(widthPx || 520)), H = 150, padL = 40, padR = 10, padT = 14, padB = 22;
   const vals = series.map(s => s.value);
   let mn = Math.min(...vals), mx = Math.max(...vals);
@@ -775,7 +713,7 @@ function buildCard(kpi) {
   const dir = isNew ? 'up' : (Math.abs(dpct) < 0.5 ? 'flat' : ((kpi.lower ? delta < 0 : delta > 0) ? 'up' : 'down'));
   const arrow = dir === 'flat' ? '→' : (delta > 0 ? '▲' : '▼');
   const deltaText = isNew ? t('deltaNew') : t('vsPriorRun', Math.abs(dpct).toFixed(1));
-  const pr = progress(cur.value, kpi.target, kpi.unit, kpi.lower); const ch = chart(ser, kpi);
+  const ch = chart(ser, kpi);
   const card = document.createElement('div'); card.className = 'card';
   card.innerHTML = '<div class="card-top"><div><div class="kpi-name">' + t(kpi.tkey) + '</div><div class="kpi-formula">' + t(kpi.formulaKey) + '</div><div class="kpi-basis">' + (cur.basis ? (t('baseLabel') + cur.basis) : '&nbsp;') + '</div></div><div class="val-wrap"><div class="val">' + fmt(cur.value, kpi.unit) + '</div><div class="delta ' + dir + '">' + arrow + ' ' + deltaText + '</div></div></div><div class="chart"><div class="tip"></div>' + ch.svg + '</div>';
   const chartEl = card.querySelector('.chart'), svg = chartEl.querySelector('svg'), tip = chartEl.querySelector('.tip'), dot = svg.querySelector('.hoverdot'), vline = svg.querySelector('.vline');
@@ -823,7 +761,6 @@ function wireHover(chartEl, ch, ser, kpi) {
 //   3. Composite = 0.40*Visibility + 0.35*Competitiveness + 0.25*Quality, renormalized over the
 //      categories that actually have data. Rounded to the nearest integer.
 const COMPOSITE_WEIGHTS = { 'Visibility': 0.40, 'Competitiveness': 0.35, 'Quality & Trust': 0.25 };
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // pct() basis is the string "n / d"; pull the denominator back out to test for "no data".
 function pctDenom(basis) { const p = String(basis || '').split(' / '); return p.length === 2 ? +p[1] : NaN; }
 
@@ -871,7 +808,7 @@ function compositeSeries() {
 }
 function buildComposite() {
   const ser = compositeSeries();
-  const kpi = { unit: '', target: 70, lower: false };
+  const kpi = { unit: '', lower: false };
   const cur = ser[ser.length - 1], prev = ser[ser.length - 2] || cur;
   const delta = cur.value - prev.value, dpct = prev.value ? delta / prev.value * 100 : 0;
   const isNew = prev !== cur && prev.value === 0 && cur.value > 0;
@@ -1083,189 +1020,19 @@ function buildRankTrend() {
   });
   return sec;
 }
-function statusChip(rate) { const c = rate >= 50 ? 'g' : rate >= 25 ? 'm' : 'b'; return `<span class="chip ${c}">${rate.toFixed(0)}%</span>`; }
 
 // Escapes first, then converts markdown-style emphasis markers on the already-safe text —
 // engines' raw answers often come back with **bold**/*italic* markup that read as literal
 // asterisks before this.
-function mdLite(txt) {
-  return esc(txt)
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
-}
 
 // True when the prompt text itself names the company. Such prompts trivially "mention" the
 // company (and often rank it first), inflating its position on the competitor leaderboard —
 // so they're excluded from it, extending the Brand-cluster exclusion to comparison prompts.
-// Engines name the same company inconsistently — "Bosch Rexroth", "Bosch Rexroth México" and
-// "Bosch Rexroth S.A. de C.V." are one competitor. Counting them separately splits that company's
-// share of voice across several rows and pushes it down the leaderboard, which also inflates your own
-// relative position. Only legal-entity and geography tails are stripped, never a word that carries
-// meaning: "Bosch" and "Bosch Rexroth" remain different companies, as they should.
-const BRAND_ENTITY_TAIL = /\b(s\s?a(\s+de\s+c\s?v)?|s\s+de\s+r\s?l(\s+de\s+c\s?v)?|sapi|inc|incorporated|llc|ltd|limited|gmbh|srl|corp|corporation|company|co|group|grupo|holding|holdings)\b/g;
-const BRAND_GEO_TAIL = /\b(de\s+)?(mexico|mx|mex|latinoamerica|latam|usa|us|espana|colombia|peru|chile|argentina|brasil|brazil|international|global|worldwide)\b/g;
-function canonicalBrand(name) {
-  const raw = String(name || '').trim();
-  let out = raw.toLowerCase()
-    .normalize('NFD').replace(/\p{Diacritic}/gu, '')
-    .replace(/[.,()]/g, ' ')
-    .replace(/&/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  // Looped because one name can carry several tails ("... S.A. de C.V. México").
-  for (let i = 0; i < 3; i++) {
-    const before = out;
-    out = out.replace(BRAND_ENTITY_TAIL, ' ').replace(BRAND_GEO_TAIL, ' ').replace(/\s+/g, ' ').trim();
-    if (out === before) break;
-  }
-  // Never collapse a name to nothing: a company actually called "Grupo México" keeps its identity.
-  return out || raw.toLowerCase();
-}
 
-function promptNamesCompany(r) {
-  const name = (company || '').trim().toLowerCase();
-  return !!name && (r.prompt_text || '').toLowerCase().includes(name);
-}
 
-// A long tail of one-off brand mentions made the leaderboard unreadable, so only this many brands
-// get their own row — everything below folds into a single "Others" line. Kept in sync with
-// dashboard-diagnostic.html, which caps its leaderboard the same way.
-const COMPETITOR_ROW_LIMIT = 25;
-
-function renderCompetitors(rows) {
-  cwrap.innerHTML = '';
-  if (rows.length === 0) { cwrap.innerHTML = `<div class="empty">${t('noMatchFilter')}</div>`; return; }
-  const YOU = company; const youKey = canonicalBrand(YOU); const tally = {}; let totalCitations = 0;
-  rows.forEach(r => {
-    const list = (r.brands_cited_list || '').split(';').filter(Boolean);
-    list.forEach(b => { const k = canonicalBrand(b); tally[k] = tally[k] || { variants: {}, cited: 0, leader: 0 }; const v = properCase(b); tally[k].variants[v] = (tally[k].variants[v] || 0) + 1; tally[k].cited++; totalCitations++; });
-    if (r.top_cited_brand) { const k = canonicalBrand(r.top_cited_brand); tally[k] = tally[k] || { variants: {}, cited: 0, leader: 0 }; const v = properCase(r.top_cited_brand); tally[k].variants[v] = (tally[k].variants[v] || 0) + 1; tally[k].leader++; }
-  });
-  const brands = Object.keys(tally).map(k => ({
-    key: k,
-    // Most-cited spelling wins the label; ties break toward the shorter name.
-    name: Object.keys(tally[k].variants).sort((a, b) =>
-      (tally[k].variants[b] - tally[k].variants[a]) || (a.length - b.length))[0] || k,
-    cited: tally[k].cited, leader: tally[k].leader,
-    sov: totalCitations ? 100 * tally[k].cited / totalCitations : 0
-  })).sort((a, b) => b.cited - a.cited);
-  const maxCited = Math.max(...brands.map(b => b.cited), 1);
-  const you = brands.find(b => b.key === youKey) || { name: YOU, cited: 0, leader: 0, sov: 0 };
-  const yourRank = brands.findIndex(b => b.key === youKey) + 1;
-  const topRival = brands.find(b => b.key !== youKey);
-
-  // Two deliberate exceptions to the top-25 cut: the client's own brand always keeps a row, showing
-  // its real rank, even when it places below the cut — a client should never be missing from their
-  // own leaderboard. And the summary cards below still count every distinct brand, so "#N of M"
-  // reports the true field size rather than the number of visible rows. Same for the trend charts,
-  // which are computed from the full tally.
-  const leaderRows = brands.slice(0, COMPETITOR_ROW_LIMIT).map((b, i) => ({ b, rank: i + 1 }));
-  const tail = brands.slice(COMPETITOR_ROW_LIMIT);
-  const youInTail = tail.find(b => b.key === youKey);
-  if (youInTail) leaderRows.push({ b: youInTail, rank: yourRank });
-  const folded = tail.filter(b => b !== youInTail);
-  const others = folded.length ? {
-    count: folded.length,
-    cited: folded.reduce((s, b) => s + b.cited, 0),
-    leader: folded.reduce((s, b) => s + b.leader, 0),
-    sov: folded.reduce((s, b) => s + b.sov, 0)
-  } : null;
-
-  const cards = document.createElement('div'); cards.className = 'ccards';
-  cards.innerHTML =
-    `<div class="ccard"><div class="l">${t('yourRank')}</div><div class="b">${yourRank > 0 ? ('#' + yourRank + ' of ' + brands.length) : '—'}</div><div class="s">${t('byNumCitations')}</div></div>` +
-    `<div class="ccard"><div class="l">${t('mostCitedBrand')}</div><div class="b">${brands[0] ? brands[0].name : '—'}</div><div class="s">${brands[0] ? t('ofAllCitations', brands[0].sov.toFixed(0)) : ''}</div></div>` +
-    `<div class="ccard"><div class="l">${t('yourTopRival')}</div><div class="b">${topRival ? topRival.name : '—'}</div><div class="s">${topRival ? t('citationsVsYours', topRival.cited, you.cited) : ''}</div></div>`;
-  cwrap.appendChild(cards);
-  const intro = document.createElement('div'); intro.className = 'cintro';
-  intro.innerHTML = t('competitorsIntro', YOU) + (others ? ' ' + t('leaderboardCapNote', COMPETITOR_ROW_LIMIT) : '');
-  cwrap.appendChild(intro);
-  const sec = document.createElement('div'); sec.className = 'cat';
-  const hd = document.createElement('div'); hd.className = 'crow hd';
-  hd.innerHTML = `<div>${t('crowRank')}</div><div>${t('crowBrand')}</div><div>${t('crowTimesCited')}</div><div class="cmetric">${t('crowLeads')}</div>`;
-  sec.appendChild(hd);
-  leaderRows.forEach(({ b, rank }) => {
-    const isYou = b.key === youKey; const w = 100 * b.cited / maxCited;
-    const row = document.createElement('div'); row.className = 'crow';
-    row.innerHTML = `<div class="crank">${rank}</div><div class="cname${isYou ? ' you' : ''}">${b.name}</div><div class="cbar${isYou ? ' you' : ''}"><span style="width:${w.toFixed(1)}%"></span><em>${b.cited} &middot; ${b.sov.toFixed(0)}%</em></div><div class="cmetric"><span class="mv">${b.leader}</span><div class="ml">${t('timesFirst')}</div></div>`;
-    sec.appendChild(row);
-  });
-  if (others) {
-    // Combined citations can exceed any single brand's, so the bar is clamped rather than allowed
-    // to overflow its track.
-    const w = Math.min(100, 100 * others.cited / maxCited);
-    const row = document.createElement('div'); row.className = 'crow others';
-    row.innerHTML = `<div class="crank">—</div><div class="cname">${t('othersRow', others.count)}</div><div class="cbar"><span style="width:${w.toFixed(1)}%"></span><em>${others.cited} &middot; ${others.sov.toFixed(0)}%</em></div><div class="cmetric"><span class="mv">${others.leader}</span><div class="ml">${t('timesFirst')}</div></div>`;
-    sec.appendChild(row);
-  }
-  cwrap.appendChild(sec);
-  const trend = buildCompetitorTrend();
-  if (trend) cwrap.appendChild(trend);
-  const rankTrend = buildRankTrend();
-  if (rankTrend) cwrap.appendChild(rankTrend);
-}
 
 let respCounter = 0;
 
-function renderPrompts(lastRows) {
-  const byIntent = {};
-  lastRows.forEach(r => { (byIntent[r.query_intent] = byIntent[r.query_intent] || []).push(r); });
-  const order = Object.keys(INTENT_LABEL).filter(k => byIntent[k]);
-  Object.keys(byIntent).forEach(k => { if (!order.includes(k)) order.push(k); });
-  pwrap.innerHTML = '';
-  if (lastRows.length === 0) { pwrap.innerHTML = `<div class="empty">${t('noMatchFilterPrompts')}</div>`; return; }
-  order.forEach(intent => {
-    const irows = byIntent[intent]; const byPrompt = {};
-    irows.forEach(r => { (byPrompt[r.prompt_id] = byPrompt[r.prompt_id] || []).push(r); });
-    const pids = Object.keys(byPrompt).sort();
-    const sec = document.createElement('div'); sec.className = 'pcat';
-    sec.innerHTML = `<div class="pcat-h"><span class="q">${intentLabel(intent)}</span><span class="n">${t('promptsCountLine', pids.length, irows.length)}</span></div>`;
-    const hd = document.createElement('div'); hd.className = 'prow hd';
-    hd.innerHTML = `<div>${t('prowId')}</div><div>${t('prowPrompt')}</div><div class="m">${t('prowCitationRate')}</div><div class="m">${t('prowAvgPos')}</div><div class="m">${t('prowSentiment')}</div><div class="m">${t('prowResponses')}</div>`;
-    sec.appendChild(hd);
-    pids.forEach(pid => {
-      const pr = byPrompt[pid]; const n = pr.length;
-      const cited = pr.filter(r => r.brand_cited).length;
-      const ranks = pr.filter(r => r.brand_citation_rank).map(r => r.brand_citation_rank);
-      const avgRank = ranks.length ? (ranks.reduce((a, b) => a + b, 0) / ranks.length) : null;
-      const sm = pr.filter(r => r.brand_mentioned && r.sentiment);
-      const pos = sm.filter(r => r.sentiment === 'positive').length, neu = sm.filter(r => r.sentiment === 'neutral').length, neg = sm.filter(r => r.sentiment === 'negative').length;
-      const citeRate = 100 * cited / n;
-      let sentLabel, sentCls;
-      if (sm.length === 0) { sentLabel = '—'; sentCls = ''; }
-      else { const posShare = pos / sm.length; if (posShare >= 0.6) { sentLabel = t('sentGood'); sentCls = 'g'; } else if (posShare >= 0.35 || neg <= neu) { sentLabel = t('sentMixed'); sentCls = 'm'; } else { sentLabel = t('sentPoor'); sentCls = 'b'; } }
-      const respId = 'presp-' + (respCounter++);
-      const row = document.createElement('div'); row.className = 'prow';
-      row.innerHTML =
-        `<div class="code">${esc(pid)}</div><div class="txt">${esc(promptMap[pid] || '')}</div>` +
-        `<div class="m" data-l="${t('prowCitationRate')}">${statusChip(citeRate)}<div class="ml">${cited}/${n}</div></div>` +
-        `<div class="m" data-l="${t('prowAvgPos')}"><span class="mv">${avgRank ? ('#' + avgRank.toFixed(1)) : '—'}</span><div class="ml">${t('citesLabel', ranks.length)}</div></div>` +
-        `<div class="m" data-l="${t('prowSentiment')}">${sentCls ? (`<span class="chip ${sentCls}">${sentLabel}</span>`) : '<span class="ml">—</span>'}</div>` +
-        `<div class="m" data-l="${t('prowResponses')}"><button type="button" class="resp-toggle" onclick="toggleResponses('${respId}', this)">${t('viewResponsesBtn', n)}</button></div>`;
-      sec.appendChild(row);
-
-      const respPanel = document.createElement('div');
-      respPanel.className = 'presp';
-      respPanel.id = respId;
-      respPanel.style.display = 'none';
-      respPanel.innerHTML = pr.map(r => {
-        // Only offer the comparison when there is actually an earlier answer to compare against.
-        const history = answerHistory(pid, r.engine);
-        const canCompare = history.length > 1;
-        return `
-        <div class="presp-item">
-          <div class="presp-meta">${esc(r.engine)} &middot; ${esc(r.snapshot_date)}${canCompare
-            ? `<button type="button" class="cmp-btn" onclick="openCompare(this, '${esc(pid)}', '${esc(r.engine)}')">${t('compareDatesBtn')}</button>`
-            : ''}</div>
-          <div class="presp-text">${r.answer_excerpt ? mdLite(r.answer_excerpt) : t('noResponseCaptured')}</div>
-          <div class="cmp" style="display:none;"></div>
-        </div>`;
-      }).join('');
-      sec.appendChild(respPanel);
-    });
-    pwrap.appendChild(sec);
-  });
-}
 
 // Every captured answer for one prompt on one engine, oldest first. TAPE holds every snapshot, so
 // the history is already in memory — the prompts table just never looked across dates.
@@ -1309,13 +1076,47 @@ function openCompare(btn, pid, engine) {
   paint(0);
 }
 
-function toggleResponses(id, btn) {
-  const panel = document.getElementById(id);
-  const isOpen = panel.style.display !== 'none';
-  panel.style.display = isOpen ? 'none' : 'block';
-  const n = panel.querySelectorAll('.presp-item').length;
-  btn.textContent = isOpen ? t('viewResponsesBtn', n) : t('hideResponsesBtn');
+
+// Everything a block is allowed to reach for. Blocks never read page globals directly — that is
+// what lets one be swapped for a customer-specific version without the replacement quietly
+// inheriting dependencies nobody declared. The chart machinery (buildComposite, buildCard, the two
+// trend builders) is still page-level and passed through here; Phase 2 moves it into the engine.
+function makeContext(rows) {
+  return {
+    rows, company, lang: i18n.lang, doc: document,
+    blockOptions: DASH_SPEC.blockOptions,
+    t, esc, fmt, val, basisOf, pct, sum, avg,
+    properCase, canonicalBrand, buildLeaderboard, COMPETITOR_ROW_LIMIT,
+    CATS, KPIS, CAT_ICONS, DATES, LAST,
+    buildComposite, buildCard, buildCompetitorTrend, buildRankTrend,
+    INTENT_LABEL, intentLabel, statusChip, mdLite, answerHistory,
+    promptMap, promptLangMap, promptNamesCompany,
+    // The expand-panel ids must stay unique across every group the prompt table draws, so the
+    // counter belongs to the page, not to a block that gets called once per render.
+    nextRespId: () => 'presp-' + (respCounter++),
+    options: {}
+  };
 }
+
+// Each panel, in order. This is what a per-customer spec will later override.
+// This customer's spec, if they have one. An uncustomised customer gets the empty shape, so
+// every call below is a no-op and the base design renders exactly as it always has.
+let DASH_SPEC = window.AkoreSpec.resolve('', 'monitoring');
+
+async function applySpec() {
+  DASH_SPEC = await window.AkoreSpec.forCompany(company, 'monitoring', document);
+  if (!DASH_SPEC.customised) return;
+  const S = window.AkoreSpec;
+  S.applyCopy(DASH_SPEC, T);                       // before anything renders a label
+  S.applyTheme(DASH_SPEC, document);
+  S.installBlocks(DASH_SPEC.slug, window.AkoreBlocks);
+  applyStaticLang();                               // repaint [data-t] with the overridden copy
+  S.applyTabs(DASH_SPEC, i18n.lang, document);     // last: it strips data-t from renamed tabs
+}
+
+const LAYOUT_TRENDS = ['compositeHero', 'kpiTrendGrid'];
+const LAYOUT_COMPETITORS = ['competitorLeaderboard', 'competitorTrend', 'rankTrend'];
+const LAYOUT_PROMPTS = ['promptTrendTable'];
 
 function render() {
   if (!company || TAPE.length === 0) {
@@ -1337,25 +1138,22 @@ function render() {
   count.innerHTML = t('countLine', rowsAll.length, LAST, DATES.length);
 
   wrap.innerHTML = '';
-  if (lastRows.length === 0) { wrap.innerHTML = `<div class="empty">${t('noMatchFilter')}</div>`; renderPrompts([]); foot.innerHTML = ''; return; }
-  wrap.appendChild(buildComposite());
-  if (DATES.length < 2) {
-    const note = document.createElement('div'); note.className = 'empty'; note.style.marginTop = '20px'; note.innerHTML = t('onlyOneRun'); wrap.appendChild(note);
-  } else {
-    CATS.forEach(C => {
-      const catKpis = KPIS.filter(k => k.cat === C.name);
-      const hasExcludeBrand = catKpis.some(k => k.excludeBrand);
-      const sec = document.createElement('div'); sec.className = 'cat';
-      sec.innerHTML = `<div class="cat-h"><div class="cat-icon">${CAT_ICONS[C.name] || ''}</div><div class="cat-titles"><span class="q">${t(C.tkey)}</span><span class="ask">${t(C.askKey)}</span></div>${hasExcludeBrand ? `<span class="cat-note">${t('brandExcludedNote')}</span>` : ''}</div>`;
-      const grid = document.createElement('div'); grid.className = 'grid';
-      catKpis.forEach(k => grid.appendChild(buildCard(k)));
-      sec.appendChild(grid); wrap.appendChild(sec);
-    });
+  if (lastRows.length === 0) {
+    wrap.innerHTML = `<div class="empty">${t('noMatchFilter')}</div>`;
+    // cwrap is deliberately left as it was, matching the behaviour this page has always had.
+    pwrap.innerHTML = '';
+    AkoreBlocks.renderLayout(window.AkoreSpec.layout(DASH_SPEC, 'prompts', LAYOUT_PROMPTS), pwrap, makeContext([]), document);
+    foot.innerHTML = '';
+    return;
   }
-  renderPrompts(lastRows);
+  AkoreBlocks.renderLayout(window.AkoreSpec.layout(DASH_SPEC, 'trends', LAYOUT_TRENDS), wrap, makeContext(lastRows), document);
+  pwrap.innerHTML = '';
+  AkoreBlocks.renderLayout(window.AkoreSpec.layout(DASH_SPEC, 'prompts', LAYOUT_PROMPTS), pwrap, makeContext(lastRows), document);
   // Same rationale as the excludeBrand KPIs: a prompt that names the company directly would
   // trivially make it "most mentioned" in that answer, skewing the competitive leaderboard.
-  renderCompetitors(lastRows.filter(r => r.topic_cluster !== 'Brand' && !promptNamesCompany(r)));
+  cwrap.innerHTML = '';
+  AkoreBlocks.renderLayout(window.AkoreSpec.layout(DASH_SPEC, 'competitors', LAYOUT_COMPETITORS), cwrap,
+    makeContext(lastRows.filter(r => r.topic_cluster !== 'Brand' && !promptNamesCompany(r))), document);
   lastwk2.textContent = scopeLabel;
   foot.innerHTML = t('footText', TAPE.length, DATES.length, prompts.length, company);
 }

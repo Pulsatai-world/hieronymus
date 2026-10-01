@@ -225,7 +225,48 @@
 <div class="foot" id="foot"></div>
 
 <script src="/js/auth.js"></script>
+<script src="/js/dash/util.js"></script>
+<script src="/js/dash/i18n.js"></script>
+<script src="/js/dash/controls.js"></script>
+<script src="/js/brands.js"></script>
+<script src="/js/dash/spec.js"></script>
+<script src="/js/dash/registry.js"></script>
+<script src="/js/dash/blocks/geo-score-hero.js"></script>
+<script src="/js/dash/blocks/per-engine.js"></script>
+<script src="/js/dash/blocks/cluster-bars.js"></script>
+<script src="/js/dash/blocks/sentiment-donut.js"></script>
+<script src="/js/dash/blocks/kpi-categories.js"></script>
+<script src="/js/dash/blocks/invisible-prompts.js"></script>
+<script src="/js/dash/blocks/competitor-leaderboard.js"></script>
+<script src="/js/dash/blocks/prompt-table.js"></script>
+<script src="/specs/customers/index.js"></script>
 <script>
+
+// ── Startup guard ──────────────────────────────────────────────────────────────────────────────
+// This page used to carry its whole renderer inline: one request, all or nothing. It now loads it
+// from a dozen small files so that one customer's dashboard can be changed without forking the
+// page — which means a single failed request is newly possible, and would otherwise leave a client
+// staring at a blank screen with the reason only in devtools. Say so instead.
+(function () {
+  const need = {
+    AkoreDashUtil: 'utilities', AkoreI18n: 'translations', AkoreDashControls: 'controls',
+    AkoreBrands: 'brand model', AkoreSpec: 'customer specs', AkoreBlocks: 'renderer'
+  };
+  const missing = Object.keys(need).filter(k => !window[k]);
+  if (!missing.length) return;
+  const names = missing.map(k => need[k]).join(', ');
+  const box = document.createElement('div');
+  box.setAttribute('role', 'alert');
+  box.style.cssText = 'padding:60px 24px;text-align:center;font-family:system-ui,sans-serif;color:#08090c';
+  box.innerHTML =
+    '<p style="font-size:17px;font-weight:600;margin-bottom:8px">This dashboard did not finish loading.</p>' +
+    '<p style="margin-bottom:16px">Please refresh the page. If it keeps happening, let us know.</p>' +
+    '<p style="font-size:17px;font-weight:600;margin-bottom:8px">Este tablero no terminó de cargar.</p>' +
+    '<p>Actualiza la página. Si vuelve a ocurrir, avísanos.</p>';
+  (document.body || document.documentElement).appendChild(box);
+  // Stops the rest of this script: nothing below it can work without these.
+  throw new Error('[dash] dashboard could not start, missing: ' + names);
+})();
 // ── i18n ──
 const T = {
   backNav: { en: '← Back', es: '← Volver' },
@@ -377,82 +418,47 @@ const T = {
 };
 // Most customers are based in Mexico at first contact, so the dashboard opens in Spanish
 // until someone explicitly switches — a one-line internal setting, easy to flip later.
-const DEFAULT_LANG = 'es';
-let lang = localStorage.getItem('hieronymus_lang') || DEFAULT_LANG;
-function t(key, ...args) {
-  const val = T[key][lang];
-  return typeof val === 'function' ? val(...args) : val;
-}
-function applyStaticLang() {
-  document.querySelectorAll('[data-t]').forEach(el => { el.innerHTML = t(el.getAttribute('data-t')); });
-  document.getElementById('lang-btn-en').classList.toggle('active', lang === 'en');
-  document.getElementById('lang-btn-es').classList.toggle('active', lang === 'es');
-}
-function setLang(newLang) {
-  lang = newLang;
-  localStorage.setItem('hieronymus_lang', lang);
-  applyStaticLang();
-if (window.wireLogoHome) window.wireLogoHome(typeof company !== 'undefined' ? company : '');
-  if (company) buildForCompany();
-}
 
 // ── DATA LOADING ──
 let allRows = [];
 let company = '';
 
-function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-
-// Company/brand names arrive with inconsistent casing across audit runs (e.g. "Fiacsa" vs
-// "fiacsa") — group and match on a lowercase key everywhere, but always display this proper-case form.
-function properCase(s) { return String(s || '').trim().toLowerCase().replace(/\p{L}+/gu, w => w[0].toUpperCase() + w.slice(1)); }
-
-function parseCSV(text) {
-  const rows = [];
-  let field = '', row = [], inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
-      else field += c;
-    } else {
-      if (c === '"') inQuotes = true;
-      else if (c === ',') { row.push(field); field = ''; }
-      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-      else if (c === '\r') { /* skip */ }
-      else field += c;
-    }
+// Translation runtime and the shared controls — see js/dash/i18n.js and js/dash/controls.js.
+// The dictionary T stays here; only the machinery around it is shared.
+const i18n = window.AkoreI18n.create({
+  dict: T,
+  defaultLang: 'es',
+  storageKey: 'hieronymus_lang',
+  onChange: () => {
+    if (window.wireLogoHome) window.wireLogoHome(typeof company !== 'undefined' ? company : '');
+    window.AkoreSpec.paintTabLabels(DASH_SPEC, i18n.lang, document);
+    if (company) buildForCompany();
   }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  if (!rows.length) return [];
-  const headers = rows[0];
-  return rows.slice(1)
-    .filter(r => r.length === headers.length && r.some(v => v !== ''))
-    .map(r => { const obj = {}; headers.forEach((h, idx) => obj[h] = r[idx]); return obj; });
-}
+});
+const t = i18n.t;
+const applyStaticLang = i18n.applyStaticLang;
+// Both are reached from inline markup, so they have to be callable as bare globals.
+function setLang(newLang) { i18n.setLang(newLang); }
+function toggleResponses(id, btn) { window.AkoreDashControls.toggleResponses(id, btn, t); }
+const makeMulti = (mountId, options, placeholder, onChange) => window.AkoreDashControls.makeMulti(mountId, options, placeholder, onChange, t);
+const promptNamesCompany = r => window.AkoreDashControls.promptNamesCompany(r, company);
+
+// Shared with the other dashboard — see js/dash/util.js. Every one of these existed twice, once
+// per page, byte-identical but for a single parameter name.
+const { esc, mdLite, clamp, sum, avg, pct, val, basisOf, fmt, statusChip,
+        parseCSV, normalizeRow, detectLanguage,
+        INTENT_LABEL, INTENT_TKEY } = window.AkoreDashUtil;
+const intentLabel = k => window.AkoreDashUtil.intentLabel(k, t);
+
+
+// Brand identity and the competitor leaderboard model are shared with dashboard-monitoring.html
+// (js/brands.js) so a per-customer refinement is written and fixed once, not twice.
+// properCase: names arrive with inconsistent casing across runs (e.g. "Fiacsa" vs "fiacsa") — group
+// and match on a lowercase key everywhere, but always display the proper-case form.
+const { properCase, canonicalBrand, buildLeaderboard, COMPETITOR_ROW_LIMIT } = window.AkoreBrands;
+
 
 // CSV cells are all strings — coerce the numeric/boolean/nullable columns the KPI math depends on
-function normalizeRow(r) {
-  const num = k => (r[k] === '' || r[k] == null) ? 0 : +r[k];
-  const nullableNum = k => (r[k] === '' || r[k] == null) ? null : +r[k];
-  return {
-    ...r,
-    brand_mentioned: num('brand_mentioned'),
-    brand_cited: num('brand_cited'),
-    brand_citation_rank: nullableNum('brand_citation_rank'),
-    total_brands_cited: num('total_brands_cited'),
-    brand_is_leader: num('brand_is_leader'),
-    linked_to_site: num('linked_to_site'),
-    claims_about_brand: num('claims_about_brand'),
-    incorrect_claims: num('incorrect_claims'),
-    has_incorrect_claim: num('has_incorrect_claim'),
-    services_correct: nullableNum('services_correct'),
-    location_correct: nullableNum('location_correct'),
-    contact_correct: nullableNum('contact_correct'),
-    ai_sessions: num('ai_sessions'),
-    ai_conversions: num('ai_conversions'),
-    ai_pipeline_usd: num('ai_pipeline_usd')
-  };
-}
 
 async function loadData() {
   // A dashboard can be opened by staff or by the customer it belongs to, so the session is restored
@@ -483,6 +489,7 @@ async function loadData() {
       `<div class="empty" style="padding:60px 20px;text-align:center;">${t('noCompanyParam')}</div>`);
     return;
   }
+  await applySpec();
   buildForCompany();
 }
 
@@ -497,30 +504,9 @@ const CAT_ICONS = {
   'Competitiveness': '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V10M10 20V4M17 20v-7"/></svg>',
   'Quality & Trust': '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.4 8 8 9 4.6-1 8-4 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>'
 };
-const INTENT_LABEL = {
-  evaluation: "Evaluation (who's best?)", comparison: 'Comparison (X vs. Y)', informational: 'Informational (how to choose?)',
-  definition: 'Definition (what is it?)', local: 'Local (near me)', pricing: 'Pricing (how much?)',
-  trust: 'Trust (is it reliable?)', feature: 'Capability (who offers X?)', integration: 'Integration (does it work with X?)'
-};
-const INTENT_TKEY = {
-  evaluation: 'intentEvaluation', comparison: 'intentComparison', informational: 'intentInformational',
-  definition: 'intentDefinition', local: 'intentLocal', pricing: 'intentPricing',
-  trust: 'intentTrust', feature: 'intentFeature', integration: 'intentIntegration'
-};
-function intentLabel(k) { return INTENT_TKEY[k] ? t(INTENT_TKEY[k]) : (INTENT_LABEL[k] || k); }
 // No language column exists in the CSV schema, so language is inferred from the prompt text
 // itself — accented characters/¿¡ are a near-certain signal; common function words are the
 // fallback for prompts that happen to lack diacritics.
-const ES_WORDS = /\b(qué|que|cómo|como|cuál|cuáles|dónde|donde|cuándo|cuando|cuánto|cuánta|quién|quien|servicios|servicio|empresa|mejor|precio|ubicación|proveedor|ofrece|nosotros|para|con|los|las|una|son|es)\b/gi;
-const EN_WORDS = /\b(the|what|how|which|best|where|when|who|price|contact|location|provider|offers|service|services|company|is|are|for|with)\b/gi;
-function detectLanguage(txt) {
-  const s = txt || '';
-  if (/[¿¡]/.test(s)) return 'es';
-  const accented = (s.match(/[áéíóúñÁÉÍÓÚÑ]/g) || []).length;
-  const esHits = accented * 2 + (s.match(ES_WORDS) || []).length;
-  const enHits = (s.match(EN_WORDS) || []).length;
-  return esHits > enHits ? 'es' : 'en';
-}
 // Floating hover tooltip shared by the cluster bars, competitor rows, and donut segments
 // (any element carrying a data-tip attribute).
 (function initBarTip() {
@@ -538,12 +524,6 @@ function detectLanguage(txt) {
   });
 })();
 
-function sum(rs, k) { let s = 0; for (const r of rs) s += (+r[k] || 0); return s; }
-function avg(a) { return a.reduce((x, y) => x + y, 0) / a.length; }
-function pct(n, d) { return { value: d ? 100 * n / d : 0, basis: n + ' / ' + d }; }
-const val = o => typeof o === 'number' ? o : o.value;
-const basisOf = o => (typeof o === 'object' && o.basis) ? o.basis : '';
-const fmt = (v, u) => u === '%' ? v.toFixed(1) + '%' : u === 'rank' ? (v ? '#' + v.toFixed(1) : '—') : u === 'USD' ? '$' + (v >= 1000 ? (v / 1000).toFixed(0) + 'K' : Math.round(v)) : Math.round(v).toLocaleString();
 
 // excludeBrand: true means this KPI is computed only over prompts that don't name the company
 // directly (Category/Problem/Competitor/Persona) — a "What is FIACSA?" prompt trivially
@@ -578,7 +558,6 @@ const KPIS = [
 const GEO_WEIGHTS = { 'Visibility': 0.40, 'Competitiveness': 0.35, 'Quality & Trust': 0.25 };
 // KPIs where a LOWER raw value is better, so goodness = 100 − value.
 const LOWER_BETTER = ['kpiCompetitorAbove', 'kpiFlaggedForReview', 'kpiNegativeSentiment'];
-const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
 // Per-KPI "goodness" on a 0–100 scale, plus whether the KPI had any data (denominator > 0).
 //  · %-higher-better KPIs        → value
@@ -630,39 +609,6 @@ function rowsForMulti(engines, intents, prompts, langs) {
 }
 
 // ── MULTI-SELECT COMPONENT ──
-function makeMulti(mountId, options, placeholder, onChange) {
-  const root = document.getElementById(mountId);
-  root.innerHTML = '';
-  const state = new Set();
-  const btn = document.createElement('button'); btn.className = 'ms-btn'; btn.type = 'button';
-  const panel = document.createElement('div'); panel.className = 'ms-panel';
-  const tools = document.createElement('div'); tools.className = 'ms-tools';
-  const bAll = document.createElement('button'); bAll.textContent = t('msAll'); bAll.type = 'button';
-  const bNone = document.createElement('button'); bNone.textContent = t('msNone'); bNone.type = 'button';
-  tools.appendChild(bAll); tools.appendChild(bNone); panel.appendChild(tools);
-  options.forEach(o => {
-    const lab = document.createElement('label'); lab.className = 'ms-opt';
-    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = o.value;
-    cb.addEventListener('change', () => { cb.checked ? state.add(o.value) : state.delete(o.value); sync(); });
-    lab.appendChild(cb);
-    const span = document.createElement('span');
-    span.innerHTML = (o.code ? '<span class="code">' + o.code + '</span> ' : '') + o.label;
-    lab.appendChild(span); panel.appendChild(lab);
-  });
-  root.appendChild(btn); root.appendChild(panel);
-  function label() {
-    if (state.size === 0) return t('msAllSuffix', placeholder);
-    if (state.size <= 2) return [...state].map(v => { const o = options.find(x => x.value === v); return o ? (o.code || o.label) : v; }).join(', ');
-    return t('msSelected', state.size);
-  }
-  function sync() { btn.firstChild.nodeValue = label(); onChange([...state]); }
-  btn.appendChild(document.createTextNode(''));
-  btn.addEventListener('click', () => { const open = panel.classList.toggle('show'); btn.classList.toggle('open', open); });
-  bAll.addEventListener('click', () => { state.clear(); panel.querySelectorAll('input').forEach(c => c.checked = false); sync(); });
-  bNone.addEventListener('click', () => { state.clear(); panel.querySelectorAll('input').forEach(c => c.checked = false); sync(); });
-  document.addEventListener('click', e => { if (!root.contains(e.target)) { panel.classList.remove('show'); btn.classList.remove('open'); } });
-  sync();
-}
 
 function buildForCompany() {
   // Back button: internal staff return to that customer's detail page; clients to their own portal.
@@ -704,6 +650,55 @@ function buildForCompany() {
 const stats = document.getElementById('stats'), wrap = document.getElementById('wrap'), foot = document.getElementById('foot'),
   count = document.getElementById('count'), pwrap = document.getElementById('pwrap'), cwrap = document.getElementById('cwrap');
 
+// Everything a block is allowed to reach for. Blocks never read page globals directly — that is
+// what lets one be swapped for a customer-specific version without the replacement quietly
+// inheriting dependencies nobody declared.
+function makeContext(rows) {
+  return {
+    rows, company, lang: i18n.lang, baselineDate: BASELINE_DATE, doc: document,
+    blockOptions: DASH_SPEC.blockOptions,
+    t, esc, fmt, val, basisOf, pct, sum, avg,
+    properCase, canonicalBrand, buildLeaderboard,
+    CATS, KPIS, CAT_ICONS, computeGeoScore, kpiGoodness,
+    promptMap, promptLangMap, promptNamesCompany,
+    COMPETITOR_ROW_LIMIT,
+    INTENT_LABEL, intentLabel, statusChip, mdLite,
+    // The expand-panel ids must stay unique across every group the prompt table draws, so the
+    // counter belongs to the page, not to a block that gets called once per render.
+    nextRespId: () => 'presp-' + (respCounter++),
+    options: {}
+  };
+}
+
+// The summary panel, in order. This is the thing a per-customer spec will later override:
+// reorder it, drop an entry, or name a block that only one customer loads.
+// This customer's spec, if they have one. An uncustomised customer gets the empty shape, so
+// every call below is a no-op and the base design renders exactly as it always has.
+let DASH_SPEC = window.AkoreSpec.resolve('', 'diagnostic');
+
+async function applySpec() {
+  DASH_SPEC = await window.AkoreSpec.forCompany(company, 'diagnostic', document);
+  if (!DASH_SPEC.customised) return;
+  const S = window.AkoreSpec;
+  S.applyCopy(DASH_SPEC, T);                       // before anything renders a label
+  S.applyTheme(DASH_SPEC, document);
+  S.installBlocks(DASH_SPEC.slug, window.AkoreBlocks);
+  applyStaticLang();                               // repaint [data-t] with the overridden copy
+  S.applyTabs(DASH_SPEC, i18n.lang, document);     // last: it strips data-t from renamed tabs
+}
+
+const LAYOUT_SUMMARY = [
+  'geoScoreHero',
+  'perEngine',
+  { group: 'dual', blocks: ['clusterBars', 'sentimentDonut'] },
+  'kpiCategories',
+  'invisiblePrompts'
+];
+const LAYOUT_COMPETITORS = [
+  { block: 'competitorLeaderboard', options: { rowTooltips: true, emptyKey: 'noMatchFilterCompetitors' } }
+];
+const LAYOUT_PROMPTS = ['promptTable'];
+
 function render() {
   const rows = rowsForMulti(selEngine, selIntent, selPrompt, selLang);
 
@@ -732,120 +727,7 @@ function render() {
     cwrap.innerHTML = ''; pwrap.innerHTML = '';
     return;
   }
-  // ── GEO Visibility Score (composite hero) ──
-  const { composite, subs } = computeGeoScore(rows);
-  const scoreLabel = composite == null ? t('scoreNoData')
-    : composite >= 67 ? t('scoreStrong') : composite >= 34 ? t('scoreEmerging') : t('scoreLow');
-  const hero = document.createElement('div'); hero.className = 'geo-hero';
-  hero.innerHTML =
-    `<div class="score-main">` +
-      `<div class="score-eyebrow">${t('geoScoreTitle')}</div>` +
-      `<div class="score-figure"><span class="score-num">${composite == null ? '—' : composite}</span><span class="score-den">/ 100</span></div>` +
-      `<div class="score-label">${scoreLabel} · ${t('geoScoreSub')}</div>` +
-    `</div>` +
-    `<div class="geo-subs">` +
-      CATS.map(C => `<div class="geo-sub"><div class="gl">${t(C.tkey)}</div><div class="gv">${subs[C.name] == null ? t('scoreNoData') : Math.round(subs[C.name])}</div></div>`).join('') +
-    `</div>`;
-  wrap.appendChild(hero);
-
-  // ── Per-engine breakdown ──
-  const enginesIn = [...new Set(rows.map(r => r.engine))].filter(Boolean).sort();
-  const engSec = document.createElement('div'); engSec.className = 'cat';
-  let engHtml = `<div class="cat-h"><div class="cat-titles"><span class="q">${t('perEngineTitle')}</span><span class="ask">${t('perEngineSub')}</span></div></div>`;
-  engHtml += `<div class="etbl"><div class="erow hd"><div>${t('perEngineEngine')}</div><div class="m">${t('kpiCitationRate')}</div><div class="m">${t('kpiShareOfVoice')}</div></div>`;
-  enginesIn.forEach(e => {
-    const er = rows.filter(r => r.engine === e && r.topic_cluster !== 'Brand');
-    const cr = pct(sum(er, 'brand_cited'), er.length);
-    const sv = pct(sum(er, 'brand_cited'), sum(er, 'total_brands_cited'));
-    engHtml += `<div class="erow"><div class="ename">${esc(properCase(e))}</div>` +
-      `<div class="m"><span class="mv">${fmt(cr.value, '%')}</span><div class="ml">${cr.basis}</div></div>` +
-      `<div class="m"><span class="mv">${fmt(sv.value, '%')}</span><div class="ml">${sv.basis}</div></div></div>`;
-  });
-  engHtml += `</div>`;
-  engSec.innerHTML = engHtml; wrap.appendChild(engSec);
-
-  // ── Recommendation rate by topic cluster + Sentiment donut (side by side) ──
-  const dualRow = document.createElement('div'); dualRow.className = 'dual';
-
-  // Recommendation rate by topic cluster (bars hoverable via title tooltip)
-  const CLUSTER_ORDER = ['Brand', 'Category', 'Problem', 'Competitor', 'Persona'];
-  const CLUSTER_TKEY = { Brand: 'clusterBrand', Category: 'clusterCategory', Problem: 'clusterProblem', Competitor: 'clusterCompetitor', Persona: 'clusterPersona' };
-  const clustersIn = CLUSTER_ORDER.filter(c => rows.some(r => r.topic_cluster === c));
-  if (clustersIn.length) {
-    const clSec = document.createElement('div'); clSec.className = 'cat';
-    let clHtml = `<div class="cat-h"><div class="cat-titles"><span class="q">${t('clusterTitle')}</span><span class="ask">${t('clusterSub')}</span></div></div><div class="bars">`;
-    clustersIn.forEach(c => {
-      const cr = rows.filter(r => r.topic_cluster === c);
-      const n = sum(cr, 'brand_cited'), d = cr.length;
-      const p = pct(n, d);
-      const label = t(CLUSTER_TKEY[c]);
-      const tip = esc(t('clusterBarTooltip', label, p.value.toFixed(1), n, d));
-      clHtml += `<div class="barrow" data-tip="${tip}"><div class="blabel">${label}</div>` +
-        `<div class="bbar"><span style="width:${p.value.toFixed(1)}%"></span></div>` +
-        `<div class="bval">${fmt(p.value, '%')}</div></div>`;
-    });
-    clHtml += `</div>`;
-    clSec.innerHTML = clHtml; dualRow.appendChild(clSec);
-  }
-
-  // Sentiment donut (over brand-mentioned answers with an assessed tone)
-  const sm = rows.filter(r => r.brand_mentioned && ['positive', 'neutral', 'negative'].includes(r.sentiment));
-  const sPos = sm.filter(r => r.sentiment === 'positive').length;
-  const sNeu = sm.filter(r => r.sentiment === 'neutral').length;
-  const sNeg = sm.filter(r => r.sentiment === 'negative').length;
-  const sTot = sm.length;
-  const sentSec = document.createElement('div'); sentSec.className = 'cat sent-col';
-  let sentHtml = `<div class="cat-h"><div class="cat-titles"><span class="q">${t('sentimentTitle')}</span><span class="ask">${t('sentimentSub')}</span></div></div>`;
-  if (sTot === 0) { sentHtml += `<div class="empty">${t('sentimentNone')}</div>`; }
-  else {
-    const COL_POS = 'var(--emerald)', COL_NEU = 'var(--muted)', COL_NEG = 'var(--red, #c74b4b)';
-    const R = 60, CIRC = 2 * Math.PI * R;
-    let acc = 0;
-    const arc = (n, color, label) => {
-      if (!n) return '';
-      const len = CIRC * n / sTot;
-      const tip = esc(`${label}: ${n} · ${(100 * n / sTot).toFixed(0)}%`);
-      const s = `<circle data-tip="${tip}" cx="80" cy="80" r="${R}" fill="none" stroke="${color}" stroke-width="24" stroke-dasharray="${len.toFixed(3)} ${(CIRC - len).toFixed(3)}" stroke-dashoffset="${(-acc).toFixed(3)}"/>`;
-      acc += len;
-      return s;
-    };
-    const litem = (label, n, color) => `<div class="sitem"><span class="sdot" style="background:${color}"></span><span class="slab">${label}</span><span class="snum">${n} · ${(100 * n / sTot).toFixed(0)}%</span></div>`;
-    sentHtml += `<div class="donut-wrap">` +
-      `<div class="donut"><svg viewBox="0 0 160 160" width="100%" height="100%" role="img" aria-label="${esc(t('sentimentTitle'))}">${arc(sPos, COL_POS, t('sentPositive'))}${arc(sNeu, COL_NEU, t('sentNeutral'))}${arc(sNeg, COL_NEG, t('sentNegative'))}</svg>` +
-        `<div class="center"><div class="dt">${sTot}</div><div class="dl">${t('sentAssessed')}</div></div></div>` +
-      `<div class="dlegend">${litem(t('sentPositive'), sPos, COL_POS)}${litem(t('sentNeutral'), sNeu, COL_NEU)}${litem(t('sentNegative'), sNeg, COL_NEG)}</div>` +
-    `</div>`;
-  }
-  sentSec.innerHTML = sentHtml; dualRow.appendChild(sentSec);
-  wrap.appendChild(dualRow);
-
-  CATS.forEach(C => {
-    const catKpis = KPIS.filter(k => k.cat === C.name);
-    const hasExcludeBrand = catKpis.some(k => k.excludeBrand);
-    const sec = document.createElement('div'); sec.className = 'cat';
-    sec.innerHTML = `<div class="cat-h"><div class="cat-icon">${CAT_ICONS[C.name] || ''}</div><div class="cat-titles"><span class="q">${t(C.tkey)}</span><span class="ask">${t(C.askKey)}</span></div>${hasExcludeBrand ? `<span class="cat-note">${t('brandExcludedNote')}</span>` : ''}</div>`;
-    const grid = document.createElement('div'); grid.className = 'grid';
-    catKpis.forEach(k => {
-      const inputRows = k.excludeBrand ? rows.filter(r => r.topic_cluster !== 'Brand') : rows;
-      const o = k.fn(inputRows); const v = val(o), b = basisOf(o);
-      const card = document.createElement('div'); card.className = 'card';
-      card.innerHTML = `<div class="kpi-name">${t(k.tkey)}</div><div class="kpi-formula">${t(k.formulaKey)}</div><div class="val">${fmt(v, k.unit)}</div><div class="kpi-basis">${b ? (t('baseLabel') + b) : '&nbsp;'}</div>`;
-      grid.appendChild(card);
-    });
-    sec.appendChild(grid); wrap.appendChild(sec);
-  });
-
-  // ── Where you're invisible: prompts (non-Brand clusters) that no engine ever cited you in ──
-  const invByPrompt = {};
-  rows.filter(r => r.topic_cluster !== 'Brand').forEach(r => { (invByPrompt[r.prompt_id] = invByPrompt[r.prompt_id] || []).push(r); });
-  const invisible = Object.keys(invByPrompt).filter(pid => invByPrompt[pid].every(r => !r.brand_cited)).sort();
-  const invSec = document.createElement('div'); invSec.className = 'cat';
-  let invHtml = `<div class="cat-h"><div class="cat-titles"><span class="q">${t('invisibleTitle')}</span><span class="ask">${t('invisibleSub')}</span></div><span class="cat-note">${t('invisibleCount', invisible.length)}</span></div>`;
-  if (invisible.length === 0) { invHtml += `<div class="empty">${t('invisibleNone')}</div>`; }
-  else {
-    invHtml += `<div class="invlist">` + invisible.map(pid => `<div class="invrow"><span class="code">${esc(pid)}</span><span class="invtxt">${esc(promptMap[pid] || '')}</span></div>`).join('') + `</div>`;
-  }
-  invSec.innerHTML = invHtml; wrap.appendChild(invSec);
+  AkoreBlocks.renderLayout(window.AkoreSpec.layout(DASH_SPEC, 'summary', LAYOUT_SUMMARY), wrap, makeContext(rows), document);
 
   foot.innerHTML = t('footText', company, BASELINE_DATE);
 
@@ -853,203 +735,27 @@ function render() {
   // trivially make it "most cited" in that answer, skewing the competitive leaderboard. The
   // Brand topic cluster is only part of this — comparison prompts like "You vs X" also name
   // the company, so exclude any prompt whose text mentions it.
-  renderCompetitors(rows.filter(r => r.topic_cluster !== 'Brand' && !promptNamesCompany(r)));
-  renderPrompts(rows);
+  cwrap.innerHTML = '';
+  AkoreBlocks.renderLayout(window.AkoreSpec.layout(DASH_SPEC, 'competitors', LAYOUT_COMPETITORS), cwrap,
+    makeContext(rows.filter(r => r.topic_cluster !== 'Brand' && !promptNamesCompany(r))), document);
+  pwrap.innerHTML = '';
+  AkoreBlocks.renderLayout(window.AkoreSpec.layout(DASH_SPEC, 'prompts', LAYOUT_PROMPTS), pwrap, makeContext(rows), document);
 }
 
 // True when the prompt text itself names the company. Such prompts trivially "mention" the
 // company (and often rank it first), inflating its position on the competitor leaderboard —
 // so they're excluded from it, extending the Brand-cluster exclusion to comparison prompts.
-// Engines name the same company inconsistently — "Bosch Rexroth", "Bosch Rexroth México" and
-// "Bosch Rexroth S.A. de C.V." are one competitor. Counting them separately splits that company's
-// share of voice across several rows and pushes it down the leaderboard, which also inflates your own
-// relative position. Only legal-entity and geography tails are stripped, never a word that carries
-// meaning: "Bosch" and "Bosch Rexroth" remain different companies, as they should.
-const BRAND_ENTITY_TAIL = /\b(s\s?a(\s+de\s+c\s?v)?|s\s+de\s+r\s?l(\s+de\s+c\s?v)?|sapi|inc|incorporated|llc|ltd|limited|gmbh|srl|corp|corporation|company|co|group|grupo|holding|holdings)\b/g;
-const BRAND_GEO_TAIL = /\b(de\s+)?(mexico|mx|mex|latinoamerica|latam|usa|us|espana|colombia|peru|chile|argentina|brasil|brazil|international|global|worldwide)\b/g;
-function canonicalBrand(name) {
-  const raw = String(name || '').trim();
-  let out = raw.toLowerCase()
-    .normalize('NFD').replace(/\p{Diacritic}/gu, '')
-    .replace(/[.,()]/g, ' ')
-    .replace(/&/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  // Looped because one name can carry several tails ("... S.A. de C.V. México").
-  for (let i = 0; i < 3; i++) {
-    const before = out;
-    out = out.replace(BRAND_ENTITY_TAIL, ' ').replace(BRAND_GEO_TAIL, ' ').replace(/\s+/g, ' ').trim();
-    if (out === before) break;
-  }
-  // Never collapse a name to nothing: a company actually called "Grupo México" keeps its identity.
-  return out || raw.toLowerCase();
-}
 
-function promptNamesCompany(r) {
-  const name = (company || '').trim().toLowerCase();
-  return !!name && (r.prompt_text || '').toLowerCase().includes(name);
-}
 
-// A long tail of one-off brand mentions made the leaderboard unreadable, so only this many brands
-// get their own row — everything below folds into a single "Others" line.
-const COMPETITOR_ROW_LIMIT = 25;
 
-function renderCompetitors(rows) {
-  cwrap.innerHTML = '';
-  if (rows.length === 0) { cwrap.innerHTML = `<div class="empty">${t('noMatchFilterCompetitors')}</div>`; return; }
-  const YOU = company;
-  const youKey = canonicalBrand(YOU);
-  const tally = {}; let totalCitations = 0;
-  rows.forEach(r => {
-    const list = (r.brands_cited_list || '').split(';').filter(Boolean);
-    list.forEach(b => { const k = canonicalBrand(b); tally[k] = tally[k] || { variants: {}, cited: 0, leader: 0 }; const v = properCase(b); tally[k].variants[v] = (tally[k].variants[v] || 0) + 1; tally[k].cited++; totalCitations++; });
-    if (r.top_cited_brand) { const k = canonicalBrand(r.top_cited_brand); tally[k] = tally[k] || { variants: {}, cited: 0, leader: 0 }; const v = properCase(r.top_cited_brand); tally[k].variants[v] = (tally[k].variants[v] || 0) + 1; tally[k].leader++; }
-  });
-  const brands = Object.keys(tally).map(k => ({
-    key: k,
-    // Most-cited spelling wins the label; ties break toward the shorter name.
-    name: Object.keys(tally[k].variants).sort((a, b) =>
-      (tally[k].variants[b] - tally[k].variants[a]) || (a.length - b.length))[0] || k,
-    cited: tally[k].cited, leader: tally[k].leader,
-    sov: totalCitations ? 100 * tally[k].cited / totalCitations : 0
-  })).sort((a, b) => b.cited - a.cited);
-  const maxCited = Math.max(...brands.map(b => b.cited), 1);
-  const you = brands.find(b => b.key === youKey) || { name: YOU, cited: 0, leader: 0, sov: 0 };
-  const yourRank = brands.findIndex(b => b.key === youKey) + 1;
-  const topRival = brands.find(b => b.key !== youKey);
-
-  // Two deliberate exceptions to the top-25 cut: the client's own brand always keeps a row, showing
-  // its real rank, even when it places below the cut — a client should never be missing from their
-  // own leaderboard. And the summary cards above still count every distinct brand, so "#N of M"
-  // reports the true field size rather than the number of visible rows.
-  const leaderRows = brands.slice(0, COMPETITOR_ROW_LIMIT).map((b, i) => ({ b, rank: i + 1 }));
-  const tail = brands.slice(COMPETITOR_ROW_LIMIT);
-  const youInTail = tail.find(b => b.key === youKey);
-  if (youInTail) leaderRows.push({ b: youInTail, rank: yourRank });
-  const folded = tail.filter(b => b !== youInTail);
-  const others = folded.length ? {
-    count: folded.length,
-    cited: folded.reduce((s, b) => s + b.cited, 0),
-    leader: folded.reduce((s, b) => s + b.leader, 0),
-    sov: folded.reduce((s, b) => s + b.sov, 0)
-  } : null;
-
-  const cards = document.createElement('div'); cards.className = 'ccards';
-  cards.innerHTML =
-    `<div class="ccard"><div class="l">${t('yourRank')}</div><div class="b">${yourRank > 0 ? ('#' + yourRank + ' of ' + brands.length) : '—'}</div><div class="s">${t('byNumCitations')}</div></div>` +
-    `<div class="ccard"><div class="l">${t('mostCitedBrand')}</div><div class="b">${brands[0] ? brands[0].name : '—'}</div><div class="s">${brands[0] ? t('ofAllCitations', brands[0].sov.toFixed(0)) : ''}</div></div>` +
-    `<div class="ccard"><div class="l">${t('yourTopRival')}</div><div class="b">${topRival ? topRival.name : '—'}</div><div class="s">${topRival ? t('citationsVsYours', topRival.cited, you.cited) : ''}</div></div>`;
-  cwrap.appendChild(cards);
-
-  const intro = document.createElement('div'); intro.className = 'cintro';
-  intro.innerHTML = t('competitorsIntro', YOU) + (others ? ' ' + t('leaderboardCapNote', COMPETITOR_ROW_LIMIT) : '');
-  cwrap.appendChild(intro);
-
-  const sec = document.createElement('div'); sec.className = 'cat';
-  const hd = document.createElement('div'); hd.className = 'crow hd';
-  hd.innerHTML = `<div>${t('crowRank')}</div><div>${t('crowBrand')}</div><div>${t('crowTimesCited')}</div><div class="cmetric">${t('crowLeads')}</div>`;
-  sec.appendChild(hd);
-  leaderRows.forEach(({ b, rank }) => {
-    const isYou = b.key === youKey;
-    const w = 100 * b.cited / maxCited;
-    const row = document.createElement('div'); row.className = 'crow';
-    row.dataset.tip = t('leaderBarTooltip', b.name, b.cited, b.sov.toFixed(0), b.leader);
-    row.innerHTML = `<div class="crank">${rank}</div>` +
-      `<div class="cname${isYou ? ' you' : ''}">${b.name}</div>` +
-      `<div class="cbar${isYou ? ' you' : ''}"><span style="width:${w.toFixed(1)}%"></span><em>${b.cited} &middot; ${b.sov.toFixed(0)}%</em></div>` +
-      `<div class="cmetric"><span class="mv">${b.leader}</span><div class="ml">${t('timesFirst')}</div></div>`;
-    sec.appendChild(row);
-  });
-  if (others) {
-    // Combined citations can exceed any single brand's, so the bar is clamped rather than allowed
-    // to overflow its track.
-    const w = Math.min(100, 100 * others.cited / maxCited);
-    const row = document.createElement('div'); row.className = 'crow others';
-    row.dataset.tip = t('othersTooltip', others.count, others.cited, others.sov.toFixed(0), others.leader);
-    row.innerHTML = `<div class="crank">—</div>` +
-      `<div class="cname">${t('othersRow', others.count)}</div>` +
-      `<div class="cbar"><span style="width:${w.toFixed(1)}%"></span><em>${others.cited} &middot; ${others.sov.toFixed(0)}%</em></div>` +
-      `<div class="cmetric"><span class="mv">${others.leader}</span><div class="ml">${t('timesFirst')}</div></div>`;
-    sec.appendChild(row);
-  }
-  cwrap.appendChild(sec);
-}
-
-function statusChip(rate) { const c = rate >= 50 ? 'g' : rate >= 25 ? 'm' : 'b'; return `<span class="chip ${c}">${rate.toFixed(0)}%</span>`; }
 
 // Escapes first, then converts markdown-style emphasis markers on the already-safe text —
 // engines' raw answers often come back with **bold**/*italic* markup that read as literal
 // asterisks before this.
-function mdLite(txt) {
-  return esc(txt)
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
-}
 
 let respCounter = 0;
 
-function renderPrompts(rows) {
-  const byIntent = {};
-  rows.forEach(r => { (byIntent[r.query_intent] = byIntent[r.query_intent] || []).push(r); });
-  const order = Object.keys(INTENT_LABEL).filter(k => byIntent[k]);
-  Object.keys(byIntent).forEach(k => { if (!order.includes(k)) order.push(k); });
-  pwrap.innerHTML = '';
-  if (rows.length === 0) { pwrap.innerHTML = `<div class="empty">${t('noMatchFilterPrompts')}</div>`; return; }
-  order.forEach(intent => {
-    const irows = byIntent[intent];
-    const byPrompt = {};
-    irows.forEach(r => { (byPrompt[r.prompt_id] = byPrompt[r.prompt_id] || []).push(r); });
-    const pids = Object.keys(byPrompt).sort();
-    const sec = document.createElement('div'); sec.className = 'pcat';
-    sec.innerHTML = `<div class="pcat-h"><span class="q">${intentLabel(intent)}</span><span class="n">${t('promptsCountLine', pids.length, irows.length)}</span></div>`;
-    const hd = document.createElement('div'); hd.className = 'prow hd';
-    hd.innerHTML = `<div>${t('prowId')}</div><div>${t('prowPrompt')}</div><div class="m">${t('prowCitationRate')}</div><div class="m">${t('prowAvgPos')}</div><div class="m">${t('prowSentiment')}</div><div class="m">${t('prowResponses')}</div>`;
-    sec.appendChild(hd);
-    pids.forEach(pid => {
-      const pr = byPrompt[pid]; const n = pr.length;
-      const cited = pr.filter(r => r.brand_cited).length;
-      const ranks = pr.filter(r => r.brand_citation_rank).map(r => r.brand_citation_rank);
-      const avgRank = ranks.length ? (ranks.reduce((a, b) => a + b, 0) / ranks.length) : null;
-      const sm = pr.filter(r => r.brand_mentioned && r.sentiment);
-      const pos = sm.filter(r => r.sentiment === 'positive').length, neu = sm.filter(r => r.sentiment === 'neutral').length, neg = sm.filter(r => r.sentiment === 'negative').length;
-      const citeRate = 100 * cited / n;
-      let sentLabel, sentCls;
-      if (sm.length === 0) { sentLabel = '—'; sentCls = ''; }
-      else { const posShare = pos / sm.length; if (posShare >= 0.6) { sentLabel = t('sentGood'); sentCls = 'g'; } else if (posShare >= 0.35 || neg <= neu) { sentLabel = t('sentMixed'); sentCls = 'm'; } else { sentLabel = t('sentPoor'); sentCls = 'b'; } }
-      const respId = 'presp-' + (respCounter++);
-      const row = document.createElement('div'); row.className = 'prow';
-      row.innerHTML =
-        `<div class="code">${esc(pid)}</div>` +
-        `<div class="txt">${esc(promptMap[pid] || '')}</div>` +
-        `<div class="m" data-l="${t('prowCitationRate')}">${statusChip(citeRate)}<div class="ml">${cited}/${n}</div></div>` +
-        `<div class="m" data-l="${t('prowAvgPos')}"><span class="mv">${avgRank ? ('#' + avgRank.toFixed(1)) : '—'}</span><div class="ml">${t('citesLabel', ranks.length)}</div></div>` +
-        `<div class="m" data-l="${t('prowSentiment')}">${sentCls ? (`<span class="chip ${sentCls}">${sentLabel}</span>`) : '<span class="ml">—</span>'}</div>` +
-        `<div class="m" data-l="${t('prowResponses')}"><button type="button" class="resp-toggle" onclick="toggleResponses('${respId}', this)">${t('viewResponsesBtn', n)}</button></div>`;
-      sec.appendChild(row);
 
-      const respPanel = document.createElement('div');
-      respPanel.className = 'presp';
-      respPanel.id = respId;
-      respPanel.style.display = 'none';
-      respPanel.innerHTML = pr.map(r => `
-        <div class="presp-item">
-          <div class="presp-meta">${esc(r.engine)} &middot; ${esc(r.snapshot_date)}</div>
-          <div class="presp-text">${r.answer_excerpt ? mdLite(r.answer_excerpt) : t('noResponseCaptured')}</div>
-        </div>
-      `).join('');
-      sec.appendChild(respPanel);
-    });
-    pwrap.appendChild(sec);
-  });
-}
-
-function toggleResponses(id, btn) {
-  const panel = document.getElementById(id);
-  const isOpen = panel.style.display !== 'none';
-  panel.style.display = isOpen ? 'none' : 'block';
-  const n = panel.querySelectorAll('.presp-item').length;
-  btn.textContent = isOpen ? t('viewResponsesBtn', n) : t('hideResponsesBtn');
-}
 
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
   document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
