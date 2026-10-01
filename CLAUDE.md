@@ -50,7 +50,8 @@ Originally "Hieronymus," the browser-driven manual audit tool with its own API-k
 - `netlify/functions/customer-keys.js` — stores each customer's 3 engine API keys. POST creates or updates (per-engine — a blank field leaves that engine's existing key untouched), settable at creation (Portal) or anytime after (Hieronymus's Generate Prompts modal → API Keys). Raw values are **never** returned by any request — GET returns only configured/not-configured booleans; raw keys are read server-to-server via `getStore()` in exactly two places, both background functions: `run-audit-background.js` (answering + grading) and `generate-prompts-background.js` (all three generation stages)
 - `netlify/functions/generate-prompts-background.js` — three-stage prompt generation (brief → per-category → cold validation), Background Function, honours the requested count via top-up rounds, records `stats` and the `brief` on the prompts record
 - `netlify/functions/prompts.js` — save/load prompts; withholds text until internal release; PATCH handles both the staff release and the (one-way) customer approval
-- `js/results-auth.js` — the one place credentials are resolved for scoped endpoints (`resultsQuery`, `intakeQuery`, `apiQuery`, plus `homeHref`/`wireLogoHome` for navigation). Staff pages send staff credentials, client pages send that customer's login, dashboards try staff then fall back to the client session
+- `js/auth.js` — the one place credentials are resolved for scoped endpoints (`resultsQuery`, `intakeQuery`, `apiQuery`, plus `homeHref`/`wireLogoHome` for navigation). Staff pages send staff credentials, client pages send that customer's login, dashboards try staff then fall back to the client session
+- `js/brands.js` — shared brand identity + competitor leaderboard model (`canonicalBrand`, `properCase`, `buildLeaderboard`), used by both dashboards. It used to exist twice, once per dashboard, each copy carrying a comment asking the next person to keep them in sync by hand
 - `netlify/functions/run-audit-background.js` — the one true audit-running implementation; Background Function, reads customer keys server-to-server, writes result rows via `/api/results`, tracks progress in a job-status Blob
 - `netlify/functions/audit-job.js` — polling endpoint for live audit progress (used by both the Portal and the per-customer detail page)
 - `netlify/functions/results.js` — per-row Blob storage, reconstructs CSV on GET
@@ -121,10 +122,13 @@ Two ordering traps live here, both of which broke things once: a scoped read car
 - Internal pages (`portal.html`, `index.html`, `intake-view.html`) share one session (`localStorage` key `hieronymus_internal_auth`) — logging in once keeps you logged into all three. This is a prototype-level access-code gate, not production auth.
 - Client-facing pages (`intake.html`, `prompt-review.html`, `client-portal.html`) use per-customer username+password (`sessionStorage`, not shared with the internal pages or each other's storage keys, but the same credential values work on all three since they validate against the same `intake-codes.js` record). **Explicit exception**: if the visitor already has valid internal Portal auth (`localStorage` `hieronymus_internal_auth`), these three pages skip the customer password entirely and log straight in using just `?username=` from the URL — this was a deliberate, explicitly-approved tradeoff (staff needing access when a client's password was lost/never saved) that means the internal Portal password effectively grants access to every customer's intake/review/dashboard data. Not something to casually extend further without re-confirming.
 
-## Project status: this is a DEV/PROTOTYPE version
-This build will be handed off to a professional developer for final launch. Decisions below don't need to be finalized now — flag them clearly for the developer rather than guessing or over-building a permanent solution.
+## Project status: this is the PRODUCTION app
+Real customers use this. An earlier version of this file called it a dev/prototype build awaiting
+handoff to another developer — that was wrong, and it led to advice that under-built on the grounds
+that the work was temporary. Treat changes here as production changes: live data, live clients,
+zero-regression expected, and a way back if something lands badly.
 
-## Open decisions / not-yet-built (for developer at handoff — not final yet)
+## Open decisions / not-yet-built
 - [ ] **Nothing has been verified against the live API.** All automated coverage uses stubs. One real generation plus one real audit on a real customer is the highest-value outstanding check — particularly that the cold validator rejects the prompt shapes it is meant to, and that grading returns parseable JSON inside its token ceiling.
 - [ ] **`sentiment: error` rows.** A row whose engine call or grading failed is written as a placeholder, and every dashboard counts it as not-cited — so a run with many of them deflates share of voice and looks like poor visibility rather than a failed measurement. The cause is recorded in that row's `answer_excerpt`, prefixed `ERROR (answer)` or `ERROR (grading)`. The per-customer page now breaks failures down by engine with the message, and flags an engine where *every* row failed as configuration rather than bad luck.
 - [ ] **`BASELINE_DATE = DATES[0]`** — the diagnostic dashboard shows the earliest snapshot, while this doc previously said "latest". Effectively moot now that a diagnostic run replaces the prior one, but it must be settled before keeping several diagnostic snapshots side by side.
@@ -133,7 +137,7 @@ This build will be handed off to a professional developer for final launch. Deci
 - [ ] API keys/access confirmed for: Claude ✅ / ChatGPT ⬜ / Gemini ⬜. ChatGPT has been observed failing every row in a run — check the `answer_excerpt` prefix before assuming rate limits.
 - [ ] **Mobile is structurally fixed, not visually confirmed.** Overflow causes and unusable controls were fixed and every rule verified to target a live selector, but nobody has looked at a rendered page. `intake.html` has the least mobile CSS and is the most-used client page.
 - [ ] Pre-existing customers created under the older single-access-code scheme need recreating — their old links no longer work.
-- [ ] **The test suites live outside the repo** (a scratch directory) and will be lost. ~17 suites / ~290 assertions cover the generator pipeline, every scoped endpoint, the audit status machine, self-continuation, retry/timeout, intake locking, and the leaderboard. Worth moving into the repo before handoff; they reference absolute paths and would need those made relative.
+- [x] **The test suites are in the repo** under `test/`, run with `npm test` (34 files, all green). They cover the generator pipeline, every scoped endpoint, the audit status machine, self-continuation, retry/timeout, intake locking, the leaderboard, and dashboard render parity.
 
 ## Language requirement
 **The entire platform must run in both English and Spanish** — Portal, the per-customer detail page, prompt generation, and dashboards all need a language toggle/support. This is not optional or limited to client-facing pages; internal tools need it too since the team works in both languages.
@@ -143,10 +147,58 @@ This build will be handed off to a professional developer for final launch. Deci
 - The **dashboard's design is the reference standard** — match its colors, fonts, and layout style everywhere else.
 
 ## Verification habit that has paid off
-Several bugs in this codebase were introduced *while fixing something else* and caught only by running everything before committing: a killed run reported as a clean success, self-continuation that would have been rejected on its first handoff, progress that rewound at each handoff, a staff-only guard that would have refused every client login, a leaderboard change that silently unhighlighted the client. **Run the full check before every push** — modules load, every page's inline JS parses, all suites green, and no unauthenticated call to a scoped endpoint. Twice a push went out with a suite red; both times it was recoverable, and both times the check would have caught it.
+Several bugs in this codebase were introduced *while fixing something else* and caught only by running everything before committing: a killed run reported as a clean success, self-continuation that would have been rejected on its first handoff, progress that rewound at each handoff, a staff-only guard that would have refused every client login, a leaderboard change that silently unhighlighted the client. **Run the full check before every push** — modules load, every page's inline JS parses, all suites green, and no unauthenticated call to a scoped endpoint.
+
+`test/dashboard-parity.test.cjs` is the newest and strictest of these: it renders both dashboards in jsdom against a fixed dataset and compares the DOM of every region to a committed snapshot, in both languages. A failure is not automatically a bug — it is an **unreviewed change to what a live customer sees**. Read the diff; if the change is intended, re-record with `UPDATE_DASHBOARD_GOLDEN=1 npm test` and commit the snapshot so the change shows up in review. It cannot see CSS: jsdom does not resolve the cascade or custom properties, so theming needs a real browser. Twice a push went out with a suite red; both times it was recoverable, and both times the check would have caught it.
 
 ## When making changes
 - Before editing, check this file for context so you don't need it re-explained.
 - If a task requires a decision not covered here (e.g. which database, which engine), ask before proceeding rather than guessing.
 - Keep changes scoped — this project has previously had issues where large multi-file changes were hard to verify were actually saved/deployed correctly.
 - **No isolated/duplicate implementations.** If a new feature needs something an existing page/endpoint already does (auth gate, CSV parsing, job-status polling, audit-running), reuse it rather than writing a parallel version — this file exists partly because a prior "isolated legacy version" (the old manual-run `index.html`) undermined the security model built around it.
+
+## Dashboard architecture: one engine, many specs (in progress)
+The two dashboards are being taken apart so that **a single customer's dashboard can be customised
+without forking a 1,400-line file**. The driving cases are real: FIACSA needs "Parker" and "Parker
+Hannifin México" counted as one company, and needs the brands it *distributes* kept out of its
+competitor ranking — and the next customer will need something different again.
+
+Decided, and not up for re-litigation without a reason:
+- **One engine for both dashboard types.** They already shared ~60%, and the competitor leaderboard
+  was byte-identical in both.
+- **Per-customer customisation is code in this repo, not data in a store.** Each customised
+  dashboard gets its own module under `specs/customers/<slug>.js`, exporting a declarative `spec`
+  (tabs, blocks, copy, theme, motion, data, metrics) and optionally its own custom blocks. Git is
+  the version history and the rollback; a deploy is the publish step. There is deliberately **no
+  spec endpoint, no Blob store for specs, and no in-app editor** — an editor would cap what is
+  expressible, and code from a Blob rendered into a client-facing page is an XSS vector.
+- **No customer without a spec changes.** A missing entry in `specs/customers/index.js` means the
+  base template renders, unmodified. The base template reproduces today's design exactly.
+- **Metrics are a registry of named, parameterized computations**, not an expression language.
+  Anything the registry cannot express becomes a custom block — real, reviewed code.
+- **Specs are static assets and therefore publicly fetchable.** Presentation config only: never
+  customer data, never credentials, never anything from `/api/results`.
+
+### How it works now (built; no customer is customised yet)
+- `js/dash/registry.js` — blocks. A block is `{ render(ctx) -> Element | Fragment | null }`; a
+  layout is an array of block ids (or `{block, options}`, or `{group, blocks}`). A block that
+  throws is logged and skipped, never taking the page down with it.
+- `js/dash/blocks/*.js` — 13 of them, covering every section of both dashboards.
+  `competitorLeaderboard` is shared by both pages; the two places they differ are block options.
+- `js/dash/util.js`, `i18n.js`, `controls.js` — everything that used to be duplicated per page.
+  The two pages now share zero identical top-level functions, and a test fails if a copy returns.
+- `js/dash/spec.js` + `specs/customers/` — the per-customer layer: layouts, block options, copy
+  (both languages), theme tokens, tabs (rename/reorder/hide), new blocks, and replacing a core
+  block outright. `specs/customers/README.md` is the contract.
+- `test/dashboard-parity.test.cjs` + `test/dashboard-spec.test.cjs` — a customer with no spec must
+  render byte-identically forever; a customer with one gets every axis. The spec capability is
+  tested against a fixture under `test/fixtures/specs`, never a real customer.
+
+Still page-level, to move into one engine later: the chart machinery (`chart`, `mountTrend`,
+`buildCard`, `buildComposite`, the series builders) and the shell (auth, CSV load, filter state).
+Blocks reach them through `ctx`, so moving them changes no block.
+
+Targets were removed from the monitoring KPIs on purpose. A goal number nobody set for that
+specific customer is not a goal, and the dashed "target" line had already stopped being drawn while
+the legend still advertised it. `lower: true/false` is **not** a target — it marks a metric where
+down is better, and it drives the delta arrow direction and the composite score. Keep it.

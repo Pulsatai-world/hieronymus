@@ -115,3 +115,11 @@
   for = "/*.html"
   [headers.values]
     Cache-Control = "no-cache, must-revalidate"
+
+# Same reasoning for per-customer dashboard specs: a browser holding yesterday's spec against
+# today's page renders a customer's dashboard with customisations that were already changed or
+# removed, and nothing about it looks broken.
+[[headers]]
+  for = "/specs/*"
+  [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
