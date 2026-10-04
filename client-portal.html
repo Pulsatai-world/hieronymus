@@ -509,6 +509,8 @@ body.app-mode .shell { display: flex; }
   </div>
 </div>
 
+<script src="/js/dash/util.js"></script>
+<script src="/js/dash/score.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/enroll-dialog.js"></script>
 <script>
@@ -592,10 +594,19 @@ const T = {
   closeBtn: { en: 'Close', es: 'Cerrar' }
 };
 let lang = localStorage.getItem('hieronymus_lang') || 'es';
+/* A missing key returns the key rather than throwing. This page shares the score module with
+ * the dashboards, and some KPI definitions label their basis with keys that live in the
+ * dashboards' dictionary ('citesLabel') and not in this one — unguarded, a single absent key
+ * took the whole screen down instead of one label. */
 function t(key, ...args) {
-  const val = T[key][lang];
-  return typeof val === 'function' ? val(...args) : val;
+  const entry = T[key];
+  if (!entry) { console.warn('[portal] missing translation key: ' + key); return key; }
+  const val = entry[lang] != null ? entry[lang] : entry.en;
+  return typeof val === 'function' ? val(...args) : (val != null ? val : key);
 }
+// A few KPI definitions in the shared score module label their basis with translated text, so
+// it needs this page's translator — see js/dash/score.js.
+window.AkoreScore.setTranslator((k, ...a) => t(k, ...a));
 function applyStaticLang() {
   const sub = document.getElementById('logo-sub'); if (sub) sub.textContent = t('logoSub');
   document.getElementById('gate-title').textContent = t('gateTitle');
@@ -830,9 +841,9 @@ const TT = {
   homeHello:{en:c=>c,es:c=>c},
   homeSub:{en:'Where your AI visibility stands, and anything waiting on you.',
            es:'Cómo va tu visibilidad en IA, y lo que está esperando por ti.'},
-  homeVisibility:{en:'AI visibility',es:'Visibilidad en IA'},
-  homeVisibilityWhat:{en:'How often the engines recommend you when asked a question in your market.',
-                      es:'Con qué frecuencia los motores te recomiendan al responder una pregunta de tu sector.'},
+  homeVisibility:{en:'GEO visibility score',es:'Puntaje de visibilidad GEO'},
+  homeVisibilityWhat:{en:d=>'Visibility, competitiveness and quality combined. Measured '+d+'.',
+                      es:d=>'Visibilidad, competitividad y calidad combinadas. Medido el '+d+'.'},
   homeDelta:{en:(n,d)=>n+' points vs. '+d, es:(n,d)=>n+' puntos vs. '+d},
   homeFlat:{en:d=>'Unchanged vs. '+d, es:d=>'Sin cambio vs. '+d},
   homeNoRuns:{en:'Your first measurement has not run yet. This fills in as soon as it does.',
@@ -1055,12 +1066,17 @@ async function loadHomeExtra() {
   return homeExtra;
 }
 
-/* Citation rate for one snapshot, on the same basis the dashboards use: prompts that name the
- * company are excluded, because the engine naming it back is not visibility. */
-function rateOn(rows, date) {
-  const r = rows.filter(x => x.snapshot_date === date && x.topic_cluster !== 'Brand');
+/* The GEO Visibility Score for one snapshot, computed by the shared module the dashboards use
+ * rather than reimplemented here — the first version of this screen had its own citation-rate
+ * formula, which is how a home page and the dashboard one click below it ended up reporting
+ * different numbers for the same company.
+ *
+ * The headline is the most recent run, whichever kind it was: what this screen is for is the
+ * latest measurement, not the latest measurement of a particular type. */
+function scoreOn(rows, date) {
+  const r = rows.filter(x => x.snapshot_date === date);
   if (!r.length) return null;
-  return 100 * r.filter(isCited).length / r.length;
+  return window.AkoreScore.computeGeoScore(r).composite;
 }
 
 async function viewHome(c) {
@@ -1071,8 +1087,8 @@ async function viewHome(c) {
   const dates = [...new Set(pmRows.map(r => r.snapshot_date).filter(Boolean))].sort().reverse();
   const latest = dates[0] || null;
   const prev = dates[1] || null;
-  const rate = latest ? rateOn(pmRows, latest) : null;
-  const was = prev ? rateOn(pmRows, prev) : null;
+  const rate = latest ? scoreOn(pmRows, latest) : null;
+  const was = prev ? scoreOn(pmRows, prev) : null;
   const delta = (rate != null && was != null) ? rate - was : null;
   const engines = [...new Set(pmRows.map(r => r.engine).filter(Boolean))];
   const nextRun = rec && rec.nextRunAt ? fmtDate(rec.nextRunAt) : null;
@@ -1097,13 +1113,13 @@ async function viewHome(c) {
     </div>` : `
     <div class="hero-card">
       <div class="hero-label">${t('homeVisibility')}</div>
-      <div class="hero-figure">${rate.toFixed(0)}<span class="hero-unit">%</span></div>
-      <div class="hero-note">${t('homeVisibilityWhat')}</div>
+      <div class="hero-figure">${rate}<span class="hero-unit">/ 100</span></div>
+      <div class="hero-note">${t('homeVisibilityWhat', fmtDate(latest))}</div>
       ${delta == null ? '' : (Math.abs(delta) < 0.5
         ? `<div class="hero-delta flat"><span aria-hidden="true">→</span> ${t('homeFlat', fmtDate(prev))}</div>`
         : `<div class="hero-delta ${delta > 0 ? 'up' : 'down'}">
              <span aria-hidden="true">${delta > 0 ? '▲' : '▼'}</span>
-             ${t('homeDelta', Math.abs(delta).toFixed(0), fmtDate(prev))}</div>`)}
+             ${t('homeDelta', Math.abs(delta), fmtDate(prev))}</div>`)}
     </div>`;
 
   const tile = (v, label, sub) => `
@@ -1214,7 +1230,12 @@ async function loadPromptRows() {
   if (pmRows) return pmRows;
   try {
     const res = await fetch(await window.resultsQuery(clientCompany));
-    pmRows = res.ok ? parseCSV(await res.text()).filter(r => r.brand === clientCompany) : [];
+    // normalizeRow, exactly as the dashboards do it. Every CSV cell arrives as a string, and
+    // the shared score module does arithmetic on them — avg() over string ranks concatenates
+    // instead of adding, which produced a GEO score of 4.1e+131 before this was added.
+    pmRows = res.ok
+      ? parseCSV(await res.text()).map(window.AkoreDashUtil.normalizeRow).filter(r => r.brand === clientCompany)
+      : [];
   } catch { pmRows = []; }
   const byId = new Map();
   for (const r of pmRows) {
@@ -1230,7 +1251,7 @@ async function loadPromptRows() {
   }
   return pmRows;
 }
-const isCited = r => r.brand_cited === '1' || r.brand_cited === 1;
+const isCited = r => !!r.brand_cited;
 
 async function viewPrompts(c) {
   c.innerHTML = `<div class="view"><div class="view-h1">${t('pmTitle')}</div><div class="view-sub">${t('loading')}</div></div>`;
