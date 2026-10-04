@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <script src="/js/auth.js"></script>
+<script src="/js/portal-rail.js"></script>
 <script>window.akoreAuth.useStaffSession();</script>
 <script src="/js/enroll-dialog.js"></script>
 <script src="/js/audit-status.js"></script>
@@ -43,199 +44,7 @@ async function staffLogout() {
 }
 
 </script>
-<style>
-:root {
-  --navy: #6d4fe0;
-  --emerald-700: #0f7d5b;
-  --bg: #f4f6f8;
-  --surface: #FFFFFF;
-  --surface2: #f4f2fb;
-  --border: #e3e6ea;
-  --text: #08090c;
-  --text-dim: #757f8f;
-  --text-mid: #3d4653;
-  --accent: #6d4fe0;
-  --accent-glow: rgba(109,79,224,0.18);
-  --accent-dim: rgba(109,79,224,0.10);
-  --green: #0f7d5b;
-  --green-dim: #eefaf4;
-  --yellow: #8a6a12;
-  --yellow-dim: #fbf1de;
-  --red: #b03a3a;
-  --red-dim: #fce9e9;
-  --radius-xs: 4px;
-  --shadow-xs: 0 1px 2px rgba(16,19,25,0.06);
-  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --fs-h1: 2.5rem;
-  --fs-h2: 1.5rem;
-  --fs-h3: 1.125rem;
-  --fs-eyebrow: 0.6875rem;
-  --mono: "Manrope","Helvetica Neue",Arial,sans-serif;
-  --display: "Montserrat","Helvetica Neue",Arial,sans-serif;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--mono); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 13px; line-height: 1.6; }
-.header {
-  border-bottom: 1px solid var(--border); padding: 20px 40px; display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0; background: rgba(255,255,255,0.92); backdrop-filter: blur(20px); z-index: 100;
-}
-.logo { display: flex; align-items: center; gap: 14px; }
-.logo-lockup { height: 38px; width: auto; display: block; image-rendering: -webkit-optimize-contrast; }
-.logo-icon { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; }
-.logo-icon img { width: 100%; height: 100%; object-fit: contain; }
-.logo-name { font-family: var(--display); font-size: 16px; font-weight: 700; color: var(--text); }
-.logo-sub { font-size: var(--fs-eyebrow); font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.16em; display: flex; align-items: center; gap: 10px; }
-.logo-sub::before { content: ""; display: inline-block; width: 22px; height: 2px; background: var(--accent); border-radius: 2px; flex-shrink: 0; }
-.logo-divider { width: 1px; height: 18px; background: var(--border-bright); }
-.nav-link { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text-mid); text-decoration: none; border: 1px solid var(--border-bright); border-radius: var(--radius-pill); padding: 8px 16px; transition: all var(--dur-base) var(--ease-standard); }
-.nav-link:hover { background: var(--surface2); color: var(--text); }
-.main { max-width: 900px; margin: 0 auto; padding: 48px 24px 80px; }
-.company-picker { display: flex; gap: 10px; align-items: center; margin-bottom: 24px; }
-.company-picker select { font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--radius-md); padding: 10px 14px; outline: none; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); min-width: 220px; }
-.company-picker select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
-.page-title { font-family: var(--display); font-size: var(--fs-h2); font-weight: 700; color: var(--text); margin-bottom: 20px; letter-spacing: -0.01em; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 18px; box-shadow: var(--shadow-sm); }
-.card-title { font-family: var(--display); font-size: var(--fs-h3); font-weight: 700; color: var(--text); margin-bottom: 4px; letter-spacing: -0.01em; }
-.card-caption { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; }
-.badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: var(--radius-pill); letter-spacing: 0.02em; white-space: nowrap; }
-.badge-submitted, .badge-done { background: var(--emerald-100); color: var(--emerald-700); }
-.badge-pending { background: var(--surface2); color: var(--text-dim); }
-.badge-partial { background: var(--yellow-dim); color: var(--yellow); }
-.badge-error { background: var(--red-dim); color: var(--red); }
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--mono); font-weight: 600; font-size: 13px; letter-spacing: 0.01em; padding: 11px 20px; min-height: 40px; border-radius: var(--radius-pill); border: none; cursor: pointer; background: var(--navy); color: white; box-shadow: var(--shadow-sm); transition: background var(--dur-fast) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-fast) var(--ease-standard); white-space: nowrap; text-decoration: none; }
-.btn:hover { background: var(--violet-700); box-shadow: var(--shadow-brand); }
-.btn:active { transform: translateY(1px); }
-.btn-ghost { background: transparent; color: var(--navy); border: 1px solid var(--border-bright); box-shadow: none; }
-.btn-ghost:hover { background: var(--violet-50); box-shadow: none; }
-.btn-sm { padding: 8px 16px; font-size: 11px; min-height: 34px; }
-.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-.field-hint { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
-.geo-slot { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 16px 18px; margin-top: 14px; }
-.geo-slot.is-locked { opacity: 0.55; }
-.geo-slot-head { margin-bottom: 12px; }
-.geo-slot-name { display: block; font-family: var(--display); font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text); }
-.geo-slot-note { display: block; font-size: 11px; color: var(--text-dim); margin-top: 3px; }
-.geo-input { flex: 1; min-width: 260px; font-family: inherit; font-size: 13px; padding: 10px 13px; border: 1px solid var(--border-bright); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); }
-.geo-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
-
-.progress-wrap {
-  width: 100%; height: 12px; background: var(--surface2); border-radius: 999px; overflow: hidden;
-  margin-top: 12px; position: relative; box-shadow: inset 0 1px 2px rgba(8,9,12,0.08);
-}
-.progress-bar {
-  height: 100%; border-radius: 999px; position: relative; overflow: hidden;
-  background: linear-gradient(90deg, var(--violet-500, #8b6ff0), var(--accent));
-  transition: width 0.45s var(--ease-standard);
-  min-width: 0;
-}
-/* The barber-pole is the point of this: work arrives in bursts of 12, so between counter updates a
-   static bar reads as frozen. Motion says "still working" without faking progress it hasn't made. */
-.progress-bar.active::after {
-  content: ""; position: absolute; inset: 0;
-  background-image: repeating-linear-gradient(115deg,
-    rgba(255,255,255,0.28) 0 10px, rgba(255,255,255,0) 10px 22px);
-  animation: barstripe 0.85s linear infinite;
-}
-@keyframes barstripe { from { transform: translateX(0); } to { transform: translateX(-22px); } }
-/* Stalled deliberately stops moving and desaturates — the absence of motion is the signal. */
-.progress-bar.done { background: linear-gradient(90deg, #2e9e6b, #1f7d52); }
-.progress-bar.done::after { content: none; }
-.progress-bar.stalled { background: linear-gradient(90deg, #c9a227, var(--yellow, #b8901f)); }
-.progress-bar.stalled::after { content: none; }
-.progress-pct { margin-left: auto; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
-@media (prefers-reduced-motion: reduce) {
-  .progress-bar.active::after, .progress-bar.indeterminate { animation: none; }
-  .progress-bar { transition: none; }
-}
-/* Used while a run has been triggered but hasn't reported progress yet: there is no percentage
-   to show, so the bar sweeps instead of sitting at 0% looking broken. */
-.progress-bar.indeterminate { width: 32% !important; animation: barsweep 1.15s var(--ease-standard) infinite; }
-@keyframes barsweep { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
-table { width: 100%; border-collapse: collapse; }
-th { background: var(--surface2); padding: 8px 12px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-dim); border-bottom: 1px solid var(--border); white-space: nowrap; }
-td { padding: 10px 12px; font-size: 12px; border-bottom: 1px solid var(--border); color: var(--text-mid); }
-tr:last-child td { border-bottom: none; }
-.empty-state { text-align: center; padding: 30px 20px; color: var(--text-dim); font-size: 13px; }
-code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--radius-xs); }
-.modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(8,9,12,0.5); align-items: center; justify-content: center; z-index: 200; padding: 20px; }
-.modal-backdrop.open { display: flex; }
-.modal-box { background: var(--surface); border-radius: var(--radius); padding: 28px; width: 100%; max-width: 440px; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
-.modal-box.wide { max-width: 900px; }
-/* The editor. Questions are the content; the controls around them stay quiet until hovered. */
-.tpl-section { border: 1px solid var(--border); border-radius: 12px; margin-bottom: 14px; background: var(--surface); }
-.tpl-section[draggable="true"] { transition: box-shadow .12s ease; }
-.tpl-section-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--violet-50, #f6f4fe); border-radius: 12px 12px 0 0; }
-.tpl-sec-title { flex: 1; min-width: 90px; font-weight: 650; font-size: 13.5px; padding: 7px 9px; border: 1px solid transparent; background: transparent; border-radius: 7px; }
-.tpl-sec-title:hover { border-color: var(--border); background: var(--surface); }
-.tpl-sec-title:focus { border-color: var(--accent, #6d4fe0); background: var(--surface); outline: none; }
-.tpl-rows { padding: 2px 0; }
-.tpl-empty { padding: 14px; font-size: 12.5px; color: var(--muted, #7a8496); }
-.tpl-row { display: flex; align-items: flex-start; gap: 9px; padding: 9px 12px; border-top: 1px solid var(--border); }
-.tpl-row:first-child { border-top: none; }
-.tpl-row.off { background: repeating-linear-gradient(45deg, transparent, transparent 7px, rgba(0,0,0,.02) 7px, rgba(0,0,0,.02) 14px); }
-.tpl-row.off .tpl-words input { color: var(--muted, #7a8496); }
-.tpl-words { flex: 1; display: flex; flex-wrap: wrap; gap: 7px; }
-.tpl-words > input[type=text] { flex: 1 1 200px; min-width: 150px; font-size: 13px; padding: 7px 9px; border: 1px solid var(--border); border-radius: 7px; box-sizing: border-box; }
-.tpl-meta { flex-basis: 100%; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.tpl-id { font-size: 10.5px; color: var(--muted, #7a8496); font-family: ui-monospace, monospace; }
-.tpl-note { font-size: 10.5px; color: var(--muted, #7a8496); }
-.tpl-note.warn { color: var(--warning, #b8901f); }
-.tpl-type { font-size: 11px; padding: 3px 22px 3px 7px; border: 1px solid var(--border); border-radius: 6px; background-color: var(--surface); height: auto; width: auto; }
-/* Multiple choice, in the customer's form. */
-.multi-choice { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
-.multi-choice-opt { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; text-transform: none; }
-.multi-choice-opt input { width: auto; margin: 0; }
-.tpl-grip { cursor: grab; color: var(--muted, #b6bdc9); font-size: 15px; line-height: 1.6; user-select: none; }
-.tpl-grip:active { cursor: grabbing; }
-.tpl-icon { border: none; background: transparent; cursor: pointer; font-size: 14px; line-height: 1; padding: 6px; border-radius: 6px; color: var(--muted, #7a8496); }
-.tpl-icon:hover { background: var(--violet-50, #f1eefe); color: var(--text); }
-.tpl-icon.danger:hover { background: #fdecec; color: #b03a3a; }
-.tpl-mini { border: 1px dashed var(--border-strong, #d6dae1); background: transparent; border-radius: 7px; padding: 5px 10px; font-size: 12px; cursor: pointer; color: var(--accent, #6d4fe0); font-family: inherit; }
-.tpl-mini:hover { border-style: solid; }
-/* On/off as a switch: a checkbox reads as "tick to agree", not "this question is asked". */
-.tpl-switch { position: relative; display: inline-block; width: 32px; height: 18px; flex: none; margin-top: 4px; }
-.tpl-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-.tpl-switch span { position: absolute; inset: 0; background: #cfd5de; border-radius: 999px; transition: background .15s ease; cursor: pointer; }
-.tpl-switch span::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: #fff; border-radius: 50%; transition: transform .15s ease; }
-.tpl-switch input:checked + span { background: var(--accent, #6d4fe0); }
-.tpl-switch input:checked + span::after { transform: translateX(14px); }
-.tpl-switch input:focus-visible + span { box-shadow: 0 0 0 3px rgba(109,79,224,.25); }
-/* Dropdown choices, as rows rather than as text someone has to punctuate correctly. */
-.tpl-opts { flex-basis: 100%; margin-top: 4px; padding: 9px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg, #fafbfc); }
-.tpl-opts-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted, #7a8496); margin-bottom: 7px; }
-.tpl-opt { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
-.tpl-opt input { flex: 1 1 120px; min-width: 90px; font-size: 12.5px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; box-sizing: border-box; }
-.tpl-opt .tpl-opt-val { flex: 0 0 110px; font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--muted, #7a8496); }
-@media (max-width: 720px) {
-  .tpl-words > input[type=text] { flex-basis: 100%; }
-  .tpl-opt { flex-wrap: wrap; }
-  .tpl-opt .tpl-opt-val { flex-basis: 100%; }
-}
-.field { margin-bottom: 14px; }
-.field label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--text-dim); margin-bottom: 7px; }
-.field input, .field select { width: 100%; font-family: var(--mono); font-size: 13px; color: var(--text); background: var(--surface); border: 1px solid var(--border-bright); border-radius: var(--radius-md); padding: 11px 14px; outline: none; transition: border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
-.field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus-ring); }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; transform: none; }
-.header-right { display: flex; align-items: center; gap: 12px; }
-.lang-toggle { display: flex; border: 1px solid var(--border-bright); border-radius: var(--radius-pill); overflow: hidden; }
-.lang-btn { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text-mid); background: var(--surface); border: none; padding: 6px 12px; cursor: pointer; }
-.lang-btn.active { background: var(--accent); color: #fff; }
-@media (max-width: 640px) {
-  .header { padding: 14px 16px; flex-wrap: wrap; row-gap: 8px; }
-  .logo-sub, .logo-divider { display: none; }
-  .header-right { flex-wrap: wrap; row-gap: 8px; justify-content: flex-end; }
-  .main { padding: 24px 16px 60px; }
-  .card { padding: 18px 16px; }
-  /* Side-by-side fields (monitoring cadence + start date) can't hold two columns on a phone. */
-  .two-col { grid-template-columns: 1fr; }
-  /* Action rows carry several buttons; let them wrap and be tappable instead of overflowing. */
-  .row { flex-wrap: wrap; row-gap: 8px; }
-  .btn, .btn-sm { min-height: 40px; }
-  /* Inputs at 16px stop iOS Safari zooming the page on focus. */
-  input, select, textarea { font-size: 16px; }
-  .modal-box { padding: 20px 16px; max-height: 88vh; overflow-y: auto; }
-}
-</style>
+<link rel="stylesheet" href="/styles/console.css">
 </head>
 <body>
 
@@ -255,6 +64,11 @@ code { font-family: var(--mono); background: var(--surface2); padding: 1px 5px; 
   </div>
 </header>
 
+<div class="subnav" id="cust-subnav" style="display:none;">
+  <a class="btn btn-ghost btn-sm" href="/portal.html">&larr; Clientes</a>
+  <span class="subnav-name" id="subnav-name"></span>
+  <span class="subnav-state" id="subnav-state"></span>
+</div>
 <main class="main">
   <div class="company-picker">
     <select id="company-select" onchange="if(this.value) location.search = '?company=' + encodeURIComponent(this.value)">
@@ -580,9 +394,13 @@ const T = {
   alreadyRunning: { en: 'An audit is already running for this customer.', es: 'Ya hay una auditoría en curso para este cliente.' }
 };
 let lang = localStorage.getItem('hieronymus_lang') || 'es';
+/* A missing key returns the key instead of throwing. One absent string used to take the whole
+   page down mid-render, which is a very large failure for a very small cause. */
 function t(key, ...args) {
-  const val = T[key][lang];
-  return typeof val === 'function' ? val(...args) : val;
+  const entry = T[key];
+  if (!entry) { console.warn('[console] missing translation key: ' + key); return key; }
+  const val = entry[lang] != null ? entry[lang] : entry.en;
+  return typeof val === 'function' ? val(...args) : (val != null ? val : key);
 }
 function applyStaticLang() {
   document.querySelectorAll('[data-t]').forEach(el => {
@@ -992,120 +810,244 @@ async function loadCompany(company) {
       </div>`;
   }
 
-  main.innerHTML = `
-    <div class="page-title">${esc(company)}</div>
+  /* The customer page is a hub with three things on it — the two inputs (Formulario, Prompts),
+     the work (Auditoría), and the output (Tableros) — and three screens behind it. Which screen
+     is showing comes from the hash, so the sidebar and the browser's back button both behave.
 
-    <div class="card">
-      <div class="card-title">${t('intakeTitle')}</div>
-      ${intakeBlock}
-    </div>
+     Every handler and element id below is the one the existing code already uses. */
+  const fmtShort = d => esc(String(d || '').slice(0, 10));
+  const screen = (location.hash || '').replace('#', '') || 'hub';
+  const intakeDone = !!intakeRes;
 
-    <div class="card">
-      <div class="card-title">${t('promptsTitle')}</div>
-      ${promptsBlock}
-    </div>
+  // ── Formulario ───────────────────────────────────────────────────────────────────────────
+  // Once the client has answered, the form is theirs: we read it, we do not rewrite it. Before
+  // they answer, the only useful thing is shaping the questions they will get.
+  const formScreen = `
+    <div class="scr">
+      <h1 class="scr-h">${t('intakeTitle')}</h1>
+      <p class="scr-p">${intakeDone
+        ? t('submittedOn') + fmtShort(intakeRes.savedAt)
+        : t('noIntakeYet')}</p>
+      <div class="scr-acts">
+        ${intakeDone
+          ? `<a class="btn" href="/intake-view.html?company=${encodeURIComponent(company)}">${t('viewResponses')}</a>`
+          : `<button class="btn" onclick="openIntakeEditor()">${t('tplEditBtn')}</button>`}
+      </div>
+      <p class="scr-note">${tplLive ? t('tplTailored', tplAsked) : t('tplUsingDefault')}${
+        tplRec && tplRec.unreleasedChanges ? ` · <span class="warn">${t('tplUnreleased')}</span>` : ''}</p>
+    </div>`;
 
-    <div class="card" id="geo-card">
-      <div class="card-title">${t('geoTitle')}</div>
-      <div class="card-caption">${t('geoHint')}</div>
-      <div class="geo-slot" id="geo-slot-1">
-        <div class="geo-slot-head">
-          <span class="geo-slot-name">${t('geoSlot1')}</span>
-          <span class="geo-slot-note">${t('geoSlot1Hint')}</span>
+  // ── Prompts (unchanged behaviour) ────────────────────────────────────────────────────────
+  let promptsInner, promptsSummary;
+  if (hasPrompts) {
+    const lines = promptsRes.promptsText
+      ? promptsRes.promptsText.split('\n').map(l => l.trim()).filter(Boolean).length
+      : (promptsRes.promptCount || 0);
+    currentPromptCount = lines;
+    const langs = (promptsRes.languages || ['English']).join(', ');
+    const pendingInternal = !!promptsRes.internalReviewPending;
+    promptsSummary = pendingInternal ? t('awaitingInternalReview')
+      : (promptsRes.approvedAt ? t('approvedOn') + fmtShort(promptsRes.approvedAt) : t('awaitingReview'));
+    promptsInner = `
+      <div class="scr-stats"><span><b>${lines}</b> prompts</span><span>${esc(langs)}</span><span>${fmtShort(promptsRes.generatedAt)}</span></div>
+      ${promptsRes.stats && promptsRes.stats.short > 0 ? `<p class="scr-note warn">${t('promptsShortfall', promptsRes.stats.kept, promptsRes.stats.requested)}</p>` : ''}
+      ${pendingInternal ? `<p class="scr-note warn">${t('internalReviewHint')}</p>` : ''}
+      ${promptsRes.comments ? `<p class="scr-note">${t('clientComments')}${esc(promptsRes.comments)}</p>` : ''}
+      <div class="scr-acts">
+        <a class="btn${pendingInternal ? '' : ' btn-ghost'}" href="${reviewLink(company)}">${pendingInternal ? t('reviewAndReleaseBtn') : t('openInternalReviewBtn')}</a>
+        <button class="btn btn-ghost" onclick="openGenModal()">${t('regeneratePrompts')}</button>
+        <button class="btn btn-ghost" onclick="copyReviewLink('${esc(company)}')">${t('copyReviewLink')}</button>
+      </div>`;
+  } else {
+    promptsSummary = t('notGeneratedYet');
+    promptsInner = `<div class="scr-acts"><button class="btn" onclick="openGenModal()">${t('generatePrompts')}</button></div>`;
+  }
+  const promptsScreen = `<div class="scr"><h1 class="scr-h">${t('promptsTitle')}</h1>
+      <p class="scr-p">${promptsSummary}</p>${promptsInner}</div>`;
+
+  // ── Auditoría: history, and downloading chosen runs ──────────────────────────────────────
+  const auditScreen = `
+    <div class="scr">
+      <h1 class="scr-h">${t('auditStatusTitle')}</h1>
+
+      <section class="blk">
+        <h2 class="blk-h">${t('runsTitle')}</h2>
+        ${runDates.length ? `<div class="runs">${runDates.map(d => {
+          const rs = rows.filter(r => r.snapshot_date === d);
+          const errs = rs.filter(r => r.sentiment === 'error').length;
+          const allFailed = rs.length > 0 && errs === rs.length;
+          const kind = rs.some(r => r.run_type === 'monitoring') ? 'monitoring' : 'diagnostic';
+          return `<div class="run ${allFailed ? 'bad' : (errs ? 'part' : 'ok')}">
+              <span class="run-dot"></span>
+              <span class="run-d">${esc(d)}</span>
+              <span class="run-k">${esc(kind)}</span>
+              <span class="run-n">${rs.length} filas${errs ? ' · ' + errs + ' con error' : ''}</span>
+              <button class="btn btn-ghost btn-sm" onclick="deleteRun('${esc(d)}')">${t('deleteRunBtn')}</button>
+            </div>`;
+        }).join('')}</div>` : `<p class="scr-note">${t('badgeNotYet')}</p>`}
+        ${failedEngines.length ? `<div class="warnbox">${failedEngines.map(eng => {
+          const f = failuresByEngine[eng];
+          return `<div><b>${esc(eng)}</b> — ${f.failed === f.total ? t('engineFailureAll', esc(eng)) : t('engineFailureLine', esc(eng), f.failed, f.total)}
+            ${f.reason ? `<div class="raw">${esc(f.reason.slice(0, 300))}</div>` : ''}</div>`;
+        }).join('')}</div>` : ''}
+      </section>
+
+      <section class="blk">
+        <h2 class="blk-h">Resultados</h2>
+        ${runDates.length ? `
+          <p class="scr-note">Elige las corridas que quieres descargar.</p>
+          <div class="dl">
+            <select id="dl-runs" multiple size="${Math.min(6, runDates.length)}">
+              ${runDates.map(d => {
+                const rs = rows.filter(r => r.snapshot_date === d);
+                return `<option value="${esc(d)}" selected>${esc(d)} — ${rs.length} filas</option>`;
+              }).join('')}
+            </select>
+            <div class="dl-side">
+              <button class="btn" onclick="downloadSelectedRuns()">${t('exportCustomerBtn')}</button>
+              ${isAdmin() ? `<button class="btn btn-ghost danger" onclick="clearResults()">${t('clearResultsBtn')}</button>` : ''}
+            </div>
+          </div>` : `<p class="scr-note">${t('noResultsYet')}</p>`}
+      </section>
+    </div>`;
+
+  // ── Hub ──────────────────────────────────────────────────────────────────────────────────
+  const pill = (st, text) => `<span class="pill ${st}">${text}</span>`;
+  const auditSummary = runDates.length
+    ? `${runDates.length} ${runDates.length === 1 ? t('run') : t('runs')} · última ${fmtShort(runDates[0])}`
+    : t('badgeNotYet');
+
+  const hub = `
+    <div class="hub">
+      <div class="hub-quick">
+        <a class="quick" href="#formulario">
+          <span class="quick-n">${t('intakeTitle')}</span>
+          ${pill(intakeDone ? 'ok' : 'wait', intakeDone ? t('submittedOn') + fmtShort(intakeRes.savedAt) : t('noIntakeYet'))}
+        </a>
+        <a class="quick" href="#prompts">
+          <span class="quick-n">${t('promptsTitle')}</span>
+          ${pill(hasPrompts ? (promptsRes.approvedAt ? 'ok' : 'wait') : 'idle', promptsSummary)}
+        </a>
+        <a class="quick quick-sm" href="#ajustes" title="Llaves de API y usuarios de este cliente">
+          <span class="quick-n">Ajustes</span>
+          <span class="quick-ico" aria-hidden="true">⚙</span>
+        </a>
+      </div>
+
+      <section class="big">
+        <div class="big-top">
+          <div>
+            <h2 class="big-h">${t('auditStatusTitle')}</h2>
+            <p class="big-s">${auditSummary}</p>
+          </div>
+          <a class="btn btn-ghost" href="#auditoria">${t('runsTitle')} &rarr;</a>
         </div>
-        <div class="row" id="geo-form-1" style="gap:8px; flex-wrap:wrap;">
-          <input type="url" id="geo-url-1" class="geo-input" placeholder="${t('geoUrlPlaceholder')}">
-          <button class="btn" id="geo-run-btn-1" onclick="geoRun(1)">${t('geoRunBtn')}</button>
+        <div id="job-status-block" class="big-status"><p class="scr-note">${t('checking')}</p></div>
+        <div class="scr-acts">
+          <button class="btn" id="run-audit-btn" onclick="runAudit()" ${hasPrompts ? '' : `disabled title="${t('generateFirstTitle')}"`}>${t('runAuditBtn')}</button>
+          <button class="btn btn-ghost" id="cancel-audit-btn" onclick="cancelAudit()" style="display:none;">${t('cancelRunBtn')}</button>
         </div>
-        <div id="geo-status-1" class="field-hint" style="margin-top:10px;"></div>
-        <div id="geo-result-1"></div>
-        <div class="row" id="geo-actions-1" style="display:none; gap:8px; margin-top:14px;">
-          <a class="btn btn-ghost btn-sm" id="geo-report-link-1" target="_blank" rel="noopener" href="#">${t('geoOpenReport')}</a>
-          <button class="btn btn-ghost btn-sm" onclick="geoCopyLink(1)">${t('geoCopyLink')}</button>
+      </section>
+
+      <section class="boards">
+        <h2 class="blk-h">${t('dashboardsTitle')}</h2>
+        <div class="board-grid">
+          <div class="board">
+            <span class="board-n">${t('diagnosticDashboard')}</span>
+            ${diagReleased ? pill('ok', t('releasedBadge', fmtShort(mon.diagnosisReleasedAt), esc(mon.diagnosisReleasedBy || ''))) : pill('idle', t('notReleasedBadge'))}
+            <div class="board-acts">
+              <a class="btn btn-ghost btn-sm" href="/dashboard-diagnostic.html?company=${encodeURIComponent(company)}">Abrir</a>
+              <button class="btn btn-sm ${diagReleased ? 'btn-ghost' : ''}" onclick="setDashboardRelease('diagnosis', ${!diagReleased})">${diagReleased ? t('unreleaseBtn') : t('releaseBtn')}</button>
+            </div>
+          </div>
+          <div class="board">
+            <span class="board-n">${t('monitoringDashboard')}</span>
+            ${monReleased ? pill('ok', t('releasedBadge', fmtShort(mon.monitoringReleasedAt), esc(mon.monitoringReleasedBy || ''))) : pill('idle', t('notReleasedBadge'))}
+            <div class="board-acts">
+              <a class="btn btn-ghost btn-sm" href="/dashboard-monitoring.html?company=${encodeURIComponent(company)}">Abrir</a>
+              <button class="btn btn-sm ${monReleased ? 'btn-ghost' : ''}" onclick="setDashboardRelease('monitoring', ${!monReleased})">${monReleased ? t('unreleaseBtn') : t('releaseBtn')}</button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="geo-slot" id="geo-slot-2">
-        <div class="geo-slot-head">
-          <span class="geo-slot-name">${t('geoSlot2')}</span>
-          <span class="geo-slot-note">${t('geoSlot2Hint')}</span>
+      </section>
+
+      <details class="more">
+        <summary>${t('geoTitle')} · ${t('monitoringSettingsTitle')}</summary>
+        <div class="more-grid">
+          <div class="more-box">
+            <div class="more-h">${t('geoTitle')}</div>
+            <p class="scr-note">${t('geoHint')}</p>
+            ${[1, 2].map(n => `
+              <div class="geo-slot" id="geo-slot-${n}">
+                <div class="geo-slot-head"><span class="geo-slot-name">${t('geoSlot' + n)}</span><span class="geo-slot-note">${t('geoSlot' + n + 'Hint')}</span></div>
+                <div class="row" id="geo-form-${n}" style="gap:8px;flex-wrap:wrap;">
+                  <input type="url" id="geo-url-${n}" class="geo-input" placeholder="${t('geoUrlPlaceholder')}">
+                  <button class="btn btn-sm" id="geo-run-btn-${n}" onclick="geoRun(${n})">${t('geoRunBtn')}</button>
+                </div>
+                <div id="geo-status-${n}" class="field-hint" style="margin-top:10px;"></div>
+                <div id="geo-result-${n}"></div>
+                <div class="row" id="geo-actions-${n}" style="display:none;gap:8px;margin-top:12px;">
+                  <a class="btn btn-ghost btn-sm" id="geo-report-link-${n}" target="_blank" rel="noopener" href="#">${t('geoOpenReport')}</a>
+                  <button class="btn btn-ghost btn-sm" onclick="geoCopyLink(${n})">${t('geoCopyLink')}</button>
+                </div>
+              </div>`).join('')}
+          </div>
+          <div class="more-box">
+            <div class="more-h">${t('monitoringSettingsTitle')}</div>
+            <label class="chk"><input type="checkbox" id="mon-enabled" ${monEnabled ? 'checked' : ''}> ${t('monEnableLabel')}</label>
+            <div class="field"><label>${t('monCadenceLabel')}</label>
+              <select id="mon-cadence">${cadOpt('weekly', t('cadWeekly'))}${cadOpt('semimonthly', t('cadSemimonthly'))}${cadOpt('monthly', t('cadMonthly'))}${cadOpt('quarterly', t('cadQuarterly'))}</select></div>
+            <div class="field"><label>${t('monStartLabel')}</label><input type="date" id="mon-start" value="${esc(monStart)}"></div>
+            ${monEnabled && monNext ? `<p class="scr-note">${t('monNextRun', esc(monNext))}</p>` : ''}
+            ${!hasDiagnosis ? `<p class="scr-note warn">${t('monNoDiagnosisWarn')}</p>` : ''}
+            <button class="btn btn-sm" onclick="saveMonitoring()">${t('saveMonitoringBtn')}</button>
+          </div>
         </div>
-        <div class="row" id="geo-form-2" style="gap:8px; flex-wrap:wrap;">
-          <input type="url" id="geo-url-2" class="geo-input" placeholder="${t('geoUrlPlaceholder')}">
-          <button class="btn" id="geo-run-btn-2" onclick="geoRun(2)">${t('geoRunBtn')}</button>
+      </details>
+    </div>`;
+
+  window.__nextStep = !intakeDone ? t('intakeTitle')
+    : !hasPrompts ? t('promptsTitle')
+    : !promptsRes.approvedAt ? t('promptsTitle')
+    : !runDates.length ? t('auditStatusTitle')
+    : (!diagReleased && !monReleased) ? t('dashboardsTitle')
+    : null;
+
+  const settingsScreen = `
+    <div class="scr">
+      <h1 class="scr-h">Ajustes del cliente</h1>
+      <p class="scr-p">Llaves de API y accesos de ${esc(company)}.</p>
+
+      <section class="blk">
+        <h2 class="blk-h">Llaves de API</h2>
+        <p class="scr-note">Cada corrida de este cliente se cobra a sus propias llaves. Nunca se muestran: solo si están configuradas o no.</p>
+        <div id="keys-list"><p class="scr-note">Cargando…</p></div>
+      </section>
+
+      <section class="blk">
+        <h2 class="blk-h">Usuarios</h2>
+        <p class="scr-note">Quién puede entrar a las páginas de este cliente.</p>
+        <div id="cust-users"><p class="scr-note">Cargando…</p></div>
+        <div class="scr-acts" style="margin-top:14px;">
+          <a class="btn btn-ghost" href="/portal.html#/usuarios">Administrar usuarios &rarr;</a>
         </div>
-        <div id="geo-status-2" class="field-hint" style="margin-top:10px;"></div>
-        <div id="geo-result-2"></div>
-        <div class="row" id="geo-actions-2" style="display:none; gap:8px; margin-top:14px;">
-          <a class="btn btn-ghost btn-sm" id="geo-report-link-2" target="_blank" rel="noopener" href="#">${t('geoOpenReport')}</a>
-          <button class="btn btn-ghost btn-sm" onclick="geoCopyLink(2)">${t('geoCopyLink')}</button>
-        </div>
-      </div>
-    </div>
+      </section>
+    </div>`;
 
-    <div class="card">
-      <div class="card-title">${t('auditStatusTitle')}</div>
-      <div id="job-status-block"><div class="field-hint">${t('checking')}</div></div>
-      <div class="row" style="margin-top:12px;">
-        <button class="btn" id="run-audit-btn" onclick="runAudit()" ${hasPrompts ? '' : `disabled title="${t('generateFirstTitle')}"`}>${t('runAuditBtn')}</button>
-        <button class="btn btn-ghost" id="cancel-audit-btn" onclick="cancelAudit()" style="display:none;">${t('cancelRunBtn')}</button>
-      </div>
-    </div>
+  const back = `<a class="btn btn-ghost btn-sm scr-back" href="#">&larr; ${esc(company)}</a>`;
+  main.innerHTML =
+      screen === 'formulario' ? back + formScreen
+    : screen === 'prompts'    ? back + promptsScreen
+    : screen === 'auditoria'  ? back + auditScreen
+    : screen === 'ajustes'    ? back + settingsScreen
+    : hub;
+  if (screen === 'ajustes') { loadCustomerKeys(); loadCustomerUsers(); }
 
-    <div class="card">
-      <div class="card-title">${t('resultsTitle', rows.length, rows.length === 1 ? t('row') : t('rows'),
-        (rows.length ? t('resultsBreakdown', new Set(rows.map(r => r.prompt_id)).size, new Set(rows.map(r => r.engine)).size) : '')
-        + (runDates.length ? ', ' + runDates.length + ' ' + (runDates.length === 1 ? t('run') : t('runs')) : ''))}</div>
-      ${rows.length ? `<div class="row" style="margin-bottom:12px;"><button class="btn btn-ghost btn-sm" onclick="exportCompanyCSV()">${t('exportCustomerBtn')}</button>${isAdmin() ? `<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="clearResults()">${t('clearResultsBtn')}</button>` : ''}</div>` : ''}
-      ${rows.length ? `
-      <div style="overflow-x:auto;">
-        <table>
-          <thead><tr><th>${t('thDate')}</th><th>${t('thEngine')}</th><th>${t('thPrompt')}</th><th>${t('thCategory')}</th><th>${t('thCited')}</th><th>${t('thSentiment')}</th></tr></thead>
-          <tbody>
-            ${rows.slice(0, 5).map(r => `<tr>
-              <td>${esc(r.snapshot_date)}</td>
-              <td>${esc(r.engine)}</td>
-              <td>${esc(r.prompt_id)}</td>
-              <td>${esc(r.topic_cluster)}</td>
-              <td>${r.brand_cited === '1' ? '✓' : '—'}</td>
-              <td>${esc(r.sentiment)}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-      ${rows.length > 5 ? `<div class="field-hint" style="margin-top:10px;">${t('showingRecent', rows.length)}</div>` : ''}
-      ` : `<div class="empty-state">${t('noResultsYet')}</div>`}
-    </div>
-
-    ${runsBlock}
-    ${failureBlock}
-    ${monitoringBlock}
-
-    <div class="card">
-      <div class="card-title">${t('dashboardsTitle')}</div>
-      <div class="row">
-        <a class="btn btn-ghost btn-sm" href="/dashboard-diagnostic.html?company=${encodeURIComponent(company)}">${t('diagnosticDashboard')}</a>
-        <a class="btn btn-ghost btn-sm" href="/dashboard-monitoring.html?company=${encodeURIComponent(company)}">${t('monitoringDashboard')}</a>
-      </div>
-      <div class="card-caption" style="margin-top:18px;">${t('clientAccessHint')}</div>
-      <div class="row" style="margin-top:4px;align-items:center;">
-        <span style="min-width:170px;font-weight:600;">${t('diagReleaseLabel')}</span>
-        ${diagReleased
-          ? `<span class="badge badge-done">${t('releasedBadge', esc((mon.diagnosisReleasedAt || '').slice(0, 10)), esc(mon.diagnosisReleasedBy || ''))}</span>`
-          : `<span class="badge badge-pending">${t('notReleasedBadge')}</span>`}
-        <button class="btn btn-sm ${diagReleased ? 'btn-ghost' : ''}" onclick="setDashboardRelease('diagnosis', ${!diagReleased})">${diagReleased ? t('unreleaseBtn') : t('releaseBtn')}</button>
-      </div>
-      ${!diagReleased && !runDates.length ? `<div class="field-hint" style="margin-top:6px;color:var(--warning);">${t('releaseNoRunsHint')}</div>` : ''}
-      <div class="row" style="margin-top:10px;align-items:center;">
-        <span style="min-width:170px;font-weight:600;">${t('monReleaseLabel')}</span>
-        ${monReleased
-          ? `<span class="badge badge-done">${t('releasedBadge', esc((mon.monitoringReleasedAt || '').slice(0, 10)), esc(mon.monitoringReleasedBy || ''))}</span>`
-          : `<span class="badge badge-pending">${t('notReleasedBadge')}</span>`}
-        <button class="btn btn-sm ${monReleased ? 'btn-ghost' : ''}" onclick="setDashboardRelease('monitoring', ${!monReleased})">${monReleased ? t('unreleaseBtn') : t('releaseBtn')}</button>
-      </div>
-      ${!monReleased && !monEnabled ? `<div class="field-hint" style="margin-top:6px;color:var(--warning);">${t('releaseMonOffHint')}</div>` : ''}
-    </div>
-
-  `;
+  buildSubnav(company);
+  if (!window.__screenNav) {
+    window.__screenNav = true;
+    window.addEventListener('hashchange', () => { if (currentCompany) loadCompany(currentCompany); });
+  }
 
   // A refresh during the start-up window must not come back saying no audit was ever run.
   const pendingSince = auditPendingSince(company);
@@ -1114,6 +1056,38 @@ async function loadCompany(company) {
 
   // The stored scan for this customer, loaded once the card exists in the DOM.
   geoLoad();
+}
+
+/* The page's cards, grouped. Purely presentational: every card keeps its markup, its ids and
+   its handlers — they are only shown one group at a time instead of in one long scroll. */
+const CONSOLE_TABS = [
+  { id: 'formulario', label: 'Formulario' },
+  { id: 'prompts',    label: 'Prompts' },
+  { id: 'sitio',      label: 'Sitio web' },
+  { id: 'auditoria',  label: 'Auditoría' },
+  { id: 'resultados', label: 'Resultados' },
+  { id: 'tableros',   label: 'Tableros' },
+  { id: 'ajustes',    label: 'Ajustes' }
+];
+
+function togglePipelineStep(key) {
+  const el = document.getElementById('pz-' + key);
+  if (!el) return;
+  const wasOpen = el.classList.contains('open');
+  document.querySelectorAll('.pz').forEach(p => p.classList.remove('open'));
+  if (!wasOpen) el.classList.add('open');
+}
+
+/* The header says who, and what the next move is; the pipeline below says everything else. */
+function buildSubnav(company) {
+  const bar = document.getElementById('cust-subnav');
+  if (!bar) return;
+  bar.style.display = '';
+  document.getElementById('subnav-name').textContent = company;
+  const st = document.getElementById('subnav-state');
+  if (st) st.innerHTML = window.__nextStep
+    ? `<span class="badge badge-partial">Sigue: ${esc(window.__nextStep)}</span>`
+    : `<span class="badge badge-done">Todo al día</span>`;
 }
 
 // The primary member's username is the slug of the company name (intake-codes.js generates it
@@ -1141,6 +1115,92 @@ function csvEscape(val) {
   const s = String(val ?? '');
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
+/* GET only ever reports configured / not configured — the key values are never returned by the
+   API to any caller, so there is nothing here to reveal. */
+async function loadCustomerKeys() {
+  const host = document.getElementById('keys-list');
+  if (!host) return;
+  const ENGINES = [['claude', 'Claude'], ['chatgpt', 'ChatGPT'], ['gemini', 'Gemini']];
+  try {
+    const res = await fetch(await window.apiQuery('/api/customer-keys', { company: currentCompany }));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const k = await res.json();
+    host.innerHTML = ENGINES.map(([id, name]) => `
+      <div class="keyrow">
+        <span class="keyrow-n">${name}</span>
+        <span class="badge ${k[id] ? 'badge-done' : 'badge-pending'}">${k[id] ? 'Configurada' : 'Sin configurar'}</span>
+        <div class="keyrow-f" id="keyf-${id}" style="display:none;">
+          <input type="password" id="keyi-${id}" placeholder="Pega la llave nueva" autocomplete="off">
+          <button class="btn btn-sm" onclick="saveCustomerKey('${id}')">Guardar</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleKeyForm('${id}', false)">Cancelar</button>
+        </div>
+        <button class="btn btn-ghost btn-sm keyrow-b" id="keyb-${id}" onclick="toggleKeyForm('${id}', true)">${k[id] ? 'Reemplazar' : 'Agregar'}</button>
+      </div>`).join('');
+  } catch (e) {
+    host.innerHTML = `<p class="scr-note warn">No se pudieron leer las llaves: ${esc(e.message)}</p>`;
+  }
+}
+function toggleKeyForm(engine, show) {
+  const f = document.getElementById('keyf-' + engine), b = document.getElementById('keyb-' + engine);
+  if (!f || !b) return;
+  f.style.display = show ? 'flex' : 'none';
+  b.style.display = show ? 'none' : '';
+  if (show) document.getElementById('keyi-' + engine).focus();
+}
+/* Password-gated like every other outward-facing change: this key is what the customer's runs
+   are billed against, so replacing it silently redirects all of their future spend. */
+async function saveCustomerKey(engine) {
+  const input = document.getElementById('keyi-' + engine);
+  const value = (input && input.value || '').trim();
+  if (!value) { alert('Pega la llave primero.'); return; }
+  if (!(await confirmWithPassword('Guardar llave de API',
+      `Las próximas corridas de <strong>${esc(currentCompany)}</strong> se cobrarán a esta llave de ${esc(engine)}.`))) return;
+  try {
+    const res = await fetch(await window.apiQuery('/api/customer-keys', {}), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ company: currentCompany, [engine]: value })
+    });
+    if (!res.ok) throw new Error(((await res.json().catch(() => ({}))).error) || 'HTTP ' + res.status);
+    input.value = '';
+    await loadCustomerKeys();
+  } catch (e) { alert('No se pudo guardar: ' + e.message); }
+}
+
+async function loadCustomerUsers() {
+  const host = document.getElementById('cust-users');
+  if (!host) return;
+  try {
+    const res = await fetch(await window.apiQuery('/api/intake-codes', { company: currentCompany }));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rec = await res.json();
+    const members = rec.members || [];
+    host.innerHTML = members.length
+      ? `<div class="ulist">${members.map((m, i) => `
+          <div class="urow">
+            <div><div class="urow-name">${esc(m.username)}</div>
+              <div class="urow-sub">${esc(window.akoreRoleLabel(m.role || 'full'))}${i === 0 ? ' · principal' : ''}</div></div>
+            <span class="badge ${m.twoFactorEnabled ? 'badge-done' : 'badge-pending'}">${m.twoFactorEnabled ? 'Autenticación de dos pasos ✓' : 'Sin autenticación de dos pasos'}</span>
+          </div>`).join('')}</div>`
+      : `<p class="scr-note">Esta cuenta no tiene usuarios.</p>`;
+  } catch (e) {
+    host.innerHTML = `<p class="scr-note warn">No se pudieron leer los usuarios: ${esc(e.message)}</p>`;
+  }
+}
+
+function downloadSelectedRuns() {
+  const sel = document.getElementById('dl-runs');
+  const want = sel ? [...sel.selectedOptions].map(o => o.value) : [];
+  const rows = want.length ? currentRows.filter(r => want.includes(r.snapshot_date)) : currentRows;
+  if (!rows.length) { alert('Elige al menos una corrida.'); return; }
+  const csv = CSV_COLUMNS.join(',') + '\n' +
+    rows.map(r => CSV_COLUMNS.map(col => csvEscape(r[col])).join(',') + '\n').join('');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = currentCompany.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') + '_resultados.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function exportCompanyCSV() {
   if (!currentRows.length) return;
   const header = CSV_COLUMNS.join(',') + '\n';

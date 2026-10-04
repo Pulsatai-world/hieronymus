@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <script src="/js/auth.js"></script>
+<script src="/js/portal-rail.js"></script>
 <script>window.akoreAuth.useStaffSession();</script>
 <script src="/js/enroll-dialog.js"></script>
 <script>
@@ -38,64 +39,12 @@ async function staffLogout() {
 }
 
 </script>
-<style>
-:root {
-  --navy: #6d4fe0;
-  --bg: #f4f6f8;
-  --surface: #FFFFFF;
-  --surface2: #f4f2fb;
-  --border: #e3e6ea;
-  --text: #08090c;
-  --text-dim: #757f8f;
-  --text-mid: #3d4653;
-  --accent: #6d4fe0;
-  --accent-dim: rgba(109,79,224,0.10);
-  --red: #b03a3a;
-  --ease-standard: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --fs-h2: 1.5rem;
-  --fs-eyebrow: 0.6875rem;
-  --mono: "Manrope","Helvetica Neue",Arial,sans-serif;
-  --display: "Montserrat","Helvetica Neue",Arial,sans-serif;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--mono); background: var(--bg); color: var(--text); min-height: 100vh; font-size: 13px; line-height: 1.6; }
-.header {
-  border-bottom: 1px solid var(--border); padding: 20px 40px; display: flex; align-items: center; justify-content: space-between;
-  position: sticky; top: 0; background: rgba(255,255,255,0.92); backdrop-filter: blur(20px); z-index: 100;
-}
-.logo { display: flex; align-items: center; gap: 14px; }
-.logo-lockup { height: 38px; width: auto; display: block; image-rendering: -webkit-optimize-contrast; }
-.logo-icon { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; }
-.logo-icon img { width: 100%; height: 100%; object-fit: contain; }
-.logo-name { font-family: var(--display); font-size: 16px; font-weight: 700; color: var(--text); }
-.logo-sub { font-size: var(--fs-eyebrow); font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.16em; display: flex; align-items: center; gap: 10px; }
-.logo-sub::before { content: ""; display: inline-block; width: 22px; height: 2px; background: var(--accent); border-radius: 2px; flex-shrink: 0; }
-.logo-divider { width: 1px; height: 18px; background: var(--border-bright); }
-.nav-link { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text-mid); text-decoration: none; border: 1px solid var(--border-bright); border-radius: var(--radius-pill); padding: 8px 16px; transition: all var(--dur-base) var(--ease-standard); }
-.nav-link:hover { background: var(--surface2); color: var(--text); }
-.main { max-width: 900px; margin: 0 auto; padding: 48px 24px 80px; }
-.page-title { font-family: var(--display); font-size: var(--fs-h2); font-weight: 700; color: var(--text); margin-bottom: 4px; letter-spacing: -0.01em; }
-.page-sub { font-size: 12px; color: var(--text-dim); margin-bottom: 28px; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 18px; box-shadow: var(--shadow-sm); }
-.card-title { font-family: var(--display); font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
-.kv { display: grid; grid-template-columns: 220px 1fr; gap: 4px 16px; margin-bottom: 10px; }
-.kv .k { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; color: var(--text-dim); padding-top: 2px; }
-.kv .v { font-size: 13px; color: var(--text); white-space: pre-wrap; word-break: break-word; }
-.kv .v:empty::before, .kv .v.empty::before { content: '—'; color: var(--text-dim); }
-.sub-card { background: var(--surface2); border: 1px solid var(--border-bright); border-radius: var(--radius-md); padding: 14px 16px; margin-bottom: 10px; }
-.sub-card:last-child { margin-bottom: 0; }
-.tag-list { display: flex; flex-wrap: wrap; gap: 6px; }
-.tag { display: inline-flex; font-size: 11px; font-weight: 600; background: var(--accent-dim); color: var(--accent); border-radius: 999px; padding: 3px 10px; }
-.empty-state { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 13px; }
-.meta-line { font-size: 11px; color: var(--text-dim); margin-bottom: 20px; }
-@media (max-width: 640px) { .kv { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .header { padding: 14px 16px; } .logo-sub, .logo-divider { display: none; } }
-</style>
+<link rel="stylesheet" href="/styles/console.css">
 </head>
 <body>
 
-<header class="header">
-  <div class="logo">
+<header class="header" hidden>
+  <div class="logo" onclick="location.href='/portal.html'" style="cursor:pointer;" title="Akore Labs — inicio">
     <img class="logo-lockup" src="/brand/logo-horizontal-light.png" alt="Akore Labs">
     <span class="logo-divider"></span>
     <div class="logo-sub">Intake Responses</div>
@@ -104,6 +53,10 @@ body { font-family: var(--mono); background: var(--bg); color: var(--text); min-
   <button class="nav-link" onclick="staffLogout()" style="cursor:pointer;">Log out</button>
 </header>
 
+<div class="subnav">
+      <a class="btn btn-ghost btn-sm" href="javascript:history.back()">← Volver</a>
+      <span class="subnav-name">Respuestas del formulario</span>
+    </div>
 <main class="main" id="main-content">
   <div class="empty-state">Loading…</div>
 </main>

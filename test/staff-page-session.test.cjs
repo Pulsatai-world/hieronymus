@@ -24,6 +24,17 @@ const ASKS_SERVER = /akoreAuth\.restore\s*\(|akoreRequireStaff\s*\(/;
 // Pages that gate on a staff session. A page added here without the two calls fails this test.
 const STAFF_PAGES = ['portal.html', 'index.html', 'intake-view.html', 'geo-report.html'];
 
+// The page's own scripts, concatenated. Only same-origin paths this repo actually ships — a CDN
+// URL or a missing file contributes nothing rather than throwing.
+function ownScripts(html) {
+  let out = '';
+  for (const m of html.matchAll(/<script[^>]+src="(\/[^"]+)"/g)) {
+    const f = path.join(ROOT, m[1].replace(/^\//, '').split('?')[0]);
+    if (fs.existsSync(f)) out += '\n' + fs.readFileSync(f, 'utf8');
+  }
+  return out;
+}
+
 let failures = 0;
 const check = (name, ok, detail) => {
   console.log((ok ? '  PASS  ' : '  FAIL  ') + name + (ok ? '' : '   -> ' + detail));
@@ -37,17 +48,24 @@ for (const page of STAFF_PAGES) {
   if (!fs.existsSync(file)) { check(page + ' exists', false, 'file not found'); continue; }
   const html = fs.readFileSync(file, 'utf8');
 
+  // A page's behaviour is the HTML plus the modules it loads. Scanning only the HTML passed any
+  // page that kept its logic inline and failed one that moved it into a module — a verdict about
+  // where code is written, not about what the page does. The audience declaration stays an
+  // HTML-only check below: it has to run inline, right after auth.js, before anything reads a
+  // session. Where the session is restored may live in the page's own script.
+  const code = html + ownScripts(html);
+
   check(page + ' — declares the staff audience',
     /window\.akoreAuth\.useStaffSession\s*\(/.test(html),
     'add <script>window.akoreAuth.useStaffSession();</script> after /js/auth.js');
 
   check(page + ' — restores the session from the server',
-    ASKS_SERVER.test(html),
+    ASKS_SERVER.test(code),
     'call await window.akoreAuth.restore(), or window.akoreRequireStaff(), before deciding who the visitor is');
 
   // The specific mistake: gating on the in-memory payload with no restore anywhere on the page.
-  const gatesOnWho = /akoreAuth\.who\s*\(\s*\)[^\n]*kind/.test(html);
-  const restores = ASKS_SERVER.test(html);
+  const gatesOnWho = /akoreAuth\.who\s*\(\s*\)[^\n]*kind/.test(code);
+  const restores = ASKS_SERVER.test(code);
   check(page + ' — does not gate on who() without restoring first',
     !gatesOnWho || restores,
     'who() returns memory, not a session; restore() is what asks the server');

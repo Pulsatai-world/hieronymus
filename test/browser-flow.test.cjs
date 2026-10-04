@@ -533,10 +533,24 @@ function scrypt(pw) {
   // ── One sign-in page, not six ──
   console.log("\nOne sign-in page:");
   {
+    // A page is its markup plus the modules it loads. Reading only the HTML asked where the code
+    // was written rather than what the page does: the console grew a full sign-in form — its own
+    // username, password and code fields — and passed this check, because the handler sat in
+    // js/portal-app.js. js/auth.js is deliberately excluded: it DEFINES the sign-in the one login
+    // page calls, so counting it would fail every page for using the shared implementation.
+    const pageSource = page => {
+      let out = fs.readFileSync(page, 'utf8');
+      for (const m of out.matchAll(/<script[^>]+src="(\/[^"]+)"/g)) {
+        const rel = m[1].replace(/^\//, '').split('?')[0];
+        if (rel === 'js/auth.js' || !fs.existsSync(rel)) continue;
+        out += '\n' + fs.readFileSync(rel, 'utf8');
+      }
+      return out;
+    };
     for (const page of ['portal.html', 'index.html', 'intake-view.html']) {
-      const src = fs.readFileSync(page, 'utf8');
+      const src = pageSource(page);
       check(page + ' carries no sign-in form of its own',
-        !/id="pw-input"/.test(src) && !/akoreSignIn/.test(src),
+        !/id="pw-input"/.test(src) && !/akoreSignIn\s*\(/.test(src),
         'it still has its own gate');
       check(page + ' sends people to the one that exists',
         /akoreGoToLogin\s*\(/.test(src), 'it does not redirect to the login page');
