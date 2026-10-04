@@ -116,6 +116,325 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--i
 .tag { display: inline-flex; font-size: 11px; font-weight: 600; background: var(--accent-light); color: var(--accent); border-radius: var(--radius-pill); padding: 3px 10px; }
 @media (max-width: 640px) { .kv { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .app-header { padding: 0 16px; } .logo-sub, .logo-divider { display: none; } }
+
+/* ───────────────────────────────────────────────────────────────────────────────────────────
+   App shell: full-bleed layout with a rail that expands on hover.
+   Overrides the page styles above rather than replacing them, so the access gate and the
+   settings modal keep working exactly as they did.
+   ─────────────────────────────────────────────────────────────────────────────────────────── */
+html, body { height: 100%; }
+body.app-mode { margin: 0; overflow: hidden; background: var(--ice, #f4f6f8); }
+body.app-mode .app-header { display: none; }
+
+.shell { display: none; height: 100vh; }
+body.app-mode .shell { display: flex; }
+
+/* The rail. Collapsed it is an icon strip; expanded it overlays the content rather than
+   pushing it, so the main view never reflows and nothing jumps while you read. */
+.rail {
+  position: relative; z-index: 40; flex: 0 0 var(--rail-w, 68px);
+  background: #0f1117; color: #c9c2e8;
+  display: flex; flex-direction: column;
+  transition: flex-basis .18s var(--ease-standard, cubic-bezier(.2,.6,.2,1));
+}
+.rail-inner {
+  position: absolute; inset: 0 auto 0 0; width: var(--rail-w, 68px);
+  background: #0f1117; display: flex; flex-direction: column; overflow: hidden;
+  transition: width .18s var(--ease-standard, cubic-bezier(.2,.6,.2,1));
+  box-shadow: 0 0 0 rgba(0,0,0,0);
+}
+.rail:hover .rail-inner,
+.rail.pinned .rail-inner,
+.rail:focus-within .rail-inner { width: 248px; box-shadow: 14px 0 34px rgba(8,9,12,.28); }
+
+.rail-top { display: flex; align-items: center; gap: 12px; padding: 18px 16px 22px; min-height: 64px; }
+.rail-mark { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 9px; background: var(--violet-600, #6d4fe0);
+  display: flex; align-items: center; justify-content: center; font-family: var(--font-display, sans-serif);
+  font-weight: 800; color: #fff; font-size: 17px; }
+.rail-co { font-family: var(--font-display, sans-serif); font-weight: 700; font-size: 14px; color: #fff;
+  white-space: nowrap; overflow: hidden; }
+
+.rail-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 10px; }
+.rail-item {
+  display: flex; align-items: center; gap: 14px; padding: 11px 10px; border-radius: 10px;
+  color: #c9c2e8; background: none; border: 0; width: 100%; cursor: pointer; text-align: left;
+  font-family: inherit; font-size: 14px; white-space: nowrap; position: relative;
+}
+.rail-item:hover { background: rgba(255,255,255,.07); color: #fff; }
+.rail-item.active { background: var(--violet-600, #6d4fe0); color: #fff; font-weight: 600; }
+.rail-item:focus-visible { outline: 2px solid var(--emerald-400, #34c592); outline-offset: 2px; }
+.rail-ico { flex: 0 0 24px; display: flex; align-items: center; justify-content: center; }
+.rail-ico svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round; }
+.rail-label { overflow: hidden; }
+/* A count of things waiting on the client. Shown on the collapsed rail too — the whole point
+   is to be visible before anyone opens the menu. */
+.rail-dot { position: absolute; left: 30px; top: 7px; min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 9px; background: var(--emerald-500, #1ea97c); color: #06231a; font-size: 11px;
+  font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.rail-foot { margin-top: auto; padding: 12px 10px 16px; display: flex; flex-direction: column; gap: 2px; }
+
+.content { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; }
+/* A view that manages its own height — the prompts panes, an embedded page — turns the shell's
+   scroller off, so there is exactly one thing scrolling and it is never the page. */
+.content.locked { overflow: hidden; }
+.view-h1 { font-family: var(--font-display, sans-serif); font-size: 26px; font-weight: 700; color: var(--dark, #08090c); }
+.view-sub { color: var(--ink-60, #5b6472); font-size: 14px; margin-bottom: 26px; max-width: 70ch; }
+
+/* Tableros — the two choices */
+.pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 20px; }
+.pick-card { display: block; text-decoration: none; color: inherit; background: #fff;
+  border: 1px solid var(--line, #e3e6ea); border-radius: 16px; padding: 26px; position: relative;
+  transition: transform .14s, box-shadow .14s, border-color .14s; }
+.pick-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(16,19,25,.12); border-color: var(--violet-300, #bcaef7); }
+.pick-card.locked { opacity: .62; pointer-events: none; background: var(--ice2, #f4f2fb); }
+.pick-ico { width: 46px; height: 46px; border-radius: 12px; background: var(--violet-100, #ece7fd);
+  color: var(--violet-600, #6d4fe0); display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+.pick-ico svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pick-title { font-family: var(--font-display, sans-serif); font-size: 19px; font-weight: 700; margin-bottom: 6px; }
+.pick-desc { font-size: 13.5px; color: var(--ink-60, #5b6472); line-height: 1.55; }
+.pick-tag { position: absolute; top: 20px; right: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; padding: 4px 9px; border-radius: 999px; background: var(--violet-100, #ece7fd); color: var(--violet-700, #4834b0); }
+.pick-tag.wait { background: #fff3e0; color: #8a5a00; }
+
+/* Prompts monitoreados — list left, answers right */
+.pm-card { text-align: left; background: #fff; border: 1px solid var(--line, #e3e6ea); border-left: 3px solid transparent;
+  border-radius: 12px; padding: 13px 15px; cursor: pointer; font-family: inherit; width: 100%;
+  transition: border-color .12s, box-shadow .12s; }
+.pm-card:hover { border-color: var(--violet-300, #bcaef7); }
+.pm-card.active { border-left-color: var(--violet-600, #6d4fe0); box-shadow: 0 6px 18px rgba(16,19,25,.09); }
+.pm-card-top { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.pm-code { font-family: var(--font-mono, monospace); font-size: 11px; font-weight: 700; color: var(--violet-600, #6d4fe0); }
+.pm-text { font-size: 13.5px; line-height: 1.45; color: var(--dark, #08090c); }
+.pm-pill { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+.pm-pill.yes { background: var(--emerald-100, #d5f4e8); color: var(--emerald-700, #0f7d5b); }
+.pm-pill.no { background: #f1f2f4; color: #6b7280; }
+
+.pm-detail-q { font-size: 16px; line-height: 1.5; font-weight: 600; margin-bottom: 4px; }
+.eng-head { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; }
+.eng-name { font-family: var(--font-display, sans-serif); font-weight: 700; font-size: 14px; }
+
+.pm-empty, .view-empty { background: #fff; border: 1px dashed var(--line, #e3e6ea); border-radius: 14px;
+  padding: 44px 28px; text-align: center; color: var(--ink-60, #5b6472); font-size: 14px; }
+
+.panel { background: #fff; border: 1px solid var(--line, #e3e6ea); border-radius: 16px; padding: 24px; margin-bottom: 18px; }
+.panel-title { font-family: var(--font-display, sans-serif); font-weight: 700; font-size: 16px; margin-bottom: 14px; }
+
+@media (max-width: 900px) {
+  .pm { grid-template-columns: 1fr; }
+  .pm-list { max-height: none; }
+  .view { padding: 24px 18px 60px; }
+}
+
+/* ── Layout corrections ──────────────────────────────────────────────────────────────────── */
+/* Content is no longer centred in a column: with a rail on the left, centring left a dead
+   gutter beside it. Views start where the rail ends. */
+.view { max-width: none; margin: 0; padding: 30px 38px 60px; }
+.panel-desc { color: var(--ink-60,#5b6472); font-size: 13.5px; line-height: 1.55; margin-bottom: 16px; max-width: 70ch; }
+.muted { color: var(--ink-60,#5b6472); }
+
+/* The rail mark holds the real Akore mark rather than a letter. */
+.rail-mark { background: transparent; padding: 0; }
+.rail-mark img { width: 36px; height: 36px; display: block; border-radius: 9px; }
+
+/* Framed pages — a dashboard or the intake form — inside the shell, so the rail stays put. */
+.framewrap { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.framebar { flex: 0 0 auto; display: flex; align-items: center; gap: 14px;
+  padding: 10px 20px; border-bottom: 1px solid var(--line,#e3e6ea); background: #fff; }
+.frametitle { font-family: var(--font-display,sans-serif); font-weight: 700; font-size: 14px; }
+.frame { flex: 1 1 auto; width: 100%; border: 0; display: block; background: var(--ice,#f4f6f8); }
+
+/* Pick cards are buttons now (they open in-shell), so reset the button chrome. */
+.pick-card { font-family: inherit; text-align: left; width: 100%; cursor: pointer; }
+.pick-card:disabled { cursor: default; }
+
+/* ── Prompts: list left, one block per date with engines side by side ────────────────────── */
+/* Fills its scroll container exactly; the panes inside do all the scrolling. */
+.pm-page { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.review-bar { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap; padding: 12px 20px; background: var(--violet-50,#f6f3fe);
+  border-bottom: 1px solid var(--violet-100,#ece7fd); font-size: 14px; }
+
+/* A fixed two-pane frame that owns the viewport height, so each pane scrolls inside itself
+   instead of the page scrolling and clipping whatever happened to be at the fold. */
+/* grid-template-rows: minmax(0,1fr) is the load-bearing part. A grid row defaults to `auto`,
+   which sizes to its tallest child — so the answers pane grew to its full content height, its
+   own overflow never engaged, and the whole page scrolled instead. minmax(0,…) lets the row be
+   shorter than its content, which is what makes the panes scroll rather than the page. */
+.pm { flex: 1 1 auto; display: grid; grid-template-columns: 340px minmax(0,1fr);
+  grid-template-rows: minmax(0, 1fr); min-height: 0; overflow: hidden;
+  gap: 0;
+  /* Explicit, because an earlier rule in this file sets align-items:start. With `start` the
+     panes size to their content instead of to the row, so the answers pane grew past the
+     viewport and never scrolled. */
+  align-items: stretch; }
+.pm-side { display: flex; flex-direction: column; min-height: 0;
+  border-right: 1px solid var(--line,#e3e6ea); background: #fff; }
+.pm-side-head { display: flex; align-items: baseline; justify-content: space-between;
+  padding: 22px 20px 10px; }
+.pm-side-title { font-family: var(--font-display,sans-serif); font-weight: 700; font-size: 17px; }
+.pm-side-count { font-size: 12px; color: var(--ink-60,#5b6472); }
+.pm-search { margin: 0 20px 12px; font-family: inherit; font-size: 13px; padding: 9px 12px;
+  border: 1px solid var(--line,#e3e6ea); border-radius: 9px; }
+.pm-search:focus { outline: none; border-color: var(--violet-400,#9b86f2); box-shadow: 0 0 0 3px rgba(109,79,224,.12); }
+
+/* The list scrolls on its own and ends with real breathing room, so the last card finishes
+   cleanly instead of being sliced by the container edge. */
+/* Height is set in JS to a whole number of cards, so the list can never end on a sliced one.
+   overflow-y:scroll rather than auto: the track is always there, so the boundary reads as
+   "there is more below" instead of as the list simply stopping. */
+/* scrollbar-gutter AND ::-webkit-scrollbar together. Measured in Chrome: neither on its own
+   reserves any width here — the bar stays an overlay that is invisible until you scroll, which
+   made the list look like it simply stopped rather than scrolled. */
+.pm-list { flex: 0 0 auto; min-height: 0; overflow-y: scroll; max-height: none;
+  scrollbar-gutter: stable;
+  padding: 0 6px 0 14px; display: flex; flex-direction: column; gap: 7px;
+  /* Quantising the container only guarantees a clean edge at rest; once scrolled, cards would
+     sit half-visible again. `proximity` settles on a card boundary without fighting the user
+     the way `mandatory` does. */
+  scroll-snap-type: y proximity; }
+.pm-card { scroll-snap-align: start; }
+.pm-list::-webkit-scrollbar { width: 10px; }
+.pm-list::-webkit-scrollbar-track { background: transparent; }
+.pm-list::-webkit-scrollbar-thumb { background: #d7dbe2; border-radius: 99px;
+  border: 3px solid #fff; background-clip: padding-box; }
+.pm-list::-webkit-scrollbar-thumb:hover { background: #b9bfc9; background-clip: padding-box; border: 3px solid #fff; }
+/* Every card the same height, so "a whole number of cards" is a real measurement.
+   flex:0 0 84px, not just height: flex items shrink by default, and in a fixed-height column
+   37 cards were being squashed to fit instead of scrolling — which clipped the prompt text away
+   and left the pills overlapping each other. */
+/* Height comes from the list, which divides its own height into equal whole cards — see
+   fitPromptList(). flex:0 0 auto, not a bare height: flex items shrink by default, and in a
+   fixed-height column 15 cards were squashed to fit instead of scrolling. */
+.pm-card { flex: 0 0 auto; height: var(--pm-card-h, 84px); box-sizing: border-box; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center; }
+.pm-card { border: 1px solid transparent; border-left: 3px solid transparent; border-radius: 10px;
+  padding: 12px 13px; background: transparent; box-shadow: none; }
+.pm-card:hover { background: var(--ice2,#f4f2fb); border-color: transparent; }
+.pm-card.active { background: var(--violet-50,#f6f3fe); border-left-color: var(--violet-600,#6d4fe0); box-shadow: none; }
+.pm-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.pm-text { font-size: 13px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Same scrollbar treatment as the list: gutter + webkit, or the bar is an invisible overlay. */
+.pm-main { min-height: 0; overflow-y: scroll; scrollbar-gutter: stable;
+  display: flex; flex-direction: column; }
+.pm-main::-webkit-scrollbar { width: 10px; }
+.pm-main::-webkit-scrollbar-track { background: transparent; }
+.pm-main::-webkit-scrollbar-thumb { background: #d7dbe2; border-radius: 99px;
+  border: 3px solid var(--ice,#f4f6f8); background-clip: padding-box; }
+.pm-main::-webkit-scrollbar-thumb:hover { background: #b9bfc9; background-clip: padding-box; border: 3px solid var(--ice,#f4f6f8); }
+.pm-main-head { position: sticky; top: 0; z-index: 2; background: var(--ice,#f4f6f8);
+  padding: 22px 28px 14px; border-bottom: 1px solid var(--line,#e3e6ea); }
+.pm-detail-q { font-size: 17px; line-height: 1.45; font-weight: 600; margin-bottom: 9px; max-width: 80ch; }
+.pm-detail-meta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12px; }
+.pm-select { font-family: inherit; font-size: 12.5px; padding: 6px 10px; border: 1px solid var(--line,#e3e6ea);
+  border-radius: 8px; background: #fff; margin-left: auto; }
+.pm-main-body { padding: 22px 28px 60px; }
+
+.date-block { margin-bottom: 26px; }
+.date-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.date-label { font-family: var(--font-display,sans-serif); font-weight: 700; font-size: 13px;
+  color: var(--violet-700,#4834b0); background: var(--violet-100,#ece7fd);
+  padding: 4px 11px; border-radius: 999px; white-space: nowrap; }
+.date-rule { flex: 1 1 auto; height: 1px; background: var(--line,#e3e6ea); }
+
+/* Engines side by side for a single date. They collapse to one column when there is not
+   enough width to read three at once. */
+.eng-row { display: grid; grid-template-columns: repeat(var(--cols,3), minmax(0,1fr)); gap: 14px; }
+.eng-col { background: #fff; border: 1px solid var(--line,#e3e6ea); border-radius: 13px;
+  padding: 15px 16px; display: flex; flex-direction: column; min-width: 0; }
+.eng-head { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-bottom: 10px; padding-bottom: 9px; border-bottom: 1px solid var(--line,#e3e6ea); }
+.eng-name { font-family: var(--font-display,sans-serif); font-weight: 700; font-size: 13px; }
+.eng-body { font-size: 13px; line-height: 1.62; color: #2a2f3a; white-space: pre-wrap; word-break: break-word; }
+.eng-body strong { font-weight: 700; }
+
+/* ── Settings: three separate things, three separate panels ──────────────────────────────── */
+.field-grid { display: grid; gap: 10px; max-width: 360px; margin-bottom: 14px; }
+.field-grid input { font-family: inherit; font-size: 14px; padding: 10px 12px;
+  border: 1px solid var(--line,#e3e6ea); border-radius: 9px; }
+.field-grid input:focus { outline: none; border-color: var(--violet-400,#9b86f2); box-shadow: 0 0 0 3px rgba(109,79,224,.12); }
+.acct { display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; color: var(--ink-60,#5b6472); }
+.acct span { font-family: var(--font-mono,monospace); }
+
+@media (max-width: 1100px) { .eng-row { grid-template-columns: 1fr; } }
+@media (max-width: 860px) {
+  .pm { grid-template-columns: 1fr; }
+  .pm-side { border-right: 0; border-bottom: 1px solid var(--line,#e3e6ea); max-height: 44vh; }
+}
+
+/* Settings menu rows */
+.set-list { display: flex; flex-direction: column; border: 1px solid var(--line,#e3e6ea);
+  border-radius: 14px; overflow: hidden; background: #fff; max-width: 680px; }
+.set-row { display: flex; align-items: center; gap: 16px; width: 100%; text-align: left;
+  font-family: inherit; background: none; border: 0; border-bottom: 1px solid var(--line,#e3e6ea);
+  padding: 18px 20px; cursor: pointer; }
+.set-row:last-child { border-bottom: 0; }
+.set-row:hover { background: var(--ice2,#f4f2fb); }
+.set-row-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
+.set-row-title { font-weight: 600; font-size: 14.5px; color: var(--dark,#08090c); }
+.set-row-desc { font-size: 12.5px; color: var(--ink-60,#5b6472); line-height: 1.45; }
+.set-row-value { font-size: 13px; color: var(--ink-60,#5b6472); white-space: nowrap; }
+.set-row-chev { font-size: 22px; line-height: 1; color: #b9bfc9; }
+
+/* ── Inicio ──────────────────────────────────────────────────────────────────────────────── */
+.home-top { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 20px; align-items: start; margin-bottom: 30px; }
+.home-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.home-h2 { font-family: var(--font-display,sans-serif); font-weight: 700; font-size: 15px;
+  margin: 0 0 14px; color: var(--dark,#08090c); }
+
+/* Hero figure: the one number the screen leads with. */
+.hero-card { background: #0f1117; color: #fff; border-radius: 18px; padding: 26px 26px 24px;
+  position: relative; overflow: hidden; }
+.hero-card::after { content: ''; position: absolute; right: -60px; top: -70px; width: 240px; height: 240px;
+  border-radius: 50%; background: radial-gradient(circle, rgba(109,79,224,.5), transparent 70%); }
+.hero-label { position: relative; z-index: 1; font-size: 11.5px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: #c9c2e8; }
+.hero-figure { position: relative; z-index: 1; font-family: var(--font-display,sans-serif);
+  font-size: 68px; font-weight: 800; line-height: 1.05; margin-top: 10px; font-variant-numeric: tabular-nums; }
+.hero-unit { font-size: 30px; font-weight: 700; margin-left: 3px; color: #c9c2e8; }
+.hero-note { position: relative; z-index: 1; font-size: 12.5px; color: #c9c2e8; margin-top: 4px; line-height: 1.5; }
+.hero-delta { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 7px;
+  margin-top: 16px; font-size: 12.5px; font-weight: 600; padding: 6px 11px; border-radius: 999px;
+  background: rgba(255,255,255,.1); }
+.hero-delta.up { color: #7bdcb6; } .hero-delta.down { color: #f3b0b0; } .hero-delta.flat { color: #c9c2e8; }
+.hero-none { position: relative; z-index: 1; font-size: 14px; color: #c9c2e8; margin-top: 14px; line-height: 1.6; }
+
+/* Status card. Colour is the last of three signals, after the icon and the words. */
+.action { display: flex; gap: 14px; border-radius: 14px; padding: 16px 18px; border: 1px solid var(--line,#e3e6ea);
+  background: #fff; }
+.action.todo { border-color: #f0d9a8; background: #fffaf0; }
+.action.ok { border-color: var(--emerald-100,#d5f4e8); background: var(--emerald-50,#eefaf4); }
+.action-ico { flex: 0 0 22px; }
+.action-ico svg { width: 22px; height: 22px; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.action.todo .action-ico svg { stroke: #b07d16; }
+.action.ok .action-ico svg { stroke: var(--emerald-600,#159066); }
+.action-title { font-weight: 700; font-size: 14.5px; margin-bottom: 3px; }
+.action-why { font-size: 13px; color: var(--ink-60,#5b6472); line-height: 1.5; }
+.action-cta { margin-top: 12px; }
+
+/* KPI row of stat tiles. */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.tile { background: #fff; border: 1px solid var(--line,#e3e6ea); border-radius: 14px; padding: 16px 17px; min-width: 0; }
+.tile-v { font-family: var(--font-display,sans-serif); font-size: 25px; font-weight: 700;
+  color: var(--dark,#08090c); line-height: 1.15; font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-l { font-size: 12px; color: var(--ink-60,#5b6472); margin-top: 5px; }
+.tile-s { font-size: 11.5px; color: #9aa3ae; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 1000px) { .home-top { grid-template-columns: 1fr; } }
+
+/* Activity timeline */
+.tl { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line,#e3e6ea);
+  border-radius: 14px; background: #fff; overflow: hidden; }
+.tl-item { display: flex; align-items: center; gap: 14px; padding: 13px 18px;
+  border-bottom: 1px solid var(--line,#e3e6ea); font-size: 13.5px; }
+.tl-item:last-child { border-bottom: 0; }
+.tl-dot { flex: 0 0 7px; height: 7px; border-radius: 50%; background: var(--violet-300,#bcaef7); }
+.tl-when { flex: 0 0 120px; color: var(--ink-60,#5b6472); font-variant-numeric: tabular-nums; }
+.tl-what { color: var(--dark,#08090c); }
 </style>
 </head>
 <body>
@@ -146,6 +465,20 @@ body { font-family: var(--font-body); background: var(--surface); color: var(--i
 </div>
 
 <main class="main" id="main-content"></main>
+
+<div class="shell" id="shell">
+  <nav class="rail" id="rail" aria-label="Secciones">
+    <div class="rail-inner">
+      <div class="rail-top">
+        <div class="rail-mark"><img src="/brand/logo-mark.png" alt="Akore Labs"></div>
+        <div class="rail-co" id="rail-co"></div>
+      </div>
+      <div class="rail-nav" id="rail-nav"></div>
+      <div class="rail-foot" id="rail-foot"></div>
+    </div>
+  </nav>
+  <div class="content" id="content"></div>
+</div>
 
 <div class="modal-backdrop" id="settings-modal">
   <div class="modal-box">
@@ -190,9 +523,6 @@ let clientSubmittedAt = '';
 let clientUsername = '';
 let clientRole = 'full';
 let intakeResponsesLoaded = false;
-function findMember(group, username) {
-  return (group.members || []).find(m => m.username === username);
-}
 
 const T = {
   logoSub: { en: 'GEO Audit — Client Portal', es: 'Auditoría GEO · Portal del cliente' },
@@ -267,7 +597,7 @@ function t(key, ...args) {
   return typeof val === 'function' ? val(...args) : val;
 }
 function applyStaticLang() {
-  document.getElementById('logo-sub').textContent = t('logoSub');
+  const sub = document.getElementById('logo-sub'); if (sub) sub.textContent = t('logoSub');
   document.getElementById('gate-title').textContent = t('gateTitle');
   document.getElementById('gate-desc').textContent = t('gateDesc');
   document.getElementById('gate-username-input').placeholder = t('usernamePlaceholder');
@@ -284,7 +614,7 @@ function setLang(newLang) {
   lang = newLang;
   localStorage.setItem('hieronymus_lang', lang);
   applyStaticLang();
-  if (document.getElementById('main-content').style.display === 'block') showApp();
+  if (document.body.classList.contains('app-mode')) { renderRail(); go(currentView); }
 }
 
 // ── Settings modal ──
@@ -451,16 +781,6 @@ function parseCSV(text) {
     .map(r => { const obj = {}; headers.forEach((h, idx) => obj[h] = r[idx]); return obj; });
 }
 
-function titleRow() {
-  const settingsBtn = clientRole === 'viewer' ? '' : `<button class="btn-ghost-sm" onclick="openSettings()">${t('settingsBtn')}</button>`;
-  // Staff looking at a customer's portal get the one control that makes sense for them: back to
-  // that customer. They are not signed in as the customer, so there is no session here to end.
-  const viaStaff = window.akoreIsStaffBypass && window.akoreIsStaffBypass();
-  const leave = viaStaff
-    ? `<a class="btn-ghost-sm" href="${window.homeHref(clientCompany)}">${t('backToCustomer', clientCompany)}</a>`
-    : `<button class="btn-ghost-sm" onclick="clientLogout()">${t('logoutBtn')}</button>`;
-  return `<div class="page-title-row"><div class="page-title">${esc(clientCompany)}</div><div style="display:flex; gap:8px;">${settingsBtn}${leave}</div></div>`;
-}
 function clientLogout() {
   // Ends the session on the server too, so signing out really signs out — see js/auth.js.
   if (window.clientLogoutAll) return window.clientLogoutAll();
@@ -468,189 +788,697 @@ function clientLogout() {
   location.href = location.pathname;
 }
 
-function kv(label, value) {
-  const v = value === undefined || value === null || value === '' ? '' : esc(value);
-  return `<div class="kv"><div class="k">${esc(label)}</div><div class="v${v ? '' : ' empty'}">${v}</div></div>`;
-}
-function tagList(items) {
-  if (!items || !items.length) return '<span style="color:var(--ink-60)">—</span>';
-  return `<div class="tag-list">${items.map(i => `<span class="tag">${esc(i)}</span>`).join('')}</div>`;
-}
 
-function intakeCard() {
-  const pending = !clientSubmittedAt;
-  return `
-    <div class="card card-col">
-      <div class="card-row-top">
-        <div>
-          <div class="card-title">${t('intakeCardTitle')}</div>
-          ${pending
-            ? `<div class="card-desc">${t('intakeDescPending')}</div>`
-            : `<div class="status-pill">${t('intakeSubmittedOn', esc(new Date(clientSubmittedAt).toLocaleDateString()))}</div>`}
-        </div>
-        ${pending ? `<a class="card-link" href="/intake.html?username=${encodeURIComponent(clientUsername)}">${t('completeIntakeBtn')}</a>` : ''}
-      </div>
-      ${!pending ? `
-        <button type="button" class="link-btn" id="intake-toggle-btn" onclick="toggleIntakeResponses()">${t('viewResponsesLink')}</button>
-        <div class="kv-panel" id="intake-responses-panel" style="display:none;"></div>
-      ` : ''}
-    </div>
-  `;
-}
 
-async function toggleIntakeResponses() {
-  const panel = document.getElementById('intake-responses-panel');
-  const btn = document.getElementById('intake-toggle-btn');
-  const isOpen = panel.style.display !== 'none';
-  if (isOpen) {
-    panel.style.display = 'none';
-    btn.textContent = t('viewResponsesLink');
-    return;
-  }
-  panel.style.display = 'block';
-  btn.textContent = t('hideResponsesLink');
-  if (intakeResponsesLoaded) return;
-  panel.innerHTML = `<div class="empty-state">${t('loadingResponses')}</div>`;
-  try {
-    const res = await fetch(await window.intakeQuery(clientCompany));
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const record = await res.json();
-    const d = record.intake || {};
-    const g = d.general || {}, w = d.websites || {}, c = d.customer || {}, p = d.problem || {},
-          j = d.jobToBeDone || {}, cat = d.category || {}, comp = d.competitors || {},
-          sp = d.searchPatterns || {}, diff = d.differentiators || {}, pf = d.proof || {};
-    panel.innerHTML = `
-      <div class="kv-card"><div class="kv-card-title">General</div>
-        ${kv('Website', g.website)}${kv('Industry', g.industry)}${kv('Contact', g.contact)}
-        ${kv('Role', g.role)}${kv('Email', g.email)}${kv('Primary language', g.language)}
-      </div>
-      <div class="kv-card"><div class="kv-card-title">Websites</div>
-        ${kv('Primary site', w.primarySite)}${kv('Known issues', w.knownIssues)}
-      </div>
-      <div class="kv-card"><div class="kv-card-title">Customer</div>
-        ${kv('Ideal customer', c.idealCustomer)}${kv('Trigger', c.trigger)}
-      </div>
-      <div class="kv-card"><div class="kv-card-title">Problem</div>
-        ${kv('Description', p.description)}${kv('Pain type', p.painType)}
-      </div>
-      <div class="kv-card"><div class="kv-card-title">Job to be done</div>
-        ${kv('Outcome', j.outcome)}${kv('Metrics', j.metrics)}
-      </div>
-      <div class="kv-card"><div class="kv-card-title">Category</div>
-        ${kv('Category', cat.category)}${kv('Elevator pitch', cat.elevatorPitch)}
-      </div>
-      <div class="kv-card"><div class="kv-card-title">Competitors</div>
-        ${kv('Competitors', comp.competitors)}${kv('Status quo', comp.statusQuo)}
-      </div>
-      <div class="kv-card"><div class="kv-card-title">Search patterns</div>
-        ${kv('FAQ questions', sp.faqQuestions)}${kv('Objections', sp.objections)}
-      </div>
-      <div class="kv-card"><div class="kv-card-title">Differentiators</div>
-        ${kv('Why choose us', diff.whyChoose)}${kv('Strongest fit', diff.strongest)}
-      </div>
-      <div class="kv-card"><div class="kv-card-title">Proof</div>
-        ${kv('Star clients', pf.starClients)}${kv('Years in business', pf.yearsBusiness)}
-        <div class="kv"><div class="k">Brands mentioned</div><div class="v">${tagList(pf.brands)}</div></div>
-      </div>
-    `;
-    intakeResponsesLoaded = true;
-  } catch (err) {
-    panel.innerHTML = `<div class="empty-state">${t('failedToLoadResponses')}${esc(err.message)}</div>`;
-  }
-}
 
-function promptsCard() {
-  return `
-    <div class="card">
-      <div>
-        <div class="card-title">${t('promptsCardTitle')}</div>
-        <div class="card-desc">${t('promptsCardDesc')}</div>
-      </div>
-      <a class="card-link" href="/prompt-review.html?username=${encodeURIComponent(clientUsername)}">${t('reviewPromptsBtn')}</a>
-    </div>
-  `;
-}
 
 async function showApp() {
   document.getElementById('access-gate').style.display = 'none';
-  const main = document.getElementById('main-content');
-  main.style.display = 'block';
-  main.innerHTML = `${titleRow()}<div class="empty-state">${t('loading')}</div>`;
+  document.getElementById('main-content').style.display = 'none';
+  document.body.classList.add('app-mode');
 
-  let hasRuns = false, promptsExist = false, promptsApprovedAt = '';
-  try {
-    const res = await fetch(await window.resultsQuery(clientCompany));
-    if (!res.ok) throw new Error('results not authorised');
-    const rows = parseCSV(await res.text());
-    hasRuns = rows.some(r => r.brand === clientCompany);
-  } catch { /* fall back to "not ready" below */ }
+  // Whether anything is waiting on the client decides the rail badge, so it is resolved before
+  // the first paint rather than appearing a second later.
   try {
     const pr = await fetch(await window.apiQuery('/api/prompts', { company: clientCompany }));
-    if (pr.ok) { const pd = await pr.json(); promptsExist = !!(pd && pd.promptsText); promptsApprovedAt = (pd && pd.approvedAt) || ''; }
-  } catch { /* treat as not-generated */ }
+    if (pr.ok) { const pd = await pr.json(); promptsPending = !!(pd && pd.promptsText) && !pd.approvedAt; }
+  } catch { promptsPending = false; }
 
-  const intakeDone = !!clientSubmittedAt;
-  const promptsDone = !!promptsApprovedAt;
-  // Highlight the single step the client should act on now (in priority order).
-  const cur = !intakeDone ? 1 : (promptsExist && !promptsDone ? 2 : (hasRuns ? 3 : 0));
-  const cls = (done, locked, n) => `card wf-step${done ? ' done' : ''}${locked ? ' locked' : ''}${cur === n ? ' current' : ''}`;
-  const uname = encodeURIComponent(clientUsername);
-
-  // Step 1 — Intake
-  const step1 = `
-    <div class="${cls(intakeDone, false, 1)}">
-      <div class="wf-num">${intakeDone ? '✓' : '1'}</div>
-      <div class="wf-body">
-        <div class="card-title">${t('wfIntakeTitle')}</div>
-        <div class="card-desc">${intakeDone ? t('wfIntakeDone', esc(new Date(clientSubmittedAt).toLocaleDateString())) : t('wfIntakeTodo')}</div>
-        <div class="wf-action">${intakeDone
-          ? `<a class="card-link" href="/intake.html?username=${uname}">${t('wfEditIntake')}</a>
-             <button type="button" class="link-btn" id="intake-toggle-btn" onclick="toggleIntakeResponses()" style="margin-left:14px;">${t('viewResponsesLink')}</button>`
-          : `<a class="btn-accent" href="/intake.html?username=${uname}">${t('completeIntakeBtn')}</a>`}</div>
-        ${intakeDone ? `<div class="kv-panel" id="intake-responses-panel" style="display:none; margin-top:12px;"></div>` : ''}
-      </div>
-    </div>`;
-
-  // Step 2 — Review prompts
-  let s2status, s2action = '';
-  if (!intakeDone) { s2status = t('wfPromptsLocked'); }
-  else if (!promptsExist) { s2status = t('wfPromptsWaiting'); }
-  else if (!promptsDone) { s2status = t('wfPromptsReady'); s2action = `<a class="btn-accent" href="/prompt-review.html?username=${uname}">${t('reviewPromptsBtn')}</a>`; }
-  else { s2status = t('wfPromptsDone', esc(new Date(promptsApprovedAt).toLocaleDateString())); s2action = `<a class="card-link" href="/prompt-review.html?username=${uname}">${t('wfViewPrompts')}</a>`; }
-  const step2 = `
-    <div class="${cls(promptsDone, !intakeDone, 2)}">
-      <div class="wf-num">${promptsDone ? '✓' : '2'}</div>
-      <div class="wf-body">
-        <div class="card-title">${t('wfPromptsTitle')}</div>
-        <div class="card-desc">${s2status}</div>
-        ${s2action ? `<div class="wf-action">${s2action}</div>` : ''}
-      </div>
-    </div>`;
-
-  // Step 3 — Dashboard. A run has to exist AND staff has to have released it; monitoring is
-  // released independently, so a client can have one dashboard and not the other.
-  const diagShown = hasRuns && clientDiagnosisReleased;
-  const monShown = clientMonitoringReleased;
-  // Step 3 — Dashboard
-  const step3 = `
-    <div class="${cls(diagShown, !diagShown, 3)}">
-      <div class="wf-num">${diagShown ? '✓' : '3'}</div>
-      <div class="wf-body">
-        <div class="card-title">${t('wfDashTitle')}</div>
-        <div class="card-desc">${diagShown ? t('wfDashReady') : (hasRuns ? t('wfDashPreparing') : t('wfDashLocked'))}</div>
-        ${diagShown || monShown ? `<div class="wf-action">
-          ${diagShown ? `<a class="btn-accent" href="/dashboard-diagnostic.html?company=${encodeURIComponent(clientCompany)}">${t('wfOpenDashboard')}</a>` : ''}
-          ${monShown ? `<a class="card-link" href="/dashboard-monitoring.html?company=${encodeURIComponent(clientCompany)}" style="${diagShown ? 'margin-left:14px;' : ''}">${t('monTitle')}</a>` : ''}
-        </div>` : ''}
-      </div>
-    </div>`;
-
-  main.innerHTML = `
-    ${titleRow()}
-    <div class="page-sub">${t('wfIntro')}</div>
-    <div class="wf">${step1}${step2}${step3}</div>
-  `;
+  if (!window.__railWired) { wireRail(); window.__railWired = true; }
+  const fromHash = (location.hash || '').replace('#/', '');
+  go(VIEWS.includes(fromHash) ? fromHash : 'home');
 }
+
+window.addEventListener('hashchange', () => {
+  const v = (location.hash || '').replace('#/', '');
+  if (VIEWS.includes(v) && v !== currentView) go(v);
+});
+
+
+/* The intake record as readable panels. Lifted verbatim out of toggleIntakeResponses() so the
+   new Intake view and the old collapsible render from one place. */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   App shell: rail navigation and the views.
+   The access gate, the session handling and the settings modal above are unchanged.
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+const TT = {
+  navHome:{en:'Home',es:'Inicio'},
+  homeTitle:{en:'Home',es:'Inicio'},
+  homeHello:{en:c=>c,es:c=>c},
+  homeSub:{en:'Where your AI visibility stands, and anything waiting on you.',
+           es:'Cómo va tu visibilidad en IA, y lo que está esperando por ti.'},
+  homeVisibility:{en:'AI visibility',es:'Visibilidad en IA'},
+  homeVisibilityWhat:{en:'How often the engines recommend you when asked a question in your market.',
+                      es:'Con qué frecuencia los motores te recomiendan al responder una pregunta de tu sector.'},
+  homeDelta:{en:(n,d)=>n+' points vs. '+d, es:(n,d)=>n+' puntos vs. '+d},
+  homeFlat:{en:d=>'Unchanged vs. '+d, es:d=>'Sin cambio vs. '+d},
+  homeNoRuns:{en:'Your first measurement has not run yet. This fills in as soon as it does.',
+              es:'Tu primera medición aún no se ha corrido. Esto se llena en cuanto suceda.'},
+  homeNeedIntake:{en:'Your intake form is not finished',es:'Falta completar tu formulario'},
+  homeNeedIntakeWhy:{en:'Every question we ask the AI engines is built from your answers, so nothing starts until this is in.',
+                     es:'Cada pregunta que hacemos a los motores se construye con tus respuestas, así que nada empieza sin esto.'},
+  homeNeedReview:{en:'Prompts are waiting for your review',es:'Hay prompts esperando tu revisión'},
+  homeNeedReviewWhy:{en:'Check the questions we plan to ask on your behalf, and change any that do not sound right.',
+                     es:'Revisa las preguntas que haremos en tu nombre y cambia las que no suenen bien.'},
+  homeAllClear:{en:'Nothing needs you right now',es:'No hay nada pendiente de tu parte'},
+  homeAllClearWhy:{en:'We will let you know when the next measurement is ready.',
+                   es:'Te avisamos cuando esté lista la siguiente medición.'},
+  homeTilePrompts:{en:'Prompts monitored',es:'Prompts monitoreados'},
+  homeTileEngines:{en:'Engines asked',es:'Motores consultados'},
+  homeTileLast:{en:'Last measurement',es:'Última medición'},
+  homeTileLastSub:{en:n=>n+(n===1?' run so far':' runs so far'),es:n=>n+(n===1?' medición hasta ahora':' mediciones hasta ahora')},
+  homeTileNext:{en:'Next measurement',es:'Próxima medición'},
+  homeTileNextNone:{en:'Monitoring not scheduled',es:'Monitoreo no programado'},
+  homeActivity:{en:'Recent activity',es:'Actividad reciente'},
+  evIntake:{en:'You submitted the intake form',es:'Enviaste el formulario de intake'},
+  evDiag:{en:'Your diagnosis dashboard was released',es:'Se publicó tu tablero de diagnóstico'},
+  evMon:{en:'Your monitoring dashboard was released',es:'Se publicó tu tablero de monitoreo'},
+  evRun:{en:'Measurement run across all engines',es:'Medición ejecutada en todos los motores'},
+  evNone:{en:'Nothing has happened on your account yet.',es:'Todavía no hay actividad en tu cuenta.'},
+  navDashboards:{en:'Dashboards',es:'Tableros'}, navPrompts:{en:'Monitored prompts',es:'Prompts monitoreados'},
+  navIntake:{en:'Intake form',es:'Formulario'}, navSettings:{en:'Settings',es:'Ajustes'},
+  navLogout:{en:'Sign out',es:'Cerrar sesión'}, navBackStaff:{en:'Back to customer',es:'Volver al cliente'},
+  navBack:{en:'Back',es:'Volver'},
+
+  dashTitle:{en:'Dashboards',es:'Tableros'},
+  dashSub:{en:'Two views of how AI engines answer questions in your market.',
+           es:'Dos vistas de cómo los motores de IA responden preguntas en tu mercado.'},
+  diagName:{en:'Diagnosis',es:'Diagnóstico'},
+  diagDesc:{en:'Your starting point: one measurement of where you stand today, question by question.',
+            es:'Tu punto de partida: una medición de dónde estás hoy, pregunta por pregunta.'},
+  monName:{en:'Monitoring',es:'Monitoreo'},
+  monDesc:{en:'The same questions re-asked over time, so you can see what moves.',
+           es:'Las mismas preguntas repetidas en el tiempo, para ver qué cambia.'},
+  tagReady:{en:'Ready',es:'Listo'}, tagPreparing:{en:'Being prepared',es:'En preparación'},
+  noDashYet:{en:'Your dashboards appear here once your first audit has run and we have reviewed it.',
+             es:'Tus tableros aparecen aquí una vez que corre tu primera auditoría y la revisamos.'},
+
+  pmTitle:{en:'Monitored prompts',es:'Prompts monitoreados'},
+  pmSub:{en:'Every question we put to the AI engines on your behalf, and what each one answered.',
+         es:'Cada pregunta que hacemos a los motores de IA en tu nombre, y lo que respondió cada uno.'},
+  pmNone:{en:'No prompts have been run yet. Once your first audit completes, every question and answer shows up here.',
+          es:'Todavía no se han corrido prompts. Cuando termine tu primera auditoría, cada pregunta y respuesta aparecerá aquí.'},
+  pmAllDates:{en:'All dates',es:'Todas las fechas'},
+  pmCited:{en:'Recommended',es:'Recomendado'}, pmNotCited:{en:'Not recommended',es:'No recomendado'},
+  pmAnswers:{en:n=>n+(n===1?' answer':' answers'),es:n=>n+(n===1?' respuesta':' respuestas')},
+  pmPrompts:{en:n=>n+(n===1?' prompt':' prompts'),es:n=>n+(n===1?' prompt':' prompts')},
+  pmNoAnswers:{en:'No answers match the filters.',es:'Ninguna respuesta coincide con los filtros.'},
+  pmNoText:{en:'No answer was captured.',es:'No se guardó una respuesta.'},
+  pmNoRun:{en:'Not asked on this date.',es:'No se preguntó en esta fecha.'},
+  pmReviewBanner:{en:'New prompts are waiting for your review.',es:'Hay prompts nuevos esperando tu revisión.'},
+  pmReviewBtn:{en:'Review prompts',es:'Revisar prompts'},
+  pmSearch:{en:'Search prompts…',es:'Buscar prompts…'},
+
+  inTitle:{en:'Intake form',es:'Formulario de intake'},
+  inSub:{en:'What you told us about your business. This is what every prompt is built from.',
+         es:'Lo que nos contaste sobre tu negocio. De aquí sale cada prompt.'},
+  inNone:{en:"You haven't submitted the intake form yet.",es:'Todavía no has enviado el formulario.'},
+  inOpen:{en:'Complete the form',es:'Completar el formulario'},
+
+  setTitle:{en:'Settings',es:'Ajustes'}, setSub:{en:'Your account and how this portal behaves.',es:'Tu cuenta y cómo se comporta este portal.'},
+  setLangTitle:{en:'Language',es:'Idioma'},
+  setLangDesc:{en:"The language you'll see each time you sign in.",es:'El idioma que verás cada vez que inicies sesión.'},
+  setPwTitle:{en:'Change password',es:'Cambiar contraseña'},
+  setPwDesc:{en:'Pick something you do not use anywhere else.',es:'Elige algo que no uses en ningún otro sitio.'},
+  set2fa:{en:'Two-step authentication',es:'Autenticación de dos pasos'},
+  set2faShort:{en:'Replace the authenticator app on your account.',es:'Cambia la app de autenticación de tu cuenta.'},
+  set2faState:{en:'How your account is protected.',es:'Cómo está protegida tu cuenta.'},
+  set2faOn:{en:'Two-step sign-in is on',es:'El inicio de sesión en dos pasos está activo'},
+  set2faHow:{en:'Every sign-in asks for a code from your authenticator app as well as your password.',
+             es:'Cada inicio de sesión pide un código de tu app de autenticación además de tu contraseña.'},
+  set2faAsk:{en:'Lost your authenticator? Write to us',es:'¿Perdiste tu autenticador? Escríbenos'},
+  set2faMailSubject:{en:'Reset two-step authentication',es:'Reiniciar autenticación de dos pasos'},
+  set2faDesc:{en:'Replace the authenticator app on your account. You will need your current app to confirm — if you have lost it, contact us and we will reset it for you.',
+              es:'Cambia la app de autenticación de tu cuenta. Necesitas la app actual para confirmar; si la perdiste, escríbenos y la reiniciamos por ti.'},
+  set2faBtn:{en:'Replace authenticator',es:'Cambiar autenticador'},
+  setAccount:{en:'Account',es:'Cuenta'}
+};
+Object.assign(T, TT);
+
+const VIEWS = ['home','dashboards','prompts','intake','settings'];
+let currentView = 'home';
+let pmRows=null, pmPrompts=[], pmSelected=null, pmDate='', pmQuery='';
+let promptsPending = false;
+
+const ICON = {
+  home:'<svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.8"/></svg>',
+  dashboards:'<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>',
+  prompts:'<svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20.5l1.5-4.4A8.3 8.3 0 0 1 3.6 11.5 8.4 8.4 0 0 1 12 3.1a8.4 8.4 0 0 1 9 8.4Z"/></svg>',
+  intake:'<svg viewBox="0 0 24 24"><path d="M14 2H6.5A1.5 1.5 0 0 0 5 3.5v17A1.5 1.5 0 0 0 6.5 22h11a1.5 1.5 0 0 0 1.5-1.5V7Z"/><path d="M14 2v5h5"/><path d="M9 13h6M9 17h4"/></svg>',
+  settings:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.9 2.9l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-3-1.2l-.1.1a2 2 0 1 1-2.9-2.9l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.4 7l-.1-.1a2 2 0 1 1 2.9-2.9l.1.1a1.7 1.7 0 0 0 2.9-1.2V2a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.9 2.9l-.1.1a1.7 1.7 0 0 0 1.2 2.9H22a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>',
+  out:'<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>'
+};
+
+function renderRail() {
+  document.getElementById('rail-co').textContent = clientCompany;
+  const item = (id,key,badge) =>
+    `<button class="rail-item${currentView===id?' active':''}" onclick="go('${id}')" title="${esc(t(key))}">
+       <span class="rail-ico">${ICON[id]}</span><span class="rail-label">${esc(t(key))}</span>
+       ${badge?`<span class="rail-dot">${badge}</span>`:''}</button>`;
+  document.getElementById('rail-nav').innerHTML =
+    item('home','navHome') +
+    item('dashboards','navDashboards') + item('prompts','navPrompts', promptsPending?'!':'') +
+    item('intake','navIntake') + item('settings','navSettings');
+  const viaStaff = window.akoreIsStaffBypass && window.akoreIsStaffBypass();
+  document.getElementById('rail-foot').innerHTML = viaStaff
+    ? `<a class="rail-item" href="${window.homeHref(clientCompany)}"><span class="rail-ico">${ICON.out}</span><span class="rail-label">${esc(t('navBackStaff'))}</span></a>`
+    : `<button class="rail-item" onclick="clientLogout()"><span class="rail-ico">${ICON.out}</span><span class="rail-label">${esc(t('navLogout'))}</span></button>`;
+}
+
+/* Touch has no hover, so the rail would sit permanently collapsed on a phone. A tap pins it
+   open, a tap elsewhere closes it, and keyboard users get the same through :focus-within. */
+function wireRail() {
+  const rail = document.getElementById('rail');
+  rail.addEventListener('click', e => {
+    if (window.matchMedia('(hover: hover)').matches) return;
+    if (e.target.closest('.rail-item')) return;
+    rail.classList.toggle('pinned');
+  });
+  document.addEventListener('click', e => { if (!rail.contains(e.target)) rail.classList.remove('pinned'); });
+}
+
+let lastListView = 'home';
+function go(view) {
+  if (!VIEWS.includes(view)) view = 'home';
+  if (view === 'home' || view === 'dashboards') lastListView = view;
+  currentView = view;
+  location.hash = '#/' + view;
+  renderRail();
+  const c = document.getElementById('content');
+  c.scrollTop = 0;
+  // Prompts manages its own two scroll panes; dashboards and intake open a full-height frame.
+  c.classList.toggle('locked', view === 'prompts' || view === 'intake');
+  if (view !== 'settings') settingsPane = '';
+  if (view === 'home') viewHome(c);
+  else if (view === 'dashboards') viewDashboards(c);
+  else if (view === 'prompts') viewPrompts(c);
+  else if (view === 'intake') viewIntake(c);
+  else viewSettings(c);
+}
+
+/* Anything that used to be its own page — a dashboard, the intake form — opens in a frame inside
+   the shell instead of navigating away, because navigating away took the rail with it. The frame
+   is same-origin, so its own page chrome can be hidden once it loads: the rail is the navigation
+   now, and two sets of back links on one screen is worse than none. */
+function openFramed(c, src, title, backKey) {
+  c.classList.add('locked');
+  c.innerHTML = `<div class="framewrap">
+      <div class="framebar">
+        <button class="btn-ghost-sm" onclick="go('${backKey}')">&larr; ${esc(t('navBack'))}</button>
+        <span class="frametitle">${esc(title)}</span>
+      </div>
+      <iframe class="frame" id="view-frame" src="${src}" title="${esc(title)}"></iframe>
+    </div>`;
+  const f = document.getElementById('view-frame');
+  f.addEventListener('load', () => {
+    try {
+      const d = f.contentDocument;
+      if (!d) return;
+      // Only the page's own navigation is hidden — the rail replaces it.
+      //
+      // Hiding a sticky header is not free: everything sticky below it carries a top offset
+      // measured from that header (the intake form has a step bar at top:64px and a progress
+      // rail at top:117px), and removing the header leaves them floating over the content.
+      // Patching named selectors missed one and then the other, so the offsets are recomputed
+      // from what is actually on the page instead of being guessed.
+      const header = d.querySelector('.app-header');
+      const shift = header ? header.getBoundingClientRect().height : 0;
+      const st = d.createElement('style');
+      st.textContent = '.headnav{display:none !important}.app-header{display:none !important}';
+      d.head.appendChild(st);
+      if (shift) {
+        for (const el of d.querySelectorAll('*')) {
+          const cs = f.contentWindow.getComputedStyle(el);
+          if (cs.position !== 'sticky') continue;
+          const top = parseFloat(cs.top);
+          if (!isFinite(top) || top <= 0) continue;
+          el.style.top = Math.max(0, top - shift) + 'px';
+        }
+      }
+    } catch (e) { /* cross-origin should not happen here; nothing to do if it does */ }
+  });
+}
+
+// ── 0. Inicio ──────────────────────────────────────────────────────────────────────────────
+/* The question a client opens a portal with is "is anything waiting on me, and what changed?".
+ * One headline number answers the second; a single action card answers the first.
+ *
+ * Deliberately not a chart. A handful of current values is a KPI row of stat tiles, and the
+ * number the screen leads with is a hero figure — a one-bar bar chart of the same data would
+ * say less and take more room. The trends live on the dashboards, which is where someone goes
+ * once this screen has told them whether it is worth going.
+ */
+let homeExtra = null;
+
+/* One date format everywhere. A bare 'YYYY-MM-DD' handed to new Date() is parsed as UTC
+   midnight, which in any negative-offset timezone renders as the day before — that is why the
+   next run on the 1st was showing as the 31st. Split and build a local date instead. */
+function fmtDate(v) {
+  if (!v) return '';
+  const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+  if (isNaN(d)) return String(v);
+  return d.toLocaleDateString(lang === 'es' ? 'es-MX' : 'en-US',
+    { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+async function loadHomeExtra() {
+  if (homeExtra) return homeExtra;
+  homeExtra = {};
+  try {
+    const res = await fetch(await window.apiQuery('/api/intake-codes', { company: clientCompany }));
+    if (res.ok) homeExtra = await res.json();
+  } catch { /* the next-run line simply does not render */ }
+  return homeExtra;
+}
+
+/* Citation rate for one snapshot, on the same basis the dashboards use: prompts that name the
+ * company are excluded, because the engine naming it back is not visibility. */
+function rateOn(rows, date) {
+  const r = rows.filter(x => x.snapshot_date === date && x.topic_cluster !== 'Brand');
+  if (!r.length) return null;
+  return 100 * r.filter(isCited).length / r.length;
+}
+
+async function viewHome(c) {
+  c.innerHTML = `<div class="view"><div class="view-h1">${t('homeTitle')}</div><div class="view-sub">${t('loading')}</div></div>`;
+  await loadPromptRows();
+  const rec = await loadHomeExtra();
+
+  const dates = [...new Set(pmRows.map(r => r.snapshot_date).filter(Boolean))].sort().reverse();
+  const latest = dates[0] || null;
+  const prev = dates[1] || null;
+  const rate = latest ? rateOn(pmRows, latest) : null;
+  const was = prev ? rateOn(pmRows, prev) : null;
+  const delta = (rate != null && was != null) ? rate - was : null;
+  const engines = [...new Set(pmRows.map(r => r.engine).filter(Boolean))];
+  const nextRun = rec && rec.nextRunAt ? fmtDate(rec.nextRunAt) : null;
+
+  // ── what, if anything, is waiting on them ──
+  let action = '';
+  if (!clientSubmittedAt) {
+    action = actionCard('todo', t('homeNeedIntake'), t('homeNeedIntakeWhy'),
+      `<a class="btn-accent" style="width:auto;display:inline-block;" href="/intake.html?username=${encodeURIComponent(clientUsername)}">${t('inOpen')}</a>`);
+  } else if (promptsPending) {
+    action = actionCard('todo', t('homeNeedReview'), t('homeNeedReviewWhy'),
+      `<a class="btn-accent" style="width:auto;display:inline-block;" href="/prompt-review.html?username=${encodeURIComponent(clientUsername)}">${t('pmReviewBtn')}</a>`);
+  } else {
+    action = actionCard('ok', t('homeAllClear'), t('homeAllClearWhy'), '');
+  }
+
+  // ── the headline ──
+  const hero = rate == null ? `
+    <div class="hero-card">
+      <div class="hero-label">${t('homeVisibility')}</div>
+      <div class="hero-none">${t('homeNoRuns')}</div>
+    </div>` : `
+    <div class="hero-card">
+      <div class="hero-label">${t('homeVisibility')}</div>
+      <div class="hero-figure">${rate.toFixed(0)}<span class="hero-unit">%</span></div>
+      <div class="hero-note">${t('homeVisibilityWhat')}</div>
+      ${delta == null ? '' : (Math.abs(delta) < 0.5
+        ? `<div class="hero-delta flat"><span aria-hidden="true">→</span> ${t('homeFlat', fmtDate(prev))}</div>`
+        : `<div class="hero-delta ${delta > 0 ? 'up' : 'down'}">
+             <span aria-hidden="true">${delta > 0 ? '▲' : '▼'}</span>
+             ${t('homeDelta', Math.abs(delta).toFixed(0), fmtDate(prev))}</div>`)}
+    </div>`;
+
+  const tile = (v, label, sub) => `
+    <div class="tile"><div class="tile-v">${v}</div><div class="tile-l">${label}</div>
+      ${sub ? `<div class="tile-s">${sub}</div>` : ''}</div>`;
+
+  const co = encodeURIComponent(clientCompany);
+  const shortcut = (id, ready, icon, name, desc) => `
+    <button class="pick-card${ready ? '' : ' locked'}" ${ready ? `onclick="openDash('${id}')"` : 'disabled'}>
+      <span class="pick-tag${ready ? '' : ' wait'}">${ready ? t('tagReady') : t('tagPreparing')}</span>
+      <div class="pick-ico">${icon}</div>
+      <div class="pick-title">${name}</div>
+      <div class="pick-desc">${desc}</div>
+    </button>`;
+
+  c.innerHTML = `<div class="view">
+      <div class="view-h1">${t('homeHello', esc(clientCompany))}</div>
+      <div class="view-sub">${t('homeSub')}</div>
+
+      <div class="home-top">
+        ${hero}
+        <div class="home-side">
+          ${action}
+          <div class="tiles">
+            ${tile(pmPrompts.length || '—', t('homeTilePrompts'), '')}
+            ${tile(engines.length || '—', t('homeTileEngines'), engines.map(properEngine).join(' · '))}
+            ${tile(latest ? esc(fmtDate(latest)) : '—', t('homeTileLast'), latest ? t('homeTileLastSub', dates.length) : '')}
+            ${tile(nextRun ? esc(nextRun) : '—', t('homeTileNext'), nextRun ? '' : t('homeTileNextNone'))}
+          </div>
+        </div>
+      </div>
+
+      <div class="home-h2">${t('dashTitle')}</div>
+      <div class="pick">
+        ${shortcut('diagnostic', clientDiagnosisReleased, ICON_DIAG, t('diagName'), t('diagDesc'))}
+        ${shortcut('monitoring', clientMonitoringReleased, ICON_MON, t('monName'), t('monDesc'))}
+      </div>
+
+      <div class="home-h2" style="margin-top:30px;">${t('homeActivity')}</div>
+      ${timeline(dates, rec)}
+    </div>`;
+}
+
+const ICON_DIAG = '<svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>';
+const ICON_MON  = '<svg viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>';
+
+/* What has happened on this account, newest first. Answers "what changed since I last looked"
+   without anyone having to send an email about it. */
+function timeline(dates, rec) {
+  const ev = [];
+  if (clientSubmittedAt) ev.push({ at: clientSubmittedAt, text: t('evIntake') });
+  if (rec && rec.diagnosisReleasedAt) ev.push({ at: rec.diagnosisReleasedAt, text: t('evDiag') });
+  if (rec && rec.monitoringReleasedAt) ev.push({ at: rec.monitoringReleasedAt, text: t('evMon') });
+  dates.forEach(d => ev.push({ at: d, text: t('evRun') }));
+  ev.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  if (!ev.length) return `<div class="view-empty">${t('evNone')}</div>`;
+  return `<ol class="tl">` + ev.slice(0, 6).map(e => `
+      <li class="tl-item"><span class="tl-dot" aria-hidden="true"></span>
+        <span class="tl-when">${esc(fmtDate(e.at))}</span>
+        <span class="tl-what">${e.text}</span></li>`).join('') + `</ol>`;
+}
+
+/* Status wears an icon and a label as well as a colour — the state has to survive being read
+ * by someone who cannot tell the two colours apart, or a printout. */
+function actionCard(kind, title, why, cta) {
+  const mark = kind === 'ok'
+    ? '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>'
+    : '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg>';
+  return `<div class="action ${kind}">
+      <div class="action-ico" aria-hidden="true">${mark}</div>
+      <div class="action-body">
+        <div class="action-title">${title}</div>
+        <div class="action-why">${why}</div>
+        ${cta ? `<div class="action-cta">${cta}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+// ── 1. Tableros ────────────────────────────────────────────────────────────────────────────
+function viewDashboards(c) {
+  const co = encodeURIComponent(clientCompany);
+  const card = (id, ready, icon, name, desc) => `
+    <button class="pick-card${ready?'':' locked'}" ${ready?`onclick="openDash('${id}')"`:'disabled'}>
+      <span class="pick-tag${ready?'':' wait'}">${ready?t('tagReady'):t('tagPreparing')}</span>
+      <div class="pick-ico">${icon}</div>
+      <div class="pick-title">${name}</div>
+      <div class="pick-desc">${desc}</div>
+    </button>`;
+  const none = !clientDiagnosisReleased && !clientMonitoringReleased;
+  c.innerHTML = `<div class="view">
+      <div class="view-h1">${t('dashTitle')}</div>
+      <div class="view-sub">${t('dashSub')}</div>
+      ${none ? `<div class="view-empty">${t('noDashYet')}</div>` : `<div class="pick">
+        ${card('diagnostic', clientDiagnosisReleased,'<svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>', t('diagName'), t('diagDesc'))}
+        ${card('monitoring', clientMonitoringReleased,'<svg viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>', t('monName'), t('monDesc'))}
+      </div>`}
+    </div>`;
+}
+function openDash(which) {
+  const c = document.getElementById('content');
+  const co = encodeURIComponent(clientCompany);
+  openFramed(c, `/dashboard-${which}.html?company=${co}`,
+    which === 'diagnostic' ? t('diagName') : t('monName'), lastListView);
+}
+
+// ── 2. Prompts monitoreados ────────────────────────────────────────────────────────────────
+async function loadPromptRows() {
+  if (pmRows) return pmRows;
+  try {
+    const res = await fetch(await window.resultsQuery(clientCompany));
+    pmRows = res.ok ? parseCSV(await res.text()).filter(r => r.brand === clientCompany) : [];
+  } catch { pmRows = []; }
+  const byId = new Map();
+  for (const r of pmRows) {
+    const id = r.prompt_id || r.prompt_text;
+    if (!byId.has(id)) byId.set(id, { id, code: r.prompt_id || '', text: r.prompt_text || '', rows: [] });
+    byId.get(id).rows.push(r);
+  }
+  pmPrompts = [...byId.values()].sort((a,b) => String(a.code).localeCompare(String(b.code)));
+  for (const p of pmPrompts) {
+    p.dates = [...new Set(p.rows.map(r => r.snapshot_date).filter(Boolean))].sort().reverse();
+    p.engines = [...new Set(p.rows.map(r => r.engine).filter(Boolean))].sort();
+    p.cited = p.rows.some(r => isCited(r));
+  }
+  return pmRows;
+}
+const isCited = r => r.brand_cited === '1' || r.brand_cited === 1;
+
+async function viewPrompts(c) {
+  c.innerHTML = `<div class="view"><div class="view-h1">${t('pmTitle')}</div><div class="view-sub">${t('loading')}</div></div>`;
+  await loadPromptRows();
+
+  const review = promptsPending ? `<div class="review-bar">
+      <span>${t('pmReviewBanner')}</span>
+      <a class="btn-accent" style="width:auto;" href="/prompt-review.html?username=${encodeURIComponent(clientUsername)}">${t('pmReviewBtn')}</a>
+    </div>` : '';
+
+  if (!pmPrompts.length) {
+    c.innerHTML = `<div class="view"><div class="view-h1">${t('pmTitle')}</div>
+      <div class="view-sub">${t('pmSub')}</div>${review}<div class="view-empty">${t('pmNone')}</div></div>`;
+    return;
+  }
+  if (!pmSelected || !pmPrompts.some(p => p.id === pmSelected)) pmSelected = pmPrompts[0].id;
+
+  c.innerHTML = `<div class="pm-page">
+      ${review}
+      <div class="pm">
+        <aside class="pm-side">
+          <div class="pm-side-head">
+            <div class="pm-side-title">${t('pmTitle')}</div>
+            <div class="pm-side-count" id="pm-count"></div>
+          </div>
+          <input id="pm-search" class="pm-search" placeholder="${esc(t('pmSearch'))}" value="${esc(pmQuery)}">
+          <div class="pm-list" id="pm-list"></div>
+        </aside>
+        <section class="pm-main" id="pm-detail"></section>
+      </div>
+    </div>`;
+  document.getElementById('pm-search').addEventListener('input', e => { pmQuery = e.target.value; paintPromptList(); });
+  paintPromptList();
+  paintPromptDetail();
+  fitPromptList();
+  // The web font can land after first paint and change the card height, so measure again once
+  // it has settled rather than trusting the first frame.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitPromptList);
+  requestAnimationFrame(fitPromptList);
+}
+
+function paintPromptList() {
+  const q = pmQuery.trim().toLowerCase();
+  const list = pmPrompts.filter(p => !q || p.text.toLowerCase().includes(q) || String(p.code).toLowerCase().includes(q));
+  document.getElementById('pm-count').textContent = t('pmPrompts', list.length);
+  document.getElementById('pm-list').innerHTML = list.map(p => `
+    <button class="pm-card${p.id===pmSelected?' active':''}" onclick="selectPrompt('${esc(p.id)}')">
+      <div class="pm-card-top">
+        <span class="pm-code">${esc(p.code)}</span>
+        <span class="pm-pill ${p.cited?'yes':'no'}">${p.cited?t('pmCited'):t('pmNotCited')}</span>
+      </div>
+      <div class="pm-text">${esc(p.text)}</div>
+    </button>`).join('') || `<div class="pm-empty">${t('pmNoAnswers')}</div>`;
+  fitPromptList();
+}
+
+/* Two lines of prompt text plus the code row is about 84px; the bounds keep a card readable
+   when the space divides awkwardly. */
+const CARD_BASE = 88, CARD_MIN = 88, CARD_MAX = 108, BOTTOM_BREATH = 14;
+function fitPromptList() {
+  const list = document.getElementById('pm-list');
+  if (!list) return;
+  const card = list.querySelector('.pm-card');
+  if (!card) { list.style.height = ''; return; }
+  const cs = getComputedStyle(list);
+  const gap = parseFloat(cs.rowGap || cs.gap) || 0;
+  const top = list.getBoundingClientRect().top;
+  const room = Math.max(0, window.innerHeight - top - BOTTOM_BREATH);
+
+  // Fit a whole number of cards into the space and give each of them an equal share of it, so
+  // the list both fills its column and ends on a complete card. Quantising alone left up to a
+  // card's worth of dead space at the bottom; stretching alone sliced the last one.
+  let n = Math.max(1, Math.round((room + gap) / (CARD_BASE + gap)));
+  let h = (room - (n - 1) * gap) / n;
+  // Rounding can ask for one card more than fits. Raising it to CARD_MIN would then push the
+  // list past the bottom of its pane, so drop a card instead and share the space among fewer.
+  if (h < CARD_MIN && n > 1) { n -= 1; h = (room - (n - 1) * gap) / n; }
+  h = Math.min(CARD_MAX, Math.max(CARD_MIN, h));
+  list.style.setProperty('--pm-card-h', h.toFixed(2) + 'px');
+  list.style.height = Math.min(room, n * h + (n - 1) * gap).toFixed(2) + 'px';
+}
+window.addEventListener('resize', () => { if (currentView === 'prompts') fitPromptList(); });
+
+function selectPrompt(id){ pmSelected=id; pmDate=''; paintPromptList(); paintPromptDetail(); document.getElementById('pm-detail').scrollTop=0; }
+function setPmDate(v){ pmDate=v; paintPromptDetail(); }
+
+/* One row per run date, newest first, with every engine side by side inside it. The question
+   people arrive with is "what did each of them say, and has that changed" — which is a
+   comparison across engines on a date, and a sequence of those down the page. */
+function paintPromptDetail() {
+  const p = pmPrompts.find(x => x.id === pmSelected);
+  const host = document.getElementById('pm-detail');
+  if (!p) { host.innerHTML = `<div class="pm-empty">${t('pmNoAnswers')}</div>`; return; }
+
+  const dates = pmDate ? [pmDate] : p.dates;
+  const opt = (v,l) => `<option value="${esc(v)}"${pmDate===v?' selected':''}>${esc(l)}</option>`;
+
+  const blocks = dates.map(date => {
+    const cols = p.engines.map(e => {
+      const r = p.rows.find(x => x.snapshot_date === date && x.engine === e);
+      return `<div class="eng-col">
+          <div class="eng-head">
+            <span class="eng-name">${esc(properEngine(e))}</span>
+            ${r ? `<span class="pm-pill ${isCited(r)?'yes':'no'}">${isCited(r)?t('pmCited'):t('pmNotCited')}</span>` : ''}
+          </div>
+          <div class="eng-body">${r ? (r.answer_excerpt ? mdLite(r.answer_excerpt) : `<em class="muted">${t('pmNoText')}</em>`)
+                                    : `<em class="muted">${t('pmNoRun')}</em>`}</div>
+        </div>`;
+    }).join('');
+    return `<div class="date-block">
+        <div class="date-head"><span class="date-label">${esc(fmtDate(date))}</span><span class="date-rule"></span></div>
+        <div class="eng-row" style="--cols:${p.engines.length}">${cols}</div>
+      </div>`;
+  }).join('');
+
+  host.innerHTML = `<div class="pm-main-head">
+      <div class="pm-detail-q">${esc(p.text)}</div>
+      <div class="pm-detail-meta">
+        <span class="pm-code">${esc(p.code)}</span>
+        <span class="muted">${t('pmAnswers', p.rows.length)}</span>
+        <select class="pm-select" onchange="setPmDate(this.value)">
+          ${opt('', t('pmAllDates'))}${p.dates.map(d => opt(d, fmtDate(d))).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="pm-main-body">${blocks || `<div class="pm-empty">${t('pmNoAnswers')}</div>`}</div>`;
+}
+
+function properEngine(e){const k=String(e||'').toLowerCase();
+  return k==='chatgpt'?'ChatGPT':k==='claude'?'Claude':k==='gemini'?'Gemini':String(e||'').replace(/\b\w/g,m=>m.toUpperCase());}
+function mdLite(txt){return esc(txt).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g,'$1<em>$2</em>');}
+
+// ── 3. Formulario ──────────────────────────────────────────────────────────────────────────
+/* Straight into the form itself, not a summary of it. intake.html already decides for itself
+   whether this customer may still edit — it locks every field once prompts are approved or an
+   audit has run — so embedding it shows exactly the right state without this page guessing. */
+function viewIntake(c) {
+  if (!clientSubmittedAt) {
+    c.innerHTML = `<div class="view">
+        <div class="view-h1">${t('inTitle')}</div>
+        <div class="view-sub">${t('inSub')}</div>
+        <div class="view-empty">${t('inNone')}
+          <div style="margin-top:16px;"><a class="btn-accent" style="width:auto;display:inline-block;" href="/intake.html?username=${encodeURIComponent(clientUsername)}">${t('inOpen')}</a></div>
+        </div>
+      </div>`;
+    return;
+  }
+  openFramed(c, `/intake.html?username=${encodeURIComponent(clientUsername)}`, t('inTitle'), 'dashboards');
+}
+
+// ── 4. Ajustes ─────────────────────────────────────────────────────────────────────────────
+/* Settings is a menu first. Three password boxes and an authenticator control sitting open on
+   arrival is a lot of apparatus for a screen most people open to change one thing — each item
+   is a row that opens its own screen instead. */
+let settingsPane = '';
+
+function viewSettings(c) {
+  if (settingsPane) return settingsPaneView(c, settingsPane);
+  const row = (pane, title, desc, value) => `
+    <button class="set-row" onclick="openSetting('${pane}')">
+      <span class="set-row-main">
+        <span class="set-row-title">${title}</span>
+        <span class="set-row-desc">${desc}</span>
+      </span>
+      ${value ? `<span class="set-row-value">${esc(value)}</span>` : ''}
+      <span class="set-row-chev">&rsaquo;</span>
+    </button>`;
+  c.innerHTML = `<div class="view">
+      <div class="view-h1">${t('setTitle')}</div>
+      <div class="view-sub">${t('setSub')}</div>
+      <div class="set-list">
+        ${row('language', t('setLangTitle'), t('setLangDesc'), lang === 'es' ? 'Español' : 'English')}
+        ${row('password', t('setPwTitle'), t('setPwDesc'), '')}
+        ${row('twofa', t('set2fa'), t('set2faOn'), '')}
+      </div>
+      <div class="panel" style="margin-top:22px;max-width:680px;">
+        <div class="panel-title">${t('setAccount')}</div>
+        <div class="acct"><strong>${esc(clientCompany)}</strong><span>${esc(clientUsername)}</span></div>
+      </div>
+    </div>`;
+}
+
+function openSetting(pane) { settingsPane = pane; viewSettings(document.getElementById('content')); }
+function closeSetting() { settingsPane = ''; viewSettings(document.getElementById('content')); }
+
+function settingsPaneView(c, pane) {
+  const head = (title, desc) => `
+    <button class="btn-ghost-sm" onclick="closeSetting()">&larr; ${esc(t('setTitle'))}</button>
+    <div class="view-h1" style="margin-top:14px;">${title}</div>
+    <div class="view-sub">${desc}</div>`;
+
+  if (pane === 'language') {
+    c.innerHTML = `<div class="view">${head(t('setLangTitle'), t('setLangDesc'))}
+      <div class="panel">
+        <div class="lang-choice">
+          <button id="s-lang-en" class="${lang==='en'?'active':''}" onclick="saveDefaultLanguage('en')">English</button>
+          <button id="s-lang-es" class="${lang==='es'?'active':''}" onclick="saveDefaultLanguage('es')">Español</button>
+        </div>
+        <div class="field-msg" id="s-language-msg"></div>
+      </div></div>`;
+    return;
+  }
+  if (pane === 'password') {
+    c.innerHTML = `<div class="view">${head(t('setPwTitle'), t('setPwDesc'))}
+      <div class="panel">
+        <div class="field-grid">
+          <input type="password" id="s-current-password" autocomplete="current-password" placeholder="${esc(t('currentPasswordPlaceholder'))}">
+          <input type="password" id="s-new-password" autocomplete="new-password" placeholder="${esc(t('newPasswordPlaceholder'))}">
+          <input type="password" id="s-confirm-password" autocomplete="new-password" placeholder="${esc(t('confirmPasswordPlaceholder'))}">
+        </div>
+        <button class="btn-accent" style="width:auto;" onclick="savePasswordInline()">${t('savePasswordBtn')}</button>
+        <div class="field-msg" id="s-password-msg"></div>
+      </div></div>`;
+    const first = document.getElementById('s-current-password');
+    if (first) first.focus();
+    return;
+  }
+  c.innerHTML = `<div class="view">${head(t('set2fa'), t('set2faState'))}
+    <div class="panel">
+      <div class="acct" style="margin-bottom:14px;">
+        <strong>${t('set2faOn')}</strong>
+        <span style="font-family:inherit;">${t('set2faHow')}</span>
+      </div>
+      <a class="btn-ghost-sm" href="mailto:hola@akorelabs.com?subject=${encodeURIComponent(t('set2faMailSubject') + ' — ' + clientCompany)}">${t('set2faAsk')}</a>
+    </div></div>`;
+}
+
+/* The settings modal's save routines read fixed element ids. Rather than duplicate the request
+   logic for the inline panels, the values are copied across and the existing function runs. */
+function savePasswordInline() {
+  document.getElementById('set-current-password').value = document.getElementById('s-current-password').value;
+  document.getElementById('set-new-password').value     = document.getElementById('s-new-password').value;
+  document.getElementById('set-confirm-password').value = document.getElementById('s-confirm-password').value;
+  const out = document.getElementById('s-password-msg');
+  const src = document.getElementById('password-msg');
+  savePassword();
+  const relay = setInterval(() => {
+    out.textContent = src.textContent; out.className = src.className.replace('field-msg', 'field-msg');
+    if (src.textContent) {
+      ['s-current-password','s-new-password','s-confirm-password'].forEach(id => {
+        if (/✓|saved|guardada/i.test(src.textContent)) document.getElementById(id).value = '';
+      });
+    }
+  }, 150);
+  setTimeout(() => clearInterval(relay), 6000);
+}
+
+
 
 applyStaticLang();
 
