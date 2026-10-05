@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <script src="/js/auth.js"></script>
+<script src="/js/prompts-model.js"></script>
 <script src="/js/portal-rail.js"></script>
 <script>window.akoreAuth.useStaffSession();</script>
 <script src="/js/enroll-dialog.js"></script>
@@ -845,6 +846,19 @@ async function loadCompany(company) {
     const pendingInternal = !!promptsRes.internalReviewPending;
     promptsSummary = pendingInternal ? t('awaitingInternalReview')
       : (promptsRes.approvedAt ? t('approvedOn') + fmtShort(promptsRes.approvedAt) : t('awaitingReview'));
+    /* The prompts themselves, here, where you came to look at them. This screen used to show a
+       count and two buttons, so the only way to read the set was to leave for the customer's own
+       review page. Read-only: editing a prompt set is the review page's job, and doing it in two
+       places is two ways to disagree about what the set says. */
+    const groups = (window.AkorePrompts
+      ? AkorePrompts.groupPrompts(AkorePrompts.parsePrompts(promptsRes.promptsText || ''), lang)
+      : []);
+    const promptList = groups.length ? `<div class="plist">${groups.map(g => `
+        <div class="pgroup">
+          <div class="pgroup-h">${esc(g.label)} <span class="pgroup-n">${g.items.length}</span></div>
+          ${g.items.map(i => `<p class="pline">${esc(i.text)}</p>`).join('')}
+        </div>`).join('')}</div>` : '';
+
     promptsInner = `
       <div class="scr-stats"><span><b>${lines}</b> prompts</span><span>${esc(langs)}</span><span>${fmtShort(promptsRes.generatedAt)}</span></div>
       ${promptsRes.stats && promptsRes.stats.short > 0 ? `<p class="scr-note warn">${t('promptsShortfall', promptsRes.stats.kept, promptsRes.stats.requested)}</p>` : ''}
@@ -853,7 +867,8 @@ async function loadCompany(company) {
       <div class="scr-acts">
         <a class="btn${pendingInternal ? '' : ' btn-ghost'}" href="${reviewLink(company)}">${pendingInternal ? t('reviewAndReleaseBtn') : t('openInternalReviewBtn')}</a>
         <button class="btn btn-ghost" onclick="openGenModal()">${t('regeneratePrompts')}</button>
-      </div>`;
+      </div>
+      ${promptList}`;
   } else {
     promptsSummary = t('notGeneratedYet');
     promptsInner = `<div class="scr-acts"><button class="btn" onclick="openGenModal()">${t('generatePrompts')}</button></div>`;

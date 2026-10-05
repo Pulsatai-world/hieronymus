@@ -191,10 +191,23 @@ function browser(search, page) {
     const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
     check('intake.html hides log out for staff',
       /logoutBtn && isStaffBypass/.test(read('intake.html')), 'still shown');
-    check('prompt-review.html hides log out for staff',
-      /isStaffReviewer \? 'none'/.test(read('prompt-review.html')), 'still shown');
-    check('client-portal.html offers back instead of log out for staff',
-      /akoreIsStaffBypass\(\)/.test(read('client-portal.html')), 'still offers log out only');
+    // The sidebar these two pages share decides this now, so that is where it is asserted —
+    // checking each page's own source would only be asking where the code is written, and the
+    // answer moved. The per-page checks below are that they really do wear that sidebar; a page
+    // keeping its own log out button would fail its own pattern instead.
+    const rail = read('js/client-rail.js');
+    check('the client sidebar swaps log out for a way back when staff are looking',
+      /akoreIsStaffBypass\s*&&\s*window\.akoreIsStaffBypass\(\)/.test(rail) && /homeHref/.test(rail),
+      'it does not distinguish staff-on-behalf from the customer');
+    check('and only offers one of the two',
+      /viaStaff\s*\n?\s*\?/.test(rail) || /viaStaff \?/.test(rail),
+      'both a log out and a back link can render at once');
+    for (const page of ['prompt-review.html', 'client-portal.html']) {
+      check(page + ' wears that sidebar rather than its own log out',
+        /<script src="\/js\/client-rail\.js">/.test(read(page))
+          && !/id="logout-btn"/.test(read(page)),
+        'it still has a log out button of its own');
+    }
     check('intake.html no longer hardcodes "My portal"',
       !/← My portal/.test(read('intake.html')), 'the hardcoded label is still there');
   }
