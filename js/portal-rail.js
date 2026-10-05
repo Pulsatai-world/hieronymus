@@ -18,7 +18,7 @@
      completo". Defined above the staff guard on purpose — the label is needed on pages that
      render it whether or not the rail itself is drawn. */
   window.akoreRoleLabel = function (role) {
-    return ({ admin: 'Administrador', staff: 'Equipo', full: 'Acceso completo',
+    return ({ admin: 'Administrador', staff: 'Equipo', user: 'Equipo', full: 'Acceso completo',
               viewer: 'Solo lectura' })[role] || role || '';
   };
 

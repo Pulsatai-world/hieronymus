@@ -26,10 +26,26 @@ const STAFF_PAGES = ['portal.html', 'index.html', 'intake-view.html', 'geo-repor
 
 // The page's own scripts, concatenated. Only same-origin paths this repo actually ships — a CDN
 // URL or a missing file contributes nothing rather than throwing.
+const srcsOf = html => [...html.matchAll(/<script[^>]+src="(\/[^"]+)"/g)]
+  .map(m => m[1].replace(/^\//, '').split('?')[0]);
+
+// A page's OWN code: the scripts only it loads. Shared modules are excluded, and that exclusion
+// is the whole reason this is safe to do at all. js/auth.js DEFINES restore() and
+// useStaffSession(); js/portal-rail.js calls restore() for the sidebar on every console page.
+// Concatenate either and both checks below match on somebody else's source and pass for any page
+// at all — the first version of this helper did exactly that, and turned this file into a guard
+// that could no longer fail. Anything loaded by more than one page under test is somebody else's.
+const useCount = {};
+for (const page of STAFF_PAGES) {
+  const f = path.join(ROOT, page);
+  if (!fs.existsSync(f)) continue;
+  for (const src of new Set(srcsOf(fs.readFileSync(f, 'utf8')))) useCount[src] = (useCount[src] || 0) + 1;
+}
 function ownScripts(html) {
   let out = '';
-  for (const m of html.matchAll(/<script[^>]+src="(\/[^"]+)"/g)) {
-    const f = path.join(ROOT, m[1].replace(/^\//, '').split('?')[0]);
+  for (const src of srcsOf(html)) {
+    if (useCount[src] > 1) continue;                       // shared with another page
+    const f = path.join(ROOT, src);
     if (fs.existsSync(f)) out += '\n' + fs.readFileSync(f, 'utf8');
   }
   return out;

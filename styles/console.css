@@ -115,7 +115,10 @@ tr:last-child td { border-bottom: 0; }
 /* ── Modals ──────────────────────────────────────────────────────────────────────────────── */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(8,9,12,.46); z-index: 90;
   display: none; align-items: center; justify-content: center; padding: 24px; }
-.modal-backdrop.show, .modal-backdrop[style*="flex"] { display: flex; }
+/* index.html opens every modal with classList.add('open') — four call sites, including a
+   generic toggle. Renaming the reveal class here and not there left Run Audit, Generate
+   Prompts and the intake template with no rule to match, so they opened nothing at all. */
+.modal-backdrop.open, .modal-backdrop.show, .modal-backdrop[style*="flex"] { display: flex; }
 .modal-box { width: 100%; max-width: 520px; background: #fff; border-radius: 18px; padding: 26px;
   box-shadow: 0 24px 60px rgba(16,19,25,.22); max-height: 88vh; overflow-y: auto; }
 .modal-box h3 { font-family: var(--font-display, sans-serif); font-size: 18px; font-weight: 700; margin-bottom: 14px; }

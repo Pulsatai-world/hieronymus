@@ -414,24 +414,34 @@
           options: state.customers.map(c => ({ value: c.company, label: c.company })),
           hint: 'Solo aplica a usuarios externos.' },
         { name: 'username', label: 'Usuario', required: true, placeholder: 'nombre.apellido' },
+        { name: 'password', label: 'Contraseña', type: 'password', required: true,
+          hint: 'Mínimo 6 caracteres. Se muestra una sola vez, así que guárdala.' },
         { name: 'role', label: 'Rol', type: 'select', value: 'full',
           options: [{ value: 'full', label: 'Acceso completo' }, { value: 'viewer', label: 'Solo lectura' }, { value: 'admin', label: 'Administrador (interno)' }] }
       ],
       confirm: 'Crear usuario'
     });
     if (!v || !v.username.trim()) return;
+    if ((v.password || '').length < 6) { toast('La contraseña necesita al menos 6 caracteres.'); return; }
     try {
       let out;
       if (v.kind === 'interno') {
-        out = await api.send('POST', '/api/staff-users', { username: v.username.trim(), role: v.role === 'admin' ? 'admin' : 'staff' });
+        // The endpoint knows 'admin' and 'user'; 'staff' is not one of its values.
+        out = await api.send('POST', '/api/staff-users',
+          { username: v.username.trim(), password: v.password, role: v.role === 'admin' ? 'admin' : 'user' });
       } else {
-        out = await api.send('POST', '/api/intake-codes', { company: v.company, username: v.username.trim(), role: v.role === 'viewer' ? 'viewer' : 'full' });
+        // addMember is what selects the add-a-person-to-this-customer branch. Without it the
+        // request is read as "create a new customer called X", which 409s every time, because X
+        // is picked from a list of customers that already exist.
+        out = await api.send('POST', '/api/intake-codes',
+          { addMember: true, company: v.company, username: v.username.trim(), password: v.password,
+            role: v.role === 'viewer' ? 'viewer' : 'full' });
       }
       await Promise.all([loadCustomers(true), loadStaff(true)]); viewUsers();
       await dialog({
         title: 'Usuario creado', sub: 'Guarda la contraseña ahora: no vuelve a mostrarse.', fields: [], confirm: 'Listo',
         note: `<div>Usuario <code>${esc(out.username || v.username)}</code></div>
-               <div style="margin-top:6px;">Contraseña <code>${esc(out.password || '—')}</code></div>`
+               <div style="margin-top:6px;">Contraseña <code>${esc(out.password || v.password)}</code></div>`
       });
     } catch (e) { toast('No se pudo crear: ' + e.message); }
   }
@@ -440,17 +450,30 @@
     const [username, company] = String(arg).split('|');
     try {
       if (act === 'resetpw') {
-        if (!(await confirmPassword('Restablecer contraseña', `Se genera una contraseña nueva para <strong>${esc(username)}</strong>. La anterior deja de servir.`))) return;
-        const out = await api.send('PATCH', '/api/intake-codes', { company, username, resetPassword: true });
+        /* The server takes `adminReset` with a password the admin chooses; it does not generate
+           one, and there is no `resetPassword` field anywhere in it. Sending that invented field
+           hit the PATCH handler, changed nothing, and answered 200 — so the console reported a
+           reset that had not happened and the old password went on working. */
+        const got = await dialog({
+          title: 'Restablecer contraseña',
+          sub: `Elige una contraseña nueva para ${username}. La anterior deja de servir y se cierran sus sesiones.`,
+          fields: [{ name: 'newPassword', label: 'Contraseña nueva', type: 'password', required: true,
+                     hint: 'Mínimo 6 caracteres.' }],
+          confirm: 'Restablecer'
+        });
+        if (!got) return;
+        if ((got.newPassword || '').trim().length < 6) { toast('La contraseña necesita al menos 6 caracteres.'); return; }
+        await api.send('PATCH', '/api/intake-codes',
+          { username, adminReset: true, newPassword: got.newPassword.trim() });
         await dialog({ title: 'Contraseña restablecida', sub: 'Compártela con la persona; no vuelve a mostrarse.', fields: [], confirm: 'Listo',
-          note: `<div>Usuario <code>${esc(username)}</code></div><div style="margin-top:6px;">Contraseña <code>${esc(out.password || '—')}</code></div>` });
+          note: `<div>Usuario <code>${esc(username)}</code></div><div style="margin-top:6px;">Contraseña <code>${esc(got.newPassword.trim())}</code></div>` });
       } else if (act === 'reset2fa') {
         if (!(await confirmPassword('Restablecer autenticador', `<strong>${esc(username)}</strong> tendrá que volver a configurar su app de dos pasos al entrar.`))) return;
         await api.send('POST', '/api/enroll', { action: 'reset', username });
         toast('Autenticador restablecido');
       } else if (act === 'rmmember') {
         if (!(await confirmPassword('Quitar acceso', `<strong>${esc(username)}</strong> dejará de poder entrar a ${esc(company)}.`))) return;
-        await api.remove('/api/intake-codes', { company, username });
+        await api.remove('/api/intake-codes', { company, username, memberOnly: 'true' });
         toast('Acceso retirado');
       } else if (act === 'rmstaff') {
         if (!(await confirmPassword('Quitar del equipo', `<strong>${esc(username)}</strong> perderá el acceso a esta consola.`))) return;
