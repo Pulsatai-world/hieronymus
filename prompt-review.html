@@ -123,7 +123,6 @@ let clientUsername = '';
 let clientRole = 'full';
 // True when an internal Akore staff member opened this page through the Portal bypass. Staff see
 // prompts before they're released to the customer, and are the only ones who can release them.
-let isStaffReviewer = false;
 let staffUsername = '';
 function findMember(group, username) {
   return (group.members || []).find(m => m.username === username);
@@ -216,8 +215,6 @@ function adoptSession(who) {
   clientCompany = who.company || '';
   clientUsername = who.username || '';
   clientRole = who.role || 'full';
-  isStaffReviewer = who.kind === 'staff' || !!who.staffBypass;
-  if (isStaffReviewer) staffUsername = who.staffBypass ? (window.akoreAuth.who() || {}).username || '' : who.username;
   showApp();
 }
 
@@ -284,8 +281,6 @@ let currentItems = []; // [{ cat, text }], in original order — the source of t
 // A persistent Portal login can outlive the password cached in sessionStorage. Staff need that
 // password to prove staff status server-side, so ask for it just-in-time via the shared gate
 // (which verifies it against /api/staff-users and caches it on success).
-async function ensureStaffPassword() {
-}
 
 async function loadPrompts() {
   const main = document.getElementById('main-content');
@@ -296,7 +291,6 @@ async function loadPrompts() {
   // Staff credentials unlock a set still in internal review; a customer's own credentials get their
   // released set. The shared helper resolves whichever this visitor has, and asks for a staff password
   // just in time if a persistent login outlived the cached one.
-  if (isStaffReviewer && staffUsername) await ensureStaffPassword();
   const query = await window.apiQuery('/api/prompts', { company: clientCompany });
 
   let record;
@@ -330,19 +324,15 @@ async function loadPrompts() {
   // Only staff ever reach this point with prompts still in internal review — the server withholds
   // the text from everyone else, and the waiting state above catches that case.
   const pendingInternal = !!record.internalReviewPending;
-  const releasedWhen = record.internalApprovedAt || record.approvedAt;
   // Approval is one-way for the client: once they've signed off, the prompts go read-only and the
   // approve button is gone, so there's nothing to click twice. Staff keep the ability to edit and
   // re-approve on the customer's behalf, which is the whole point of the staff bypass.
-  const locked = !!record.approvedAt && !isStaffReviewer;
-  const internalBanner = !isStaffReviewer ? '' : (pendingInternal
-    ? `<div class="status-banner status-pending"><strong>${t('internalPendingTitle')}</strong><br>${t('internalPendingBody')}</div>`
-    : `<div class="status-banner status-approved">${t('internalReleasedBy', esc(record.internalApprovedBy || '—'), esc(releasedWhen ? new Date(releasedWhen).toLocaleDateString() : '—'))}</div>`);
+  // Approval is one-way: afterwards the set is read-only here. Staff revise in the console.
+  const locked = !!record.approvedAt;
 
   main.innerHTML = `
     <div class="page-title">${t('pageTitle')}</div>
     <div class="page-sub">${t('pageSub', esc(clientCompany))}</div>
-    ${internalBanner}
     ${viewer ? `<div class="status-banner status-pending">${t('viewOnlyBanner')}</div>` : ''}
     ${pendingInternal ? '' : banner}
     <div class="card">
@@ -353,18 +343,12 @@ async function loadPrompts() {
         </div>
       `).join('')}
     </div>
-    ${pendingInternal ? `
-    <div class="card">
-      <div style="margin-top:4px;">
-        <button class="btn-accent" style="width:auto;" id="release-btn" onclick="releasePrompts()">${t('releaseBtn')}</button>
-      </div>
-    </div>
-    ` : (viewer || locked ? (locked ? `
+    ${(viewer || locked ? (locked ? `
     <div class="card">
       <div class="card-title" style="margin-bottom:8px;">${t('commentsTitle')}</div>
       <div class="page-sub" style="margin:0;">${record.comments ? esc(record.comments) : '—'}</div>
       <div style="margin-top:16px;">
-        <a class="btn-accent" style="width:auto;display:inline-block;" href="${window.homeHref(clientCompany)}">${isStaffReviewer ? t('backToCustomer', clientCompany) : t('backToPortalBtn')}</a>
+        <a class="btn-accent" style="width:auto;display:inline-block;" href="${window.homeHref(clientCompany)}">${t('backToPortalBtn')}</a>
       </div>
     </div>
     ` : '') : `
@@ -388,43 +372,6 @@ function autoGrowPromptInput(el) {
 // Internal release: an Akore reviewer approving the generated set and making it visible to the
 // customer. Any edits the reviewer made are saved in the same request, so releasing is always
 // releasing exactly what's on screen.
-async function releasePrompts() {
-  const btn = document.getElementById('release-btn');
-  document.querySelectorAll('.prompt-input').forEach(input => {
-    const idx = parseInt(input.dataset.idx, 10);
-    currentItems[idx].text = input.value.trim();
-  });
-  const promptsText = AkorePrompts.serializePrompts(currentItems);
-
-  const ok = await window.requirePassword({
-    title: t('releaseConfirmTitle'),
-    message: t('releaseConfirmMsg', esc(clientCompany)),
-    username: staffUsername,
-    labels: { enter: t('pwEnter'), confirm: t('pwConfirm'), cancel: t('pwCancel'), wrong: t('pwWrong') }
-  });
-  if (!ok) return;
-
-  btn.disabled = true;
-  btn.textContent = t('releasing');
-  try {
-    const res = await fetch(await window.apiQuery('/api/prompts', {}), {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        company: clientCompany,
-        internalApprove: true,
-        promptsText
-      })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
-    await loadPrompts();
-  } catch (err) {
-    alert(t('releaseFailed') + err.message);
-    btn.disabled = false;
-    btn.textContent = t('releaseBtn');
-  }
-}
 
 async function approvePrompts() {
   const btn = document.getElementById('approve-btn');
@@ -446,7 +393,7 @@ async function approvePrompts() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     // Staff stay put (they may keep editing); a client is done here, so hand them back to their
     // portal instead of leaving them on a page whose only action they just used up.
-    if (!isStaffReviewer && clientUsername) {
+    if (clientUsername) {
       alert(t('approvedRedirect'));
       location.href = window.homeHref(clientCompany);
       return;
@@ -469,12 +416,11 @@ applyStaticLang();
   const who = await window.akoreAuth.restore();
   if (who) { adoptSession(who); return; }
 
-  // Staff reviewing on a customer's behalf, using the staff session already in this browser. It
-  // gives the internal reviewer's view: unreleased prompts are visible and the release action is
-  // available, and every request carries the staff session.
+  // No staff path here, deliberately. Releasing and revising a prompt set is an internal action
+  // and happens in the internal app, on the customer's page there. Reviewing on this page as
+  // staff meant an Akore reviewer looking at a client's sidebar and a client's navigation, and
+  // the two apps do not share screens. ?username= only pre-fills the box.
   if (usernameFromUrl) {
-    const asCustomer = await window.akoreStaffBypass(usernameFromUrl);
-    if (asCustomer) { adoptSession({ ...asCustomer, staffBypass: true, role: 'full' }); return; }
     const userInput = document.getElementById('gate-username-input');
     if (userInput) userInput.value = usernameFromUrl;
   }

@@ -207,6 +207,15 @@ const T = {
   generatePrompts: { en: 'Generate Prompts', es: 'Generar Prompts' },
   intakeTitle: { en: 'Intake', es: 'Formulario' },
   promptsTitle: { en: 'Prompts', es: 'Prompts' },
+  releaseToClientBtn: { en: 'Release to the customer', es: 'Liberar al cliente' },
+  savePromptEdits: { en: 'Save changes', es: 'Guardar cambios' },
+  releasedBy: { en: (who, when) => `Released to the customer by ${who} on ${when}.`, es: (who, when) => `Liberado al cliente por ${who} el ${when}.` },
+  clientApprovedOn: { en: 'The customer approved these on ', es: 'El cliente los aprobó el ' },
+  releaseConfirmTitle: { en: 'Release prompts', es: 'Liberar prompts' },
+  releaseConfirmMsg: { en: (c) => `${c} will be able to see and approve these prompts.`, es: (c) => `${c} podrá ver y aprobar estos prompts.` },
+  promptsSaved: { en: 'Saved.', es: 'Guardado.' },
+  promptsReleased: { en: 'Released. The customer can see them now.', es: 'Liberado. El cliente ya puede verlos.' },
+  promptsSaveFailed: { en: 'Could not save: ', es: 'No se pudo guardar: ' },
   auditStatusTitle: { en: 'Audit status', es: 'Estado de la auditoría' },
   geoTitle: { en: 'Site readiness (GEO)', es: 'Diagnóstico técnico del sitio web (GEO)' },
   geoUrlPlaceholder: { en: 'https://client-site.com', es: 'https://sitio-del-cliente.com' },
@@ -797,7 +806,7 @@ async function loadCompany(company) {
       ${pendingInternal ? `<div class="field-hint" style="margin-top:8px;color:var(--warning);">${t('internalReviewHint')}</div>` : ''}
       ${comments}
       <div class="row" style="margin-top:12px;">
-        <a class="btn ${pendingInternal ? '' : 'btn-ghost'} btn-sm" href="${reviewLink(company)}">${pendingInternal ? t('reviewAndReleaseBtn') : t('openInternalReviewBtn')}</a>
+        <a class="btn ${pendingInternal ? '' : 'btn-ghost'} btn-sm" href="#prompts">${pendingInternal ? t('reviewAndReleaseBtn') : t('openInternalReviewBtn')}</a>
         <button class="btn btn-sm" onclick="openGenModal()">${t('regeneratePrompts')}</button>
       </div>`;
   } else {
@@ -846,29 +855,37 @@ async function loadCompany(company) {
     const pendingInternal = !!promptsRes.internalReviewPending;
     promptsSummary = pendingInternal ? t('awaitingInternalReview')
       : (promptsRes.approvedAt ? t('approvedOn') + fmtShort(promptsRes.approvedAt) : t('awaitingReview'));
-    /* The prompts themselves, here, where you came to look at them. This screen used to show a
-       count and two buttons, so the only way to read the set was to leave for the customer's own
-       review page. Read-only: editing a prompt set is the review page's job, and doing it in two
-       places is two ways to disagree about what the set says. */
+    /* The internal review, here, in the internal app. Staff used to do this on the CUSTOMER's
+       review page through the bypass — which meant an Akore reviewer looking at a client's
+       sidebar, with that client's navigation, inside what is supposed to be the staff console.
+       The two sides do not share a screen. prompt-review.html is the customer's and only the
+       customer's; releasing and revising a set happens here. */
     const groups = (window.AkorePrompts
       ? AkorePrompts.groupPrompts(AkorePrompts.parsePrompts(promptsRes.promptsText || ''), lang)
       : []);
-    const promptList = groups.length ? `<div class="plist">${groups.map(g => `
+    const approved = !!promptsRes.approvedAt;
+    const promptList = groups.length ? `<div class="plist" id="plist">${groups.map(g => `
         <div class="pgroup">
           <div class="pgroup-h">${esc(g.label)} <span class="pgroup-n">${g.items.length}</span></div>
-          ${g.items.map(i => `<p class="pline">${esc(i.text)}</p>`).join('')}
+          ${g.items.map(i => `<textarea class="pedit" data-idx="${i.idx}" data-cat="${esc(i.cat)}" rows="1"
+             oninput="growPrompt(this)">${esc(i.text)}</textarea>`).join('')}
         </div>`).join('')}</div>` : '';
 
     promptsInner = `
       <div class="scr-stats"><span><b>${lines}</b> prompts</span><span>${esc(langs)}</span><span>${fmtShort(promptsRes.generatedAt)}</span></div>
       ${promptsRes.stats && promptsRes.stats.short > 0 ? `<p class="scr-note warn">${t('promptsShortfall', promptsRes.stats.kept, promptsRes.stats.requested)}</p>` : ''}
-      ${pendingInternal ? `<p class="scr-note warn">${t('internalReviewHint')}</p>` : ''}
+      ${pendingInternal ? `<p class="scr-note warn">${t('internalReviewHint')}</p>`
+        : `<p class="scr-note">${t('releasedBy', esc(promptsRes.internalApprovedBy || '—'), fmtShort(promptsRes.internalApprovedAt || promptsRes.approvedAt))}</p>`}
+      ${approved ? `<p class="scr-note">${t('clientApprovedOn')}${fmtShort(promptsRes.approvedAt)}</p>` : ''}
       ${promptsRes.comments ? `<p class="scr-note">${t('clientComments')}${esc(promptsRes.comments)}</p>` : ''}
+      ${promptList}
       <div class="scr-acts">
-        <a class="btn${pendingInternal ? '' : ' btn-ghost'}" href="${reviewLink(company)}">${pendingInternal ? t('reviewAndReleaseBtn') : t('openInternalReviewBtn')}</a>
+        ${pendingInternal
+          ? `<button class="btn" onclick="releasePromptsInternal()">${t('releaseToClientBtn')}</button>`
+          : `<button class="btn btn-ghost" onclick="savePromptEdits()">${t('savePromptEdits')}</button>`}
         <button class="btn btn-ghost" onclick="openGenModal()">${t('regeneratePrompts')}</button>
       </div>
-      ${promptList}`;
+      <div class="field-hint" id="prompts-msg" style="margin-top:12px;"></div>`;
   } else {
     promptsSummary = t('notGeneratedYet');
     promptsInner = `<div class="scr-acts"><button class="btn" onclick="openGenModal()">${t('generatePrompts')}</button></div>`;
@@ -1104,11 +1121,58 @@ function buildSubnav(company) {
 // The primary member's username is the slug of the company name (intake-codes.js generates it
 // that way at creation), so both the copyable client link and the internal review link resolve
 // through this one function rather than each deriving it.
-function reviewUsername(company) {
-  return String(company || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+
+/* ── Internal prompt review ───────────────────────────────────────────────────────────────
+   Editing and releasing a prompt set, in the staff console. This used to happen on the
+   customer's own review page through the staff bypass, which put a client's sidebar and a
+   client's navigation in front of an Akore reviewer. The two apps do not share screens. */
+function growPrompt(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+
+function collectPrompts() {
+  // Back to the stored form, through the same model the customer's page reads it with, so a
+  // round trip cannot change what the set says.
+  const items = [...document.querySelectorAll('#plist .pedit')]
+    .map(el => ({ cat: el.dataset.cat, text: el.value.trim() }))
+    .filter(i => i.text);
+  return AkorePrompts.serializePrompts(items);
 }
-function reviewLink(company) {
-  return '/prompt-review.html?username=' + encodeURIComponent(reviewUsername(company));
+
+function promptsMsg(text, bad) {
+  const el = document.getElementById('prompts-msg');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = bad ? 'var(--danger, #b4232a)' : 'var(--ink-60, #5b6472)';
+}
+
+async function patchPrompts(body, okText) {
+  try {
+    const res = await fetch(await window.apiQuery('/api/prompts', {}), {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.assign({ company: currentCompany, session: window.akoreAuth.session() }, body))
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    promptsMsg(okText);
+    await loadCompany(currentCompany);
+  } catch (err) { promptsMsg(t('promptsSaveFailed') + err.message, true); }
+}
+
+async function releasePromptsInternal() {
+  // The page's own wrapper around the shared gate, so these labels match every other
+  // destructive action here rather than inventing a second set of names.
+  const ok = await confirmWithPassword(t('releaseConfirmTitle'), t('releaseConfirmMsg', currentCompany));
+  if (!ok) return;
+  promptsMsg('…');
+  // Edits ride along with the release, the way they always have.
+  await patchPrompts({ internalApprove: true, promptsText: collectPrompts() }, t('promptsReleased'));
+}
+
+async function savePromptEdits() {
+  promptsMsg('…');
+  // After release, revising a set is still an internal action — the endpoint keeps the
+  // customer's own approval separate and one-way.
+  await patchPrompts({ internalApprove: true, promptsText: collectPrompts() }, t('promptsSaved'));
 }
 
 const CSV_COLUMNS = [
