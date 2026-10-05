@@ -123,6 +123,10 @@
 
   /* Anything that changes what a customer sees, or removes an account, is re-authenticated.
      Matches the rule the rest of the platform already applies to destructive staff actions. */
+  /* `message` is plain text: requirePassword writes it with .textContent, so markup passed here
+     is shown to the reader as angle brackets rather than rendered. textContent is the right
+     choice there — these strings carry usernames and company names — so the callers drop the
+     tags instead, and escaping is likewise neither needed nor wanted. */
   function confirmPassword(title, message) {
     if (!window.requirePassword) return Promise.resolve(true);
     return window.requirePassword({
@@ -298,7 +302,7 @@
        whole record with it — the result rows are keyed separately and are not what this reads.
        The password gate doubles as the confirmation, as it did on the old portal. */
     if (!(await confirmPassword('Eliminar cliente',
-      `Se borra <strong>${esc(company)}</strong> por completo: su formulario, sus prompts y sus accesos. No se puede deshacer.`))) return;
+      `Se borra ${company} por completo: su formulario, sus prompts y sus accesos. No se puede deshacer.`))) return;
     try {
       // Deleting the whole group is a DELETE by the OWNER's username — the group blob is keyed by
       // slugify(company), and the owner's username is that same string. Passing the company name
@@ -494,15 +498,15 @@
         await dialog({ title: 'Contraseña restablecida', sub: 'Compártela con la persona; no vuelve a mostrarse.', fields: [], confirm: 'Listo',
           note: `<div>Usuario <code>${esc(username)}</code></div><div style="margin-top:6px;">Contraseña <code>${esc(got.newPassword.trim())}</code></div>` });
       } else if (act === 'reset2fa') {
-        if (!(await confirmPassword('Restablecer autenticador', `<strong>${esc(username)}</strong> tendrá que volver a configurar su app de dos pasos al entrar.`))) return;
+        if (!(await confirmPassword('Restablecer autenticador', `${username} tendrá que volver a configurar su app de dos pasos al entrar.`))) return;
         await api.send('POST', '/api/enroll', { action: 'reset', username });
         toast('Autenticador restablecido');
       } else if (act === 'rmmember') {
-        if (!(await confirmPassword('Quitar acceso', `<strong>${esc(username)}</strong> dejará de poder entrar a ${esc(company)}.`))) return;
+        if (!(await confirmPassword('Quitar acceso', `${username} dejará de poder entrar a ${company}.`))) return;
         await api.remove('/api/intake-codes', { company, username, memberOnly: 'true' });
         toast('Acceso retirado');
       } else if (act === 'rmstaff') {
-        if (!(await confirmPassword('Quitar del equipo', `<strong>${esc(username)}</strong> perderá el acceso a esta consola.`))) return;
+        if (!(await confirmPassword('Quitar del equipo', `${username} perderá el acceso a esta consola.`))) return;
         await api.remove('/api/staff-users', { username });
         toast('Usuario retirado');
       }

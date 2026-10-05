@@ -62,6 +62,7 @@
   // Enter in the code field — and two logins running together used to mean two setups started, two
   // QR codes issued, and only one of them usable.
   let loginInFlight = null;
+  let restoreInFlight = null;
 
   const api = {
     /** Called by internal pages before anything else. */
@@ -78,7 +79,17 @@
      *
      * Resolves to the who-payload, or null. Clears a session the server no longer recognises.
      */
-    restore: async function () {
+    restore: function () {
+      // Single-flight, for the same reason login is (see loginInFlight above). Two restores now
+      // run on every console page load — the sidebar asks, and so does the page — and a single
+      // non-ok answer in either calls setToken('') below, which would throw away a session the
+      // other call is in the middle of confirming. One request, one answer, shared by both.
+      if (restoreInFlight) return restoreInFlight;
+      restoreInFlight = api._restore().finally(function () { restoreInFlight = null; });
+      return restoreInFlight;
+    },
+
+    _restore: async function () {
       const held = token();
       if (!held) { current = null; return null; }
       let res, data;
