@@ -202,7 +202,6 @@ const T = {
   promptsShortfall: { en: (kept, asked) => `${kept} of the ${asked} requested — the rest could not be produced`, es: (kept, asked) => `${kept} de los ${asked} solicitados; el resto no se pudo producir` },
   promptsCountLine: { en: (n, langs, date) => `${n} prompts · ${langs} · generated ${date}`, es: (n, langs, date) => `${n} prompts · ${langs} · generado ${date}` },
   regeneratePrompts: { en: 'Regenerate Prompts', es: 'Regenerar Prompts' },
-  copyReviewLink: { en: 'Copy Review Link', es: 'Copiar Enlace de Revisión' },
   notGeneratedYet: { en: 'Not generated yet', es: 'Aún no generado' },
   generatePrompts: { en: 'Generate Prompts', es: 'Generar Prompts' },
   intakeTitle: { en: 'Intake', es: 'Formulario' },
@@ -301,7 +300,6 @@ const T = {
   saveMonitoringBtn: { en: 'Save monitoring', es: 'Guardar monitoreo' },
   saveMonitoringFailed: { en: 'Failed to save monitoring: ', es: 'No se pudo guardar el monitoreo: ' },
   monPickStart: { en: 'Please pick a start date.', es: 'Elige una fecha de inicio.' },
-  reviewLinkCopied: { en: 'Review link copied!', es: '¡Enlace de revisión copiado!' },
   runningLabel: { en: 'Running', es: 'En proceso' },
   runningDetail: { en: (c, t, ci) => `${c}/${t} (${ci} recommended)`, es: (c, t, ci) => `${c}/${t} (${ci} recomendados)` },
   stalledNote: { en: 'No progress for a while — this run may have stalled. You can cancel it and try again.', es: 'Lleva rato sin avanzar, puede que se haya atorado. La puedes cancelar e intentar de nuevo.' },
@@ -800,7 +798,6 @@ async function loadCompany(company) {
       <div class="row" style="margin-top:12px;">
         <a class="btn ${pendingInternal ? '' : 'btn-ghost'} btn-sm" href="${reviewLink(company)}">${pendingInternal ? t('reviewAndReleaseBtn') : t('openInternalReviewBtn')}</a>
         <button class="btn btn-sm" onclick="openGenModal()">${t('regeneratePrompts')}</button>
-        <button class="btn btn-ghost btn-sm" onclick="copyReviewLink('${esc(company)}')">${t('copyReviewLink')}</button>
       </div>`;
   } else {
     promptsBlock = `
@@ -856,7 +853,6 @@ async function loadCompany(company) {
       <div class="scr-acts">
         <a class="btn${pendingInternal ? '' : ' btn-ghost'}" href="${reviewLink(company)}">${pendingInternal ? t('reviewAndReleaseBtn') : t('openInternalReviewBtn')}</a>
         <button class="btn btn-ghost" onclick="openGenModal()">${t('regeneratePrompts')}</button>
-        <button class="btn btn-ghost" onclick="copyReviewLink('${esc(company)}')">${t('copyReviewLink')}</button>
       </div>`;
   } else {
     promptsSummary = t('notGeneratedYet');
@@ -1098,9 +1094,6 @@ function reviewUsername(company) {
 }
 function reviewLink(company) {
   return '/prompt-review.html?username=' + encodeURIComponent(reviewUsername(company));
-}
-function copyReviewLink(company) {
-  navigator.clipboard.writeText(location.origin + reviewLink(company)).then(() => alert(t('reviewLinkCopied')));
 }
 
 const CSV_COLUMNS = [

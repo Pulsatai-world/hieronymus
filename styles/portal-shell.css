@@ -257,3 +257,31 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
    on the same edge, instead of a 380px form floating inside a full-width box. */
 .page.acct .set-list, .page.acct .panel { max-width: 640px; }
 .page.acct .field-grid { max-width: 100%; }
+
+/* ── GEO scanner ─────────────────────────────────────────────────────────────────────────── */
+.geo-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.geo-input { flex: 1 1 320px; min-width: 240px; font-family: inherit; font-size: 14px;
+  padding: 11px 14px; border: 1px solid var(--line,#e3e6ea); border-radius: 10px; background: #fff; }
+.geo-input:focus { outline: none; border-color: var(--violet-400,#9b86f2);
+  box-shadow: 0 0 0 3px rgba(109,79,224,.12); }
+.geo-check { display: flex; align-items: center; gap: 9px; margin-top: 14px; font-size: 13px;
+  color: var(--ink-60,#5b6472); cursor: pointer; }
+.geo-check input { cursor: pointer; }
+.geo-paste { width: 100%; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 11.5px;
+  padding: 10px 12px; border: 1px solid var(--line,#e3e6ea); border-radius: 10px; background: #fff;
+  resize: vertical; }
+/* The same four numbers, in the same order, as the panel on a customer page. */
+.geo-scores { display: flex; gap: 30px; flex-wrap: wrap; margin-top: 18px; }
+.geo-score { display: flex; flex-direction: column; gap: 4px; }
+.geo-score .n { font-family: var(--font-display, sans-serif); font-size: 26px; font-weight: 800;
+  line-height: 1; color: var(--violet-500,#6d4fe0); font-variant-numeric: tabular-nums; }
+.geo-score.muted .n { color: var(--ink-60,#5b6472); }
+.geo-score .l { font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--ink-60,#5b6472); font-weight: 700; }
+.geo-foot { font-size: 12.5px; color: var(--ink-60,#5b6472); margin-top: 12px; }
+.geo-acts { gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+
+/* The card is one big target; its menu sits above that target rather than inside it. */
+.card-wrap { position: relative; display: flex; }
+.card-wrap .card-link { flex: 1 1 auto; }
+.card-menu { position: absolute; top: 12px; right: 12px; z-index: 2; }

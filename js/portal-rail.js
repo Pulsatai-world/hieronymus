@@ -29,6 +29,7 @@
     clients: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 20V9"/></svg>',
     users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M18 20a6.4 6.4 0 0 0-2.2-4.8"/></svg>',
     account: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>',
+    scan: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.2"/><path d="M20 20l-4.6-4.6"/><path d="M4.9 11h12.2"/><path d="M11 4.9a13 13 0 0 1 0 12.2"/><path d="M11 4.9a13 13 0 0 0 0 12.2"/></svg>',
     out: '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>'
   };
 
@@ -86,6 +87,7 @@
        <div class="ar-nav">
          ${backItem}
          <a href="/portal.html"${on('/portal.html')}><span class="ar-ico">${ICON.clients}</span><span class="ar-t">Clientes</span></a>
+         <a href="/portal.html#/escaner"><span class="ar-ico">${ICON.scan}</span><span class="ar-t">Escáner GEO</span></a>
          <a href="/portal.html#/usuarios"><span class="ar-ico">${ICON.users}</span><span class="ar-t">Usuarios</span></a>
          <a href="/portal.html#/cuenta"><span class="ar-ico">${ICON.account}</span><span class="ar-t">Mi cuenta</span></a>
        </div>

@@ -245,7 +245,8 @@
         : step('Prompts', 'idle', 'Aún no');
       const au = c.runCount ? step('Auditoría', 'ok', c.runCount + (c.runCount === 1 ? ' corrida' : ' corridas'))
         : step('Auditoría', 'idle', 'Aún no');
-      return `<button class="card-link" data-customer="${esc(c.company)}">
+      return `<div class="card-wrap">
+        <button class="card-link" data-customer="${esc(c.company)}">
           <span class="card-name">${esc(c.company)}</span>
           <span class="card-meta">${esc(owner.username)} · ${(c.members || []).length} ${(c.members || []).length === 1 ? 'usuario' : 'usuarios'}</span>
           <span class="steps">${intake}${pr}${au}</span>
@@ -253,7 +254,11 @@
             <span class="dot ${c.monitoringEnabled ? '' : 'off'}"><i></i>${c.monitoringEnabled ? 'Monitoreo activo' : 'Monitoreo apagado'}</span>
             <span class="card-go">Abrir →</span>
           </span>
-        </button>`;
+        </button>
+        <div class="card-menu">${rowMenu([
+          { act: 'delcustomer', arg: c.company + '|' + owner.username, label: 'Eliminar cliente', danger: true }
+        ])}</div>
+      </div>`;
     };
 
     content().className = 'content';
@@ -282,6 +287,27 @@
       // creates; it does not keep a thinner copy of that page alongside the real one.
       el.onclick = () => { location.href = '/index.html?company=' + encodeURIComponent(el.dataset.customer); };
     });
+    content().querySelectorAll('[data-act]').forEach(b => { b.onclick = () => customerAction(b.dataset.act, b.dataset.arg); });
+  }
+
+  async function customerAction(act, arg) {
+    const [company, ownerUsername] = String(arg).split('|');
+    if (act !== 'delcustomer') return;
+    /* Permanent, and there is no archive: the store keeps one record per customer and the
+       endpoint either removes it or does not. Deleting takes the intake, the prompt set and the
+       whole record with it — the result rows are keyed separately and are not what this reads.
+       The password gate doubles as the confirmation, as it did on the old portal. */
+    if (!(await confirmPassword('Eliminar cliente',
+      `Se borra <strong>${esc(company)}</strong> por completo: su formulario, sus prompts y sus accesos. No se puede deshacer.`))) return;
+    try {
+      // Deleting the whole group is a DELETE by the OWNER's username — the group blob is keyed by
+      // slugify(company), and the owner's username is that same string. Passing the company name
+      // instead reaches a key that does not exist and answers ok having removed nothing.
+      await api.remove('/api/intake-codes', { username: ownerUsername });
+      await loadCustomers(true);
+      viewCustomers();
+      toast('Cliente eliminado');
+    } catch (e) { toast('No se pudo eliminar: ' + e.message); }
   }
 
   async function newCustomer() {
@@ -633,6 +659,230 @@
     } catch (e) { msg.className = 'field-msg bad'; msg.textContent = errEs(e.message); }
   }
 
+  // ── view: escáner GEO ─────────────────────────────────────────────────────────────────────
+  //
+  // Scans ANY website, customer or not — the prospect tool. Ported from the old portal unchanged:
+  // the same endpoints, the same two tick limits, the same four numbers in the same order as the
+  // panel on a customer page, and the same capture fallback for a site that blocks the scanner.
+  //
+  // A background function answers 202 the moment it is dispatched, before its own code has run,
+  // so a refusal inside it never reaches the browser. The only evidence available here is whether
+  // a job record ever appears. These two limits turn that silence into a sentence.
+  const GEO_START_TICKS = 5;    // ~25s: by now the record exists, or the scan never began
+  const GEO_MAX_TICKS = 36;     // ~3min: longer than any real scan has taken
+  let geoPoll = null, geoKey = null, geoLang = 'es', geoTicks = 0;
+
+  function geoNormalizeUrl(raw) {
+    const v = String(raw || '').trim();
+    if (!v) return '';
+    return /^https?:\/\//i.test(v) ? v : 'https://' + v;
+  }
+
+  function geoCompanyKey(rawUrl) {
+    let host;
+    try { host = new URL(rawUrl).hostname; } catch (e) { host = String(rawUrl); }
+    return 'prospecto-' + host.replace(/^www\./, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+  }
+
+  function geoSay(text) {
+    const el = document.getElementById('geo-status');
+    if (el) el.textContent = text;
+  }
+
+  function geoStop() {
+    if (geoPoll) { clearInterval(geoPoll); geoPoll = null; }
+    const btn = document.getElementById('geo-run');
+    if (btn) btn.disabled = false;
+  }
+
+  function geoWireCaptureLink() {
+    const a = document.getElementById('geo-capture-link');
+    if (a && window.AKORE_CAPTURE_BOOKMARKLET) a.setAttribute('href', window.AKORE_CAPTURE_BOOKMARKLET);
+  }
+
+  function geoTogglePaste() {
+    geoWireCaptureLink();
+    const on = document.getElementById('geo-paste-toggle').checked;
+    document.getElementById('geo-paste-wrap').style.display = on ? 'block' : 'none';
+  }
+
+  // The one thing that does work on a site like this is capturing it from a browser it already
+  // admits, so the panel opens itself there rather than leaving the operator to guess.
+  function geoOfferCapture() {
+    geoSay('El sitio no deja pasar al escáner. Captúralo desde tu navegador y pega el resultado aquí.');
+    const box = document.getElementById('geo-paste-toggle');
+    if (box && !box.checked) { box.checked = true; geoTogglePaste(); }
+    const link = document.getElementById('geo-capture-link');
+    if (link && link.scrollIntoView) link.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function geoScoreBlock(value, label, muted) {
+    const shown = (value === null || value === undefined) ? '—' : value;
+    return `<div class="geo-score${muted ? ' muted' : ''}"><div class="n">${shown}</div><div class="l">${esc(label)}</div></div>`;
+  }
+
+  // The same four numbers, in the same order, as the panel on the customer page — so a scan reads
+  // identically wherever it is met.
+  function geoRenderResult(latest) {
+    const out = document.getElementById('geo-result');
+    if (!out) return;
+    if (!latest) { out.innerHTML = ''; geoSay('Análisis terminado.'); return; }
+    geoSay('Analizado el ' + String(latest.scannedAt || '').slice(0, 10));
+    const layer = id => (latest.layers || []).find(l => l.id === id) || {};
+    out.innerHTML = `<div class="geo-scores">
+        ${geoScoreBlock(latest.overall, 'Puntaje general', false)}
+        ${geoScoreBlock(layer('access').score, 'Acceso', true)}
+        ${geoScoreBlock(layer('readability').score, 'Legibilidad', false)}
+        ${geoScoreBlock(layer('substance').score, 'Sustancia', false)}
+      </div>
+      <div class="geo-foot">${latest.pagesAnalyzed} páginas analizadas${
+        latest.blockers ? ' · ' + latest.blockers + ' bloqueos' : ''}${
+        latest.unverified ? ' · ' + latest.unverified + ' sin verificar' : ''}</div>`;
+  }
+
+  async function geoCheck() {
+    if (!geoKey) return;
+    try {
+      const res = await fetch(await window.apiQuery('/api/geo-scan-job', { company: geoKey }));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      geoTicks++;
+
+      // No job record at all: geo-scan-background writes one before it starts work, so its
+      // absence means the function refused or never ran. Almost always an expired session.
+      if (data.status === 'none') {
+        if (geoTicks < GEO_START_TICKS) return;
+        geoStop();
+        geoSay('El análisis nunca arrancó. Lo más probable es que tu sesión haya caducado.');
+        return;
+      }
+      if (data.status === 'running') {
+        if (geoTicks < GEO_MAX_TICKS) return;
+        geoStop();
+        geoSay('El análisis tardó más de lo normal. Inténtalo otra vez.');
+        return;
+      }
+
+      geoStop();
+
+      if (data.status === 'error') {
+        geoSay('No se pudo analizar' + (data.job && data.job.error ? ' — ' + data.job.error : '') + '.');
+        return;
+      }
+      const latest = data.latest;
+      const blocked = !latest || latest.reachable === false || (latest.pagesAnalyzed || 0) === 0;
+      if (blocked) { geoOfferCapture(); return; }
+
+      geoRenderResult(latest);
+      const acts = document.getElementById('geo-actions');
+      if (acts) acts.style.display = 'flex';
+    } catch (err) {
+      geoStop();
+      // Never silent: a hidden failure looks exactly like a scan that found nothing.
+      geoSay('No se pudo analizar — ' + err.message);
+    }
+  }
+
+  async function geoStart() {
+    const input = document.getElementById('geo-url');
+    const url = geoNormalizeUrl(input.value);
+    if (!url) { geoSay('Escribe la dirección del sitio web.'); input.focus(); return; }
+    input.value = url;
+
+    // When the box is ticked the page source is analysed instead of being fetched.
+    const pasting = document.getElementById('geo-paste-toggle').checked;
+    const pastedRaw = pasting ? document.getElementById('geo-html').value.trim() : '';
+    if (pasting && !pastedRaw) { geoSay('Pega el código de la página.'); document.getElementById('geo-html').focus(); return; }
+
+    // What the bookmarklet produces is a JSON bundle of several pages; what a person pastes by
+    // hand is the source of one page. Both are accepted, and the difference is only how many
+    // pages the scan gets to see.
+    let pastedHtml = pastedRaw, capturedPages = null;
+    if (pastedRaw) {
+      try {
+        const parsed = JSON.parse(pastedRaw);
+        if (parsed && parsed.akoreCapture && Array.isArray(parsed.pages) && parsed.pages.length) {
+          capturedPages = parsed.pages;
+          pastedHtml = '';
+        }
+      } catch (e) { /* not a bundle, treat it as one page of HTML */ }
+    }
+
+    geoKey = geoCompanyKey(url);
+    geoLang = curLang();
+    document.getElementById('geo-run').disabled = true;
+    document.getElementById('geo-actions').style.display = 'none';
+    document.getElementById('geo-result').innerHTML = '';
+    geoSay(capturedPages ? 'Páginas capturadas, listas para analizar: ' + capturedPages.length : 'Analizando…');
+
+    try {
+      const res = await fetch(await window.apiQuery('/api/geo-scan', {}), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company: geoKey, url: url, html: pastedHtml, pages: capturedPages, session: window.akoreAuth.session() })
+      });
+      if (!res.ok && res.status !== 202) {
+        geoSay('No se pudo analizar (HTTP ' + res.status + ').');
+        document.getElementById('geo-run').disabled = false;
+        return;
+      }
+    } catch (err) {
+      geoSay('No se pudo analizar — ' + err.message);
+      document.getElementById('geo-run').disabled = false;
+      return;
+    }
+    geoTicks = 0;
+    geoPoll = setInterval(geoCheck, 5000);
+    setTimeout(geoCheck, 2500);
+  }
+
+  // Both buttons open the same stored scan. Running the scan twice would hammer the target site
+  // and risk its rate limiter, and two scans could disagree with each other.
+  function geoOpen(formato) {
+    if (!geoKey) return;
+    window.open('/geo-report.html?company=' + encodeURIComponent(geoKey)
+      + '&lang=' + encodeURIComponent(geoLang)
+      + '&formato=' + encodeURIComponent(formato), '_blank', 'noopener');
+  }
+
+  function viewScanner() {
+    geoStop();                       // leaving and coming back must not leave a poll running
+    const c = content();
+    c.className = 'content';
+    c.innerHTML = `<div class="page">
+        <div class="page-head"><div class="page-head-main">
+          <h1 class="page-h1">Escáner GEO</h1>
+          <p class="page-sub">Revisa cualquier sitio web, sea cliente o no. Un solo análisis y eliges qué informe necesitas.</p>
+        </div></div>
+        <div class="panel">
+          <div class="geo-row">
+            <input type="url" id="geo-url" class="geo-input" placeholder="https://ejemplo.com" autocomplete="off" spellcheck="false">
+            <button class="btn btn-primary" id="geo-run">Analizar sitio web</button>
+          </div>
+          <label class="geo-check"><input type="checkbox" id="geo-paste-toggle">
+            <span>El sitio no deja pasar al escáner: pega el código de la página</span></label>
+          <div id="geo-paste-wrap" style="display:none;">
+            <p class="panel-sub" style="margin:14px 0 7px;">Se configura una vez: arrastra este botón a tu barra de marcadores.</p>
+            <a id="geo-capture-link" class="btn btn-sm" href="#" draggable="true" onclick="return false;">Capturar para Akore</a>
+            <p class="panel-sub" style="margin:10px 0 10px;">Después abre el sitio web en una pestaña, dale clic al botón y pega aquí. Lee la portada y hasta 19 páginas más desde tu propio navegador, que es el que el sitio web sí deja pasar.</p>
+            <textarea id="geo-html" rows="6" class="geo-paste" placeholder="Pega aquí el código de la página…"></textarea>
+          </div>
+          <div id="geo-status" class="field-msg"></div>
+          <div id="geo-result"></div>
+          <div class="geo-acts" id="geo-actions" style="display:none;">
+            <button class="btn" id="geo-open-client">Versión para el cliente ↗</button>
+            <button class="btn" id="geo-open-tech">Informe técnico ↗</button>
+          </div>
+        </div>
+      </div>`;
+    document.getElementById('geo-run').onclick = geoStart;
+    document.getElementById('geo-paste-toggle').onchange = geoTogglePaste;
+    document.getElementById('geo-open-client').onclick = () => geoOpen('cliente');
+    document.getElementById('geo-open-tech').onclick = () => geoOpen('tecnico');
+    document.getElementById('geo-url').addEventListener('keydown', e => { if (e.key === 'Enter') geoStart(); });
+    geoWireCaptureLink();
+  }
+
   // ── router ────────────────────────────────────────────────────────────────────────────────
   function route() {
     const h = (location.hash || '').replace(/^#\//, '');
@@ -641,6 +891,7 @@
       location.replace('/index.html?company=' + encodeURIComponent(decodeURIComponent(parts[1])));
       return;
     }
+    if (parts[0] === 'escaner') return viewScanner();
     if (parts[0] === 'usuarios') return viewUsers();
     if (parts[0] === 'cuenta') return viewAccount(parts[1]);
     return viewCustomers();
