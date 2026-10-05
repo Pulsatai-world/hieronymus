@@ -199,7 +199,6 @@
     <a href="/portal.html" id="link-back" data-t="backNav">&larr; Back</a>
     <div class="headnav-right">
       <div class="lang-toggle"><button class="lang-btn" id="lang-btn-en" onclick="setLang('en')">EN</button><button class="lang-btn" id="lang-btn-es" onclick="setLang('es')">ES</button></div>
-      <a href="/dashboard-diagnostic.html" id="link-diagnostic" data-t="diagnosticNav">Diagnostic &rarr;</a>
     </div>
   </div>
   <div class="eyebrow" data-t="eyebrow">Akore Labs &middot; GEO</div>
@@ -229,6 +228,7 @@
 <div class="foot" id="foot"></div>
 
 <script src="/js/auth.js"></script>
+<script src="/js/portal-rail.js"></script>
 <script src="/js/dash/util.js"></script>
 <script src="/js/dash/i18n.js"></script>
 <script src="/js/dash/controls.js"></script>
@@ -561,7 +561,9 @@ function weekly(kpi, engines, intents, prompts, langs) {
 // ── MULTI-SELECT COMPONENT ──
 
 function buildForCompany() {
-  document.getElementById('link-diagnostic').href = '/dashboard-diagnostic.html?company=' + encodeURIComponent(company);
+  // The cross-link to the other dashboard was removed: Back is the only exit anyone wanted.
+  const diagLink = document.getElementById('link-diagnostic');
+  if (diagLink) diagLink.href = '/dashboard-diagnostic.html?company=' + encodeURIComponent(company);
   // Back button: internal staff return to that customer's detail page; clients to their own portal.
   document.getElementById('link-back').href = (!!((window.akoreAuth.who() || {}).kind === 'staff')
     ? '/index.html?company=' : '/client-portal.html?company=') + encodeURIComponent(company);

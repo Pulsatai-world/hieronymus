@@ -46,14 +46,17 @@ function pageWithScripts(file) {
 
 // Proof a page's startup reached the end, not just that nothing shouted on the way.
 const RENDERED = {
-  'index.html': d => d.querySelectorAll('#main-content .card').length >= 3
-    || 'main-content has ' + d.querySelectorAll('#main-content .card').length + ' cards',
+  // The customer page is a hub of tiles, one per thing you can do with that customer. Anything
+  // short of the full set means startup stopped partway.
+  'index.html': d => d.querySelectorAll('#main-content .hub .quick').length >= 3
+    || 'the hub rendered ' + d.querySelectorAll('#main-content .hub .quick').length + ' tiles',
   'portal.html': d => {
-    const el = d.getElementById('customers-list');
-    if (!el) return 'no customers-list element';
-    // Rendered means it got past its own placeholder, whatever it then found to show.
+    const el = d.getElementById('content');
+    if (!el) return 'no content element';
+    // Rendered means it got past its own placeholder, whatever it then found to show. With no
+    // customers in the stub that is the empty state, which is still the view having rendered.
     return (el.children.length > 0 || el.textContent.trim().length > 0)
-      || 'customers-list was never filled in';
+      || 'the content area was never filled in';
   },
   'intake.html': d => !!d.getElementById('access-gate') && !!d.getElementById('company')
     || 'the form did not render',
