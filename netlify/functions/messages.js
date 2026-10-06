@@ -114,7 +114,11 @@ function cleanText(v, max) {
 
 export default async (request) => {
   const url = new URL(request.url);
-  const store = getStore(STORE);
+  // Strong, not the default eventual consistency. A sender's page re-reads the conversation the
+  // moment its message is stored, and an eventually-consistent listing can come back without it —
+  // on the live site that made a sent message vanish until a later poll, so it looked unsent.
+  // Local Blobs are always consistent, which is why it only ever showed in production.
+  const store = getStore(STORE, { consistency: 'strong' });
 
   let body = null;
   if (request.method === 'POST' || request.method === 'PATCH') {

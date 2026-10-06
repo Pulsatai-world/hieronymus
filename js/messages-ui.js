@@ -88,6 +88,9 @@
 .msg-bubble-text { white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.5; padding: 10px 14px;
   border-radius: 14px; background: var(--ink-50, #f4f6f8); border: 1px solid var(--ink-100, #e3e6ea); color: var(--ink-950, #08090c); }
 .msg-bubble.mine .msg-bubble-text { background: var(--violet-600, #6d4fe0); border-color: var(--violet-600, #6d4fe0); color: #fff; }
+.msg-bubble.pending .msg-bubble-text { opacity: .72; }
+.msg-bubble.failed .msg-bubble-meta { color: #b3261e; font-weight: 600; }
+.msg-bubble.failed .msg-bubble-text { background: #fdf3f2; border-color: #f0c9c6; color: var(--ink-950, #08090c); }
 .msg-compose { border-top: 1px solid var(--ink-100, #e3e6ea); padding: 12px 16px 14px; }
 .msg-compose textarea, .msg-form input, .msg-form select, .msg-form textarea {
   width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; color: var(--ink-950, #08090c); background: #fff;
@@ -181,7 +184,8 @@
     const companyParam = th => (side === 'staff' ? (th ? th.company : '') : (o.company || ''));
 
     styles();
-    const state = { threads: [], open: null, composing: false, messages: [], timer: null };
+    const state = { threads: [], open: null, composing: false, messages: [], timer: null,
+      sent: {}, created: [], pendingThread: null, draft: '' };
 
     root.innerHTML = '';
     const page = el('div', 'msg-page');
@@ -256,12 +260,7 @@
       main.appendChild(h);
 
       const thread = el('div', 'msg-thread');
-      for (const m of state.messages) {
-        const b = el('div', 'msg-bubble' + (m.from === side ? ' mine' : ''));
-        b.appendChild(el('div', 'msg-bubble-meta', authorLabel(m) + ' · ' + when(m.sentAt)));
-        b.appendChild(el('div', 'msg-bubble-text', m.text));
-        thread.appendChild(b);
-      }
+      for (const m of state.messages) thread.appendChild(bubble(m));
       main.appendChild(thread);
       thread.scrollTop = thread.scrollHeight;
 
@@ -269,29 +268,78 @@
       const ta = el('textarea');
       ta.placeholder = t('replyPh');
       ta.maxLength = 4000;
+      ta.value = state.draft || '';
+      ta.addEventListener('input', () => { state.draft = ta.value; });
       const row = el('div', 'msg-compose-row');
       const hint = el('span', 'msg-hint', side === 'client' ? t('replyNote') : t('hint'));
       const btn = el('button', 'msg-btn', t('send'));
       btn.type = 'button';
+      // A conversation still being created has no id to reply to yet; it has one a moment later.
+      btn.disabled = !!th.pending;
       row.appendChild(hint); row.appendChild(btn);
       c.appendChild(ta); c.appendChild(row);
       main.appendChild(c);
 
+      /* The message is on screen the moment Send is pressed, not when the server has answered and
+         a re-read has come back with it. Waiting for the round trip made a sent message look unsent
+         — and on the live site the re-read could briefly miss it altogether. It shows as "Sending…"
+         until the server confirms it, and says so plainly if it fails. */
       const go = async () => {
         const text = ta.value.trim();
-        if (!text) return;
-        btn.disabled = true; btn.textContent = t('sending');
+        if (!text || th.pending) return;
+        const local = { id: 'local-' + Date.now() + '-' + Math.random().toString(16).slice(2, 8),
+          from: side, author: me, text, sentAt: new Date().toISOString(), pending: true };
+        state.messages.push(local);
+        ta.value = ''; state.draft = '';
+        thread.appendChild(bubble(local));
+        thread.scrollTop = thread.scrollHeight;
+        ta.focus();
         try {
-          await send('POST', { company: companyParam(th), thread: th.id, text });
-          ta.value = '';
-          await loadThread(th, true);
-          await loadList();
+          const r = await send('POST', { company: companyParam(th), thread: th.id, text });
+          confirmSent(th, local, r.message);
+          loadList().catch(() => {});
         } catch (e) {
-          hint.className = 'msg-err'; hint.textContent = t('failed') + e.message;
-        } finally { btn.disabled = false; btn.textContent = t('send'); }
+          local.pending = false; local.failed = t('failed') + e.message;
+          repaintBubble(local);
+        }
       };
       btn.onclick = go;
       ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go(); } });
+    }
+
+    function bubble(m) {
+      const b = el('div', 'msg-bubble' + (m.from === side ? ' mine' : '') + (m.pending ? ' pending' : '') + (m.failed ? ' failed' : ''));
+      b.dataset.id = m.id;
+      const meta = m.failed ? m.failed : authorLabel(m) + ' · ' + (m.pending ? t('sending') : when(m.sentAt));
+      b.appendChild(el('div', 'msg-bubble-meta', meta));
+      b.appendChild(el('div', 'msg-bubble-text', m.text));
+      return b;
+    }
+
+    // Updates one bubble in place, so a confirmation never repaints the composer under someone typing.
+    function repaintBubble(m, oldId) {
+      const cur = main.querySelector('.msg-bubble[data-id="' + (oldId || m.id) + '"]');
+      if (cur) cur.replaceWith(bubble(m));
+    }
+
+    const threadKey = th => th.company + '|' + th.id;
+
+    // The server has the message. Until a re-read lists it too, it is kept here so that a re-read
+    // which has not caught up cannot take it back off the screen.
+    function confirmSent(th, local, saved) {
+      const k = threadKey(th);
+      (state.sent[k] = state.sent[k] || []).push(saved);
+      const i = state.messages.indexOf(local);
+      if (i !== -1) state.messages[i] = saved;
+      if (state.open && threadKey(state.open) === k) repaintBubble(saved, local.id);
+    }
+
+    // What the server listed, plus anything this page sent that it has not listed yet.
+    function mergeMessages(th, fromServer) {
+      const have = new Set(fromServer.map(m => m.id));
+      const extra = (state.sent[threadKey(th)] || []).filter(m => !have.has(m.id));
+      const inFlight = state.messages.filter(m => m.pending || m.failed);
+      return fromServer.concat(extra).sort((a, b) => String(a.sentAt).localeCompare(String(b.sentAt))).concat(inFlight);
     }
 
     function paintNew() {
@@ -328,32 +376,71 @@
       (pick || subj).focus();
 
       cancel.onclick = () => { state.composing = false; paintList(); paintMain(); };
+      // The new conversation opens at once with its message in it, before the server has answered.
+      // If the server refuses it, the form comes back with everything that was typed.
       btn.onclick = async () => {
         const company = pick ? pick.value : (o.company || '');
-        if (!subj.value.trim() || !ta.value.trim() || (pick && !company)) { err.textContent = t('needAll'); return; }
-        btn.disabled = true; btn.textContent = t('sending'); err.textContent = '';
+        const subject = subj.value.trim(), text = ta.value.trim();
+        if (!subject || !text || (pick && !company)) { err.textContent = t('needAll'); return; }
+        const now = new Date().toISOString();
+        const temp = { id: 'local-' + Date.now(), company: side === 'staff' ? company : (o.company || ''),
+          subject, createdAt: now, lastAt: now, count: 1, unread: 0, pending: true };
+        const local = { id: temp.id + '-m', from: side, author: me, text, sentAt: now, pending: true };
+        state.composing = false;
+        state.pendingThread = temp;
+        state.open = temp;
+        state.messages = [local];
+        mergeThreads(state.threads);
+        paintList(); paintMain();
         try {
-          const r = await send('POST', { company, subject: subj.value, text: ta.value });
-          state.composing = false;
-          await loadList();
-          await openThread(r.thread);
+          const r = await send('POST', { company, subject, text });
+          const real = Object.assign({}, r.thread, { lastAt: r.message.sentAt, lastFrom: side, count: 1, unread: 0 });
+          state.created.push(real);
+          state.pendingThread = null;
+          if (state.open === temp) state.open = real;
+          (state.sent[threadKey(real)] = []).push(r.message);
+          if (state.open === real) state.messages = state.messages.map(m => (m === local ? r.message : m));
+          mergeThreads(state.threads);
+          paintList();
+          if (state.open === real) paintMain();
+          loadList().catch(() => {});
         } catch (e) {
-          err.textContent = t('failed') + e.message;
-          btn.disabled = false; btn.textContent = t('send');
+          state.pendingThread = null;
+          if (state.open === temp) state.open = null;
+          state.composing = true;
+          paintList(); paintMain();
+          const form = main.querySelector('.msg-form');
+          if (form) {
+            const sel = form.querySelector('select'); if (sel) sel.value = company;
+            form.querySelector('input').value = subject;
+            form.querySelector('textarea').value = text;
+            form.querySelector('.msg-err').textContent = t('failed') + e.message;
+          }
         }
       };
     }
 
+    // What the server listed, plus conversations this page created that it has not listed yet.
+    function mergeThreads(fromServer) {
+      const have = new Set(fromServer.map(threadKey));
+      const extra = state.created.filter(x => !have.has(threadKey(x)));
+      const all = extra.concat(fromServer.filter(x => !(x.pending)));
+      if (state.pendingThread) all.unshift(state.pendingThread);
+      state.threads = all;
+    }
+
     async function loadList() {
       const data = await getJson({ company: side === 'client' ? (o.company || '') : '' });
-      state.threads = data.threads || [];
+      mergeThreads(data.threads || []);
       paintList();
     }
 
     async function loadThread(th, repaint) {
+      if (th.pending) return;
       const data = await getJson({ company: companyParam(th), thread: th.id });
-      const grew = data.messages.length !== state.messages.length;
-      state.messages = data.messages || [];
+      const before = state.messages.map(m => m.id).join();
+      state.messages = mergeMessages(th, data.messages || []);
+      const grew = state.messages.map(m => m.id).join() !== before;
       // Opening a conversation that had something new marks it read for this whole side.
       const listed = state.threads.find(x => x.id === th.id && x.company === th.company);
       if (listed && listed.unread) {
@@ -365,7 +452,10 @@
 
     async function openThread(th) {
       state.composing = false;
-      state.open = state.threads.find(x => x.id === th.id && x.company === th.company) || th;
+      const next = state.threads.find(x => x.id === th.id && x.company === th.company) || th;
+      if (next === state.open && next.pending) return;   // still being created; already on screen
+      if (next !== state.open) state.draft = '';
+      state.open = next;
       state.messages = [];
       paintList();
       try { await loadThread(state.open, true); } catch (e) { main.innerHTML = ''; main.appendChild(el('div', 'msg-empty', t('loadFailed'))); }
