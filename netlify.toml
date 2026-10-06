@@ -63,6 +63,11 @@
   status = 301
 
 [[redirects]]
+  from = "/api/messages"
+  to = "/.netlify/functions/messages"
+  status = 200
+
+[[redirects]]
   from = "/api/staff-users"
   to = "/.netlify/functions/staff-users"
   status = 200

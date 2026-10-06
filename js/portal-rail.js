@@ -29,6 +29,7 @@
     clients: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 20V9"/></svg>',
     users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M18 20a6.4 6.4 0 0 0-2.2-4.8"/></svg>',
     account: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>',
+    messages: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6.5 8.5 6.5 8.5-6.5"/></svg>',
     scan: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.2"/><path d="M20 20l-4.6-4.6"/><path d="M4.9 11h12.2"/><path d="M11 4.9a13 13 0 0 1 0 12.2"/><path d="M11 4.9a13 13 0 0 0 0 12.2"/></svg>',
     out: '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>'
   };
@@ -57,6 +58,11 @@
     #akore-rail .ar-t{opacity:0;transition:opacity .14s;overflow:hidden}
     #akore-rail:hover .ar-t,#akore-rail.pinned .ar-t{opacity:1}
     html.akore-railed body{padding-left:${W}px!important;box-sizing:border-box}
+    #akore-rail a{position:relative}
+    #akore-rail .ar-badge{position:absolute;left:30px;top:6px;min-width:17px;height:17px;padding:0 4px;
+      border-radius:9px;background:var(--emerald-500,#1ea97c);color:#06231a;font-size:11px;font-weight:800;
+      display:flex;align-items:center;justify-content:center}
+    #akore-rail .ar-badge[hidden]{display:none}
   `;
 
   function mount() {
@@ -87,6 +93,7 @@
        <div class="ar-nav">
          ${backItem}
          <a href="/portal.html"${on('/portal.html')}><span class="ar-ico">${ICON.clients}</span><span class="ar-t">Clientes</span></a>
+         <a href="/portal.html#/mensajes"><span class="ar-ico">${ICON.messages}</span><span class="ar-t">Mensajes</span><span class="ar-badge" id="ar-msg-badge" hidden></span></a>
          <a href="/portal.html#/escaner"><span class="ar-ico">${ICON.scan}</span><span class="ar-t">Escáner GEO</span></a>
          <a href="/portal.html#/usuarios"><span class="ar-ico">${ICON.users}</span><span class="ar-t">Usuarios</span></a>
          <a href="/portal.html#/cuenta"><span class="ar-ico">${ICON.account}</span><span class="ar-t">Mi cuenta</span></a>
@@ -106,7 +113,30 @@
       if (!window.matchMedia('(hover: hover)').matches) rail.classList.toggle('pinned');
     });
     document.addEventListener('click', e => { if (!rail.contains(e.target)) rail.classList.remove('pinned'); });
+
+    // After the page has finished loading, so the badge never competes with what the page is for.
+    const startPolling = () => { pollMessages(); setInterval(pollMessages, 30000); };
+    if (document.readyState === 'complete') startPolling();
+    else window.addEventListener('load', startPolling, { once: true });
   }
+
+  /* How many customer conversations are waiting on Akore. This is the notification: it sits on
+     every console page, so a message is noticed wherever someone happens to be working. One small
+     request every 30 seconds, answered from key listings rather than by reading messages. */
+  function setMessageBadge(n) {
+    const b = document.getElementById('ar-msg-badge');
+    if (!b) return;
+    b.textContent = n > 99 ? '99+' : String(n || '');
+    b.hidden = !n;
+  }
+  async function pollMessages() {
+    try {
+      const res = await fetch(await window.apiQuery('/api/messages', { count: '1' }));
+      if (res.ok) setMessageBadge((await res.json()).unread || 0);
+    } catch (e) { /* offline: the next poll tries again */ }
+  }
+  // The inbox screen knows sooner than the next poll — opening a conversation clears it at once.
+  window.akoreSetMessageBadge = setMessageBadge;
 
   /* The session is restored asynchronously, so wait for it rather than reading storage: the
      server decides whether this browser is signed in, and nothing else is proof. */

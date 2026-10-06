@@ -887,6 +887,18 @@
     geoWireCaptureLink();
   }
 
+  // ── view: mensajes ────────────────────────────────────────────────────────────────────────
+  /* Every customer conversation in one inbox. The screen is js/messages-ui.js, the same one the
+     client portal shows; the customer list is offered for starting a conversation ourselves. */
+  function viewMessages() {
+    content().className = 'content fixed';
+    window.AkoreMessages.mount(content(), {
+      side: 'staff', lang: 'es',
+      customers: state.customers.map(c => c.company).filter(Boolean),
+      onUnread: n => { if (window.akoreSetMessageBadge) window.akoreSetMessageBadge(n); }
+    });
+  }
+
   // ── router ────────────────────────────────────────────────────────────────────────────────
   function route() {
     const h = (location.hash || '').replace(/^#\//, '');
@@ -895,6 +907,7 @@
       location.replace('/index.html?company=' + encodeURIComponent(decodeURIComponent(parts[1])));
       return;
     }
+    if (parts[0] === 'mensajes') return viewMessages();
     if (parts[0] === 'escaner') return viewScanner();
     if (parts[0] === 'usuarios') return viewUsers();
     if (parts[0] === 'cuenta') return viewAccount(parts[1]);

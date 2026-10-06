@@ -56,7 +56,27 @@ Originally "Hieronymus," the browser-driven manual audit tool with its own API-k
 - `netlify/functions/audit-job.js` — polling endpoint for live audit progress (used by both the Portal and the per-customer detail page)
 - `netlify/functions/results.js` — per-row Blob storage, reconstructs CSV on GET
 - `netlify/functions/monthly-audit-cron.js` — Scheduled Function, triggers `/api/run-audit` for monitoring-enabled customers
+- `netlify/functions/messages.js` + `js/messages-ui.js` — the customer ↔ Akore inbox (see "Messages" below)
 - `netlify.toml` — maps clean `/api/*` paths to the underlying `/.netlify/functions/*` files
+
+## Messages (customer ↔ Akore inbox)
+A plain inbox, not a chatbot. A company has any number of conversations, each with a subject; either
+side can start one. **Every login at a company — viewers included — reads and writes all of that
+company's conversations**, and no other company can see they exist. A customer's company always comes
+from their session; whatever company a request names is ignored, not compared.
+
+- Storage (`hieronymus-messages`): `t/<slug>/<threadId>` conversation, `m/<slug>/<threadId>/<ts>-<s|c>-<rand>`
+  one blob per message (never rewritten, same reason as result rows), `r/<side>/<slug>/<threadId>/<ts>` read
+  markers. Sender, time and read position live in **keys**, so the unread badges are answered from key
+  listings with no blob reads.
+- Read state is **per side, not per person**: one Akore staff member opening a conversation marks it read for
+  all of Akore, and likewise within a company.
+- Notification is in-app: both sidebars poll `?count=1` every 30s. The console's poll is the one named
+  exception in `test/pages-load.test.cjs`'s "front page costs one request" rule, and is held to one request.
+- One shared screen (`js/messages-ui.js`) for both apps. Message text is only ever set as text, never HTML.
+- No email yet. `notify()` in `messages.js` is the single place it goes when it is wanted.
+- Deleting a customer does not delete their messages — the same as their intake, prompts and results today.
+  A new customer created under the same name would see the old conversations; fix all of it together.
 
 ## Which model does what
 Three distinct jobs, deliberately on different models:

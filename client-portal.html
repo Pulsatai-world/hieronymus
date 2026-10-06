@@ -464,6 +464,7 @@ body.app-mode .app-header { display: none; }
 <script src="/js/dash/score.js"></script>
 <script src="/js/auth.js"></script>
 <script src="/js/client-rail.js"></script>
+<script src="/js/messages-ui.js"></script>
 <script src="/js/enroll-dialog.js"></script>
 <script>
 let clientCompany = '';
@@ -766,6 +767,8 @@ async function showApp() {
     const pr = await fetch(await window.apiQuery('/api/prompts', { company: clientCompany }));
     if (pr.ok) { const pd = await pr.json(); promptsPending = !!(pd && pd.promptsText) && !pd.approvedAt; }
   } catch { promptsPending = false; }
+  messagesUnread = await AkoreMessages.unread(clientCompany);
+  startMessageBadge();
 
   const fromHash = (location.hash || '').replace('#/', '');
   go(VIEWS.includes(fromHash) ? fromHash : 'home');
@@ -822,6 +825,7 @@ const TT = {
   evNone:{en:'Nothing has happened on your account yet.',es:'Todavía no hay actividad en tu cuenta.'},
   navDashboards:{en:'Dashboards',es:'Tableros'}, navPrompts:{en:'Monitored prompts',es:'Prompts monitoreados'},
   navIntake:{en:'Intake form',es:'Formulario'}, navSettings:{en:'Settings',es:'Ajustes'},
+  navMessages:{en:'Messages',es:'Mensajes'},
   navLogout:{en:'Sign out',es:'Cerrar sesión'}, navBackStaff:{en:'Back to customer',es:'Volver al cliente'},
   navBack:{en:'Back',es:'Volver'},
 
@@ -880,10 +884,11 @@ const TT = {
 };
 Object.assign(T, TT);
 
-const VIEWS = ['home','dashboards','prompts','intake','settings'];
+const VIEWS = ['home','dashboards','prompts','intake','messages','settings'];
 let currentView = 'home';
 let pmRows=null, pmPrompts=[], pmSelected=null, pmDate='', pmQuery='';
 let promptsPending = false;
+let messagesUnread = 0;
 
 const ICON = {
   home:'<svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.8V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.8"/></svg>',
@@ -902,7 +907,8 @@ function renderRail() {
     company: clientCompany,
     current: currentView,
     t: t, esc: esc,
-    badges: promptsPending ? { prompts: '!' } : {},
+    badges: Object.assign({}, promptsPending ? { prompts: '!' } : {},
+                          messagesUnread ? { messages: String(messagesUnread) } : {}),
     onNavigate: function (id) { go(id); return true; },
     onLogout: clientLogout
   });
@@ -918,12 +924,13 @@ function go(view) {
   const c = document.getElementById('content');
   c.scrollTop = 0;
   // Prompts manages its own two scroll panes; dashboards and intake open a full-height frame.
-  c.classList.toggle('locked', view === 'prompts' || view === 'intake');
+  c.classList.toggle('locked', view === 'prompts' || view === 'intake' || view === 'messages');
   if (view !== 'settings') settingsPane = '';
   if (view === 'home') viewHome(c);
   else if (view === 'dashboards') viewDashboards(c);
   else if (view === 'prompts') viewPrompts(c);
   else if (view === 'intake') viewIntake(c);
+  else if (view === 'messages') viewMessages(c);
   else viewSettings(c);
 }
 
@@ -1320,6 +1327,33 @@ function paintPromptDetail() {
 function properEngine(e){const k=String(e||'').toLowerCase();
   return k==='chatgpt'?'ChatGPT':k==='claude'?'Claude':k==='gemini'?'Gemini':String(e||'').replace(/\b\w/g,m=>m.toUpperCase());}
 function mdLite(txt){return esc(txt).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g,'$1<em>$2</em>');}
+
+// ── Mensajes ───────────────────────────────────────────────────────────────────────────────
+/* Questions for Akore, and Akore's replies. The inbox itself is js/messages-ui.js, shared with
+   the staff console; the server only ever answers with this customer's own conversations. */
+function viewMessages(c) {
+  AkoreMessages.mount(c, {
+    side: 'client', company: clientCompany, lang: lang,
+    onUnread: n => setMessagesUnread(n)
+  });
+}
+
+function setMessagesUnread(n) {
+  if (n === messagesUnread) return;
+  messagesUnread = n;
+  renderRail();
+}
+
+/* The badge stays current on every screen, not only the inbox: a reply arriving while someone is
+   reading a dashboard is exactly the case it exists for. */
+let messageBadgeTimer = null;
+function startMessageBadge() {
+  if (messageBadgeTimer) return;
+  messageBadgeTimer = setInterval(async () => {
+    if (currentView === 'messages') return;     // the inbox reports its own count
+    setMessagesUnread(await AkoreMessages.unread(clientCompany));
+  }, AkoreMessages.POLL_MS);
+}
 
 // ── 3. Formulario ──────────────────────────────────────────────────────────────────────────
 /* Straight into the form itself, not a summary of it. intake.html already decides for itself

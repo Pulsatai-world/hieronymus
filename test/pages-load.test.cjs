@@ -186,7 +186,16 @@ const PAGES = fs.readdirSync(ROOT).filter(f => f.endsWith('.html'));
     // One request, and it has to stay one. It was three, two of which existed only to draw two
     // badges per row, and each was a listing that reads one blob per customer — so the front page
     // got slower with every customer added, for ever.
-    const dataCalls = seen.filter(u => /\/api\//.test(u) && !/\/api\/login/.test(u));
+    //
+    // ONE named exception: the sidebar's unread-messages badge, which sits on every console page
+    // and is not part of drawing the list. It is answered from key listings, reads no customer
+    // record, and is one request however many customers there are — so it is held to that here,
+    // separately, rather than being allowed to hide inside the list's budget.
+    const isBadge = u => /\/api\/messages\?count=1/.test(u);
+    const badgeCalls = seen.filter(isBadge);
+    check('the messages badge is at most one request', badgeCalls.length <= 1,
+      badgeCalls.length + ': ' + JSON.stringify(badgeCalls));
+    const dataCalls = seen.filter(u => /\/api\//.test(u) && !/\/api\/login/.test(u) && !isBadge(u));
     check('and the whole list costs exactly one request', dataCalls.length === 1,
       dataCalls.length + ': ' + JSON.stringify(dataCalls));
     check('which asks for the directory, not for every prompt set and every result row',
