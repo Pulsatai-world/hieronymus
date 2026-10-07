@@ -39,6 +39,11 @@ export function rowToCsvLine(row) {
 }
 
 const CACHE_STORE = 'hieronymus-results-cache';
+// Bump when an index entry gains or loses a field. A cache outlives a deploy, so without this the
+// first run after a shape change reads an entry written by the old code, finds the new field
+// missing, and quietly does nothing — which is exactly what happened when diagnosticKeys was
+// added: the clear deleted none of the previous diagnosis and left the dashboard pinned to it.
+const INDEX_SHAPE = 2;
 const INDEX_KEY = '__index';
 
 export function slugify(name) {
@@ -66,7 +71,8 @@ export async function rebuildResultsCache() {
     byCompany.get(key).push(row);
   }
 
-  const index = { builtAt: new Date().toISOString(), companies: {} };
+  const index = { builtAt: new Date().toISOString(), shape: INDEX_SHAPE, companies: {} };
+  const csvByKey = {};
   const writes = [];
   for (const [key, list] of byCompany) {
     // Oldest first, so a rebuilt CSV reads the same way the appended one did.
@@ -82,9 +88,18 @@ export async function rebuildResultsCache() {
       // What the portal shows without needing a single row: has this customer been audited, and
       // is any of it a monitoring snapshot rather than the first diagnosis.
       hasDiagnostic: list.some(r => r.run_type !== 'monitoring'),
-      hasMonitoring: list.some(r => r.run_type === 'monitoring')
+      hasMonitoring: list.some(r => r.run_type === 'monitoring'),
+      // The blob keys of this customer's diagnostic rows, so replacing their diagnosis does not
+      // have to find them by reading every row on the platform. That scan — list(), then get()
+      // on every blob for every customer — ran before a single prompt was processed, with
+      // `completed` still at 0, so the progress bar sat at 0% for exactly as long as it took,
+      // and it got slower for everyone each time anybody was audited. It is the one place left
+      // doing the thing this file exists to stop.
+      diagnosticKeys: list.filter(r => r.run_type !== 'monitoring').map(r => r.run_id).filter(Boolean)
     };
-    writes.push(cache.setJSON(key, { csv: CSV_HEADER + list.map(rowToCsvLine).join(''), builtAt: index.builtAt }));
+    const csv = CSV_HEADER + list.map(rowToCsvLine).join('');
+    csvByKey[key] = csv;
+    writes.push(cache.setJSON(key, { csv, builtAt: index.builtAt }));
   }
   writes.push(cache.setJSON(INDEX_KEY, index));
   await Promise.all(writes);
@@ -100,7 +115,10 @@ export async function rebuildResultsCache() {
       })
     );
   }
-  return index;
+  // Both the stored form and what was just built. A caller that reads the cache back to find out
+  // what this call produced can be beaten to it by any concurrent write — invalidate() drops
+  // every cache blob — and would then see nothing at all and report a customer with no rows.
+  return { index, csvByKey };
 }
 
 /** The CSV for one company, built on a miss. */
@@ -110,18 +128,20 @@ export async function cachedCompanyCsv(company) {
   const hit = await cache.get(key, { type: 'json' });
   if (hit && typeof hit.csv === 'string') return hit.csv;
 
-  await rebuildResultsCache();
-  const after = await cache.get(key, { type: 'json' });
-  // A customer with no rows has no cache entry, which is not a miss — it is the answer.
-  return (after && after.csv) || CSV_HEADER;
+  // Taken from the rebuild itself, not read back out of the cache: a write landing in between
+  // would have dropped it again, and an empty answer here is indistinguishable from a customer
+  // who has never been audited. A customer with genuinely no rows has no entry, and the bare
+  // header is then the right answer rather than a guess.
+  const { csvByKey } = await rebuildResultsCache();
+  return csvByKey[key] || CSV_HEADER;
 }
 
 /** Per-company summaries, built on a miss. This is all the portal needs. */
 export async function resultsIndex() {
   const cache = getStore(CACHE_STORE);
   const hit = await cache.get(INDEX_KEY, { type: 'json' });
-  if (hit && hit.companies) return hit;
-  return await rebuildResultsCache();
+  if (hit && hit.companies && hit.shape === INDEX_SHAPE) return hit;
+  return (await rebuildResultsCache()).index;
 }
 
 /** Does this customer have any rows at all? One read, where the answer used to cost thousands. */

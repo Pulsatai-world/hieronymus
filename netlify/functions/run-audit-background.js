@@ -1,7 +1,7 @@
 import { getStore } from '@netlify/blobs';
 import { requireStaff } from './lib/authorize.js';
 import { createStaffSession } from './lib/session.js';
-import { invalidateResultsCache, rebuildResultsCache } from './lib/results-cache.js';
+import { invalidateResultsCache, rebuildResultsCache, resultsIndex, slugify as resultsSlug } from './lib/results-cache.js';
 
 // Server-side port of index.html's multi-engine answer+grade pipeline. Runs as a Netlify
 // Background Function (note the -background filename) so it can keep going well past the
@@ -596,19 +596,23 @@ export default async (request, context) => {
     //    treated as diagnostic, matching how the diagnostic dashboard itself filters them.
     //  - Skipped entirely on a resume (startIndex > 0). Those rows were written by this same run
     //    minutes ago; deleting them would throw away exactly the work being resumed.
-//  - Rows from THIS run's own date are left alone. They are the run's own output, and with the
-    //    company in the key a re-run on the same date overwrites them in place anyway. Deleting
-    //    them up front is what turned a run that then failed into a customer with no data at all:
-    //    the old snapshot was already gone and the new one never arrived.
+//  - It replaces the whole previous diagnosis, today's rows included. An earlier attempt to
+    //    spare today's spared the wrong thing: rows written before the key format changed sit on
+    //    different keys, so the run did not overwrite them either, and the customer ended up with
+    //    two rows per prompt and per engine — every count doubled. Wrong numbers are worse than
+    //    an obviously empty dashboard, and an empty one is one re-run away.
+    //  - It reads nothing. The keys come from the results index, which already knows them.
     let clearedRows = 0;
     if (runType === 'diagnostic' && startIndex === 0) {
       const rowsStore = getStore('hieronymus-results-rows');
-      const { blobs } = await rowsStore.list();
-      const existing = await Promise.all(blobs.map(async b => ({ key: b.key, data: await rowsStore.get(b.key, { type: 'json' }) })));
-      const stale = existing.filter(r => r.data && r.data.brand === company
-        && r.data.run_type !== 'monitoring' && r.data.snapshot_date !== snapshotDate);
-      await Promise.all(stale.map(r => rowsStore.delete(r.key)));
-      clearedRows = stale.length;
+      const index = await resultsIndex();
+      const entry = (index && index.companies) ? index.companies[resultsSlug(company)] : null;
+      const doomed = (entry && entry.diagnosticKeys) || [];
+      await Promise.all(doomed.map(k => rowsStore.delete(k)));
+      clearedRows = doomed.length;
+      // The rows changed, so the derived CSV and index are stale. Without this the page kept
+      // being served the pre-run set, which is why reading rows could never see a run's progress.
+      await invalidateResultsCache();
       await updateJob(jobsStore, jobKey, { clearedRows, phase: 'clearing' });
     }
 

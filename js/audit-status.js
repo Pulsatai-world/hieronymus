@@ -148,16 +148,18 @@
    *
    * Separated from the page for the same reason classify() is: it decides something, and a
    * decision that cannot be tested without a browser is a decision nobody checks. This one was
-   * `rows.length !== rowsAtTrigger` inside index.html, and it worked only because a diagnostic
-   * run deleted the customer's whole previous set before writing a single row — the count
-   * dropped the instant the run began, and that drop WAS the signal. When the up-front delete
-   * was removed (a run that failed afterwards left the customer with nothing) and rows became
-   * keyed per customer+date+prompt+engine, a same-day re-run began overwriting its predecessor
-   * in place. The count stopped changing, `live` never turned true, and the progress bar sat at
-   * 0% for an entire run while the rows piled up behind it.
+   * `rows.length !== rowsAtTrigger` inside index.html: a bare count comparison, which could only
+   * ever work if something changed the count at the start of a run. The clear did delete the
+   * previous set — but it never dropped the derived CSV cache, and every read of the rows comes
+   * from that cache, so the count the page saw did not move anyway. This backstop has therefore
+   * been inert for as long as the cache has existed.
    *
-   * written_at answers it directly: a row written at or after the trigger belongs to this run,
-   * whatever the count does. Rows predating that field fall back to the count comparison.
+   * written_at answers the question directly instead of inferring it: a row written at or after
+   * the trigger belongs to this run, whatever the count does. Rows predating the field fall back
+   * to the count comparison, which is no worse than what they had.
+   *
+   * This is a backstop, not the progress bar. The bar is driven by the job record; rows only
+   * matter when that record is missing or stale.
    */
   function classifyRows(rows, rec) {
     const out = { live: false, completed: 0, cited: 0 };

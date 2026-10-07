@@ -60,15 +60,41 @@ test('the same customer, date, prompt and engine is stable — a re-run replaces
     'a re-run must land on the same key, or every run leaves duplicate rows behind');
 });
 
-// The other way a customer ended up with nothing: the pre-run clear deleted every diagnostic row
-// they had BEFORE the run wrote any. A run that then failed — and background runs do get cut off
-// around 15 minutes — left the old snapshot gone and no new one in its place.
-test('the pre-run clear spares the rows this run is about to write', () => {
-  const clear = (SRC.match(/const stale = existing\.filter\(([\s\S]*?)\);/) || [])[1] || '';
-  assert.ok(clear, 'could not find the stale-row filter');
-  assert.match(clear, /snapshot_date\s*!==\s*snapshotDate/,
-    'the clear deletes this run\'s own date too, so a run that fails after clearing leaves the '
-    + 'customer with no data at all');
-  assert.match(clear, /run_type\s*!==\s*'monitoring'/,
-    'the clear must never touch monitoring rows — they are the trend history');
+// Replacing a diagnosis must not cost a scan of every row on the platform, and must not leave
+// half of the old set behind.
+//
+// The clear used to list the whole results store and get() every blob — for every customer, not
+// just this one — before a single prompt was processed. `completed` is still 0 throughout, so
+// the progress bar sat at 0% for exactly as long as that took, and it got slower for everybody
+// each time anybody was audited. It is also the one scan the results cache was written to remove.
+//
+// A later attempt to make the clear failure-safe spared rows dated today. That spared the wrong
+// thing: rows written before the key format changed live on different keys, so the run did not
+// overwrite them either and the customer ended up with two rows per prompt per engine — every
+// count doubled. An obviously empty dashboard is recoverable with a re-run; silently doubled
+// numbers in front of a client are not.
+test('the clear finds its rows from the index, not by reading every blob', () => {
+  const clear = (SRC.match(/if \(runType === 'diagnostic' && startIndex === 0\) \{([\s\S]*?)\n    \}/) || [])[1] || '';
+  assert.ok(clear, 'could not find the clear block');
+  assert.doesNotMatch(clear, /rowsStore\.list\(\)/,
+    'the clear still lists every blob on the platform before the run can start');
+  assert.doesNotMatch(clear, /rowsStore\.get\(/,
+    'the clear still reads every blob individually');
+  assert.match(clear, /resultsIndex\(\)/, 'the clear does not use the index');
+  assert.match(clear, /diagnosticKeys/, 'the clear does not use the stored row keys');
+});
+
+test('the clear drops the derived cache, or the page keeps being served the pre-run rows', () => {
+  const clear = (SRC.match(/if \(runType === 'diagnostic' && startIndex === 0\) \{([\s\S]*?)\n    \}/) || [])[1] || '';
+  assert.match(clear, /invalidateResultsCache\(\)/,
+    'rows were deleted but the CSV built from them was left in place');
+});
+
+test('the index exposes only diagnostic row keys, never monitoring ones', () => {
+  const CACHE = fs.readFileSync(
+    path.join(__dirname, '..', 'netlify', 'functions', 'lib', 'results-cache.js'), 'utf8');
+  const line = (CACHE.match(/diagnosticKeys:[^\n]*/) || [''])[0];
+  assert.ok(line, 'the index does not carry diagnostic row keys');
+  assert.match(line, /r\.run_type !== 'monitoring'/,
+    'monitoring rows are in the delete list — that is months of trend history');
 });
