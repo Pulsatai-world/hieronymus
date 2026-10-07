@@ -26,7 +26,7 @@ export const CSV_COLUMNS = [
   'brands_cited_list', 'top_cited_brand', 'brand_is_leader', 'linked_to_site', 'sentiment',
   'claims_about_brand', 'incorrect_claims', 'has_incorrect_claim', 'services_correct',
   'location_correct', 'contact_correct', 'ai_sessions', 'ai_conversions', 'ai_pipeline_usd',
-  'answer_excerpt'
+  'answer_excerpt', 'written_at'
 ];
 export const CSV_HEADER = CSV_COLUMNS.join(',') + '\n';
 

@@ -1182,7 +1182,7 @@ const CSV_COLUMNS = [
   'brands_cited_list', 'top_cited_brand', 'brand_is_leader', 'linked_to_site', 'sentiment',
   'claims_about_brand', 'incorrect_claims', 'has_incorrect_claim', 'services_correct',
   'location_correct', 'contact_correct', 'ai_sessions', 'ai_conversions', 'ai_pipeline_usd',
-  'answer_excerpt'
+  'answer_excerpt', 'written_at'
 ];
 function csvEscape(val) {
   const s = String(val ?? '');
@@ -1394,20 +1394,11 @@ async function auditRowProgress(company, opts) {
   }
   const rows = auditRowProbe.rows || [];
 
-  // Any change from the count taken at trigger means these rows belong to the run in flight: a
-  // fresh diagnosis deletes the previous set before writing, and a monitoring run only adds. An
-  // unchanged count is the previous run's data, which must not be read as progress on this one.
-  out.live = rows.length !== rec.rowsAtTrigger;
-  if (!out.live) return out;
-
-  // Counted as rows, not as distinct prompts, because that is the unit the run is measured in:
-  // prompts x engines. Counting prompts would call a run complete as soon as every prompt had its
-  // first engine answered, with the second engine's half still to come.
-  const latest = rows.reduce((d, r) => (r.snapshot_date > d ? r.snapshot_date : d), '');
-  const mine = rows.filter(r => r.snapshot_date === latest);
-  out.completed = mine.length;
-  // So the completion message can report what was found even when the job record never showed up.
-  out.cited = mine.filter(r => r.brand_cited === '1').length;
+  // The decision lives in js/audit-status.js so it can be tested without a browser.
+  const seen = window.akoreAuditStatus.classifyRows(rows, rec);
+  out.live = seen.live;
+  out.completed = seen.completed;
+  out.cited = seen.cited;
   return out;
 }
 
@@ -1779,7 +1770,8 @@ async function confirmRunAudit() {
   markAuditPending(currentCompany, {
     promptsTotal: currentPromptCount || 0,
     engineCount: engines.length,
-    rowsAtTrigger: currentRows.length
+    rowsAtTrigger: currentRows.length,
+    triggeredAt: new Date().toISOString()
   });
   const statusBlock = document.getElementById('job-status-block');
   if (statusBlock) renderAuditQueued(statusBlock, currentCompany, null);
@@ -1871,7 +1863,8 @@ async function resumeAudit(startIndex) {
   markAuditPending(currentCompany, {
     promptsTotal: currentPromptCount || 0,
     engineCount: (lastRunEngines && lastRunEngines.length) || new Set(currentRows.map(r => r.engine)).size || 0,
-    rowsAtTrigger: currentRows.length
+    rowsAtTrigger: currentRows.length,
+    triggeredAt: new Date().toISOString()
   });
   const statusBlock = document.getElementById('job-status-block');
   if (statusBlock) renderAuditQueued(statusBlock, currentCompany, null);

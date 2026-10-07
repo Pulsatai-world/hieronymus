@@ -143,5 +143,39 @@
     };
   }
 
-  return { classify, RANK };
+  /**
+   * Which stored rows belong to the run in flight, and how many there are.
+   *
+   * Separated from the page for the same reason classify() is: it decides something, and a
+   * decision that cannot be tested without a browser is a decision nobody checks. This one was
+   * `rows.length !== rowsAtTrigger` inside index.html, and it worked only because a diagnostic
+   * run deleted the customer's whole previous set before writing a single row — the count
+   * dropped the instant the run began, and that drop WAS the signal. When the up-front delete
+   * was removed (a run that failed afterwards left the customer with nothing) and rows became
+   * keyed per customer+date+prompt+engine, a same-day re-run began overwriting its predecessor
+   * in place. The count stopped changing, `live` never turned true, and the progress bar sat at
+   * 0% for an entire run while the rows piled up behind it.
+   *
+   * written_at answers it directly: a row written at or after the trigger belongs to this run,
+   * whatever the count does. Rows predating that field fall back to the count comparison.
+   */
+  function classifyRows(rows, rec) {
+    const out = { live: false, completed: 0, cited: 0 };
+    if (!rec || !Number.isFinite(rec.rowsAtTrigger)) return out;
+    const all = rows || [];
+    const triggeredAt = rec.triggeredAt || '';
+    const fresh = triggeredAt ? all.filter(r => r.written_at && r.written_at >= triggeredAt) : [];
+    out.live = fresh.length > 0 || all.length !== rec.rowsAtTrigger;
+    if (!out.live) return out;
+    // Counted as rows, not distinct prompts: prompts x engines is the unit a run is measured in.
+    // Counting prompts would call a run complete once every prompt had its first engine answered,
+    // with the second engine's half still to come.
+    const latest = all.reduce((d, r) => (r.snapshot_date > d ? r.snapshot_date : d), '');
+    const mine = fresh.length ? fresh : all.filter(r => r.snapshot_date === latest);
+    out.completed = mine.length;
+    out.cited = mine.filter(r => r.brand_cited === '1' || r.brand_cited === 1).length;
+    return out;
+  }
+
+  return { classify, classifyRows, RANK };
 });

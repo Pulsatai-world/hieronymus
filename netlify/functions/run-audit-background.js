@@ -358,7 +358,11 @@ function buildDbRow(r) {
     brand_is_leader: r.brandIsLeader ? 1 : 0, linked_to_site: r.linkedToSite ? 1 : 0, sentiment: r.sentiment,
     claims_about_brand: r.claimsAboutBrand || 0, incorrect_claims: r.incorrectClaims || 0, has_incorrect_claim: r.hasIncorrectClaim ? 1 : 0,
     services_correct: nullableFlag(r.servicesCorrect), location_correct: nullableFlag(r.locationCorrect), contact_correct: nullableFlag(r.contactCorrect),
-    ai_sessions: r.aiSessions || 0, ai_conversions: r.aiConversions || 0, ai_pipeline_usd: r.aiPipelineUsd || 0, answer_excerpt: r.response
+    ai_sessions: r.aiSessions || 0, ai_conversions: r.aiConversions || 0, ai_pipeline_usd: r.aiPipelineUsd || 0, answer_excerpt: r.response,
+    // When this row was written. snapshot_date is a date, so on a second run the same day it
+    // cannot distinguish this run's rows from the earlier one's — and the progress bar needs
+    // exactly that distinction. See the row probe in index.html.
+    written_at: new Date().toISOString()
   };
 }
 
