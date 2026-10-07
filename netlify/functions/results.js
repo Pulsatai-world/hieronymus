@@ -90,11 +90,16 @@ export default async (request, context) => {
     // round trips to render a list of four customers.
     if (url.searchParams.get('summary') === '1') {
       const index = await resultsIndex();
+      // diagnosticKeys is bookkeeping for replacing a diagnosis — blob keys, of no use to a
+      // caller and a needless download for a portal that wants four numbers per customer. It
+      // stays in the stored index and never leaves the server.
+      const pub = e => { const { diagnosticKeys, ...rest } = e || {}; return rest; };
       if (company) {
         const one = index.companies[company.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '')];
-        return json({ companies: one ? { [company]: one } : {} }, 200);
+        return json({ companies: one ? { [company]: pub(one) } : {} }, 200);
       }
-      return json(index, 200);
+      return json({ ...index, companies:
+        Object.fromEntries(Object.entries(index.companies).map(([k, v]) => [k, pub(v)])) }, 200);
     }
 
     const csv = company
