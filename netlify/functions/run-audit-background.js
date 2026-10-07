@@ -343,7 +343,15 @@ function hashId(str) {
 function nullableFlag(v) { return v === null || v === undefined ? '' : (v ? 1 : 0); }
 function buildDbRow(r) {
   return {
-    run_id: hashId(`${r.snapshotDate}|${r.promptId}|${r.engine}`), run_type: r.runType || 'diagnostic', snapshot_date: r.snapshotDate, engine: r.engine,
+    // The company is part of the key, and leaving it out silently destroyed data. Every row for
+    // every customer lives in one store, and prompt_id is POSITIONAL — every customer has Q01…Qnn
+    // — so two customers audited on the same date with the same engine computed the same key, and
+    // the second run overwrote the first customer's rows one for one. The rows stayed in the
+    // store carrying the other customer's brand, so the overwritten customer's dashboard reported
+    // no data at all while their audit had plainly run. Reads are unaffected by the change: they
+    // list the store and filter on the `brand` field, so rows written under the old key still
+    // resolve.
+    run_id: hashId(`${r.company}|${r.snapshotDate}|${r.promptId}|${r.engine}`), run_type: r.runType || 'diagnostic', snapshot_date: r.snapshotDate, engine: r.engine,
     prompt_id: r.promptId, prompt_text: r.prompt, query_intent: r.queryIntent || '', topic_cluster: r.category, brand: r.company,
     brand_mentioned: r.brandMentioned ? 1 : 0, brand_cited: r.brandCited ? 1 : 0, brand_citation_rank: r.brandCitationRank || '',
     total_brands_cited: r.totalBrandsCited || 0, brands_cited_list: (r.brandsCitedList || []).join(';'), top_cited_brand: r.topCitedBrand || '',
@@ -584,12 +592,17 @@ export default async (request, context) => {
     //    treated as diagnostic, matching how the diagnostic dashboard itself filters them.
     //  - Skipped entirely on a resume (startIndex > 0). Those rows were written by this same run
     //    minutes ago; deleting them would throw away exactly the work being resumed.
+//  - Rows from THIS run's own date are left alone. They are the run's own output, and with the
+    //    company in the key a re-run on the same date overwrites them in place anyway. Deleting
+    //    them up front is what turned a run that then failed into a customer with no data at all:
+    //    the old snapshot was already gone and the new one never arrived.
     let clearedRows = 0;
     if (runType === 'diagnostic' && startIndex === 0) {
       const rowsStore = getStore('hieronymus-results-rows');
       const { blobs } = await rowsStore.list();
       const existing = await Promise.all(blobs.map(async b => ({ key: b.key, data: await rowsStore.get(b.key, { type: 'json' }) })));
-      const stale = existing.filter(r => r.data && r.data.brand === company && r.data.run_type !== 'monitoring');
+      const stale = existing.filter(r => r.data && r.data.brand === company
+        && r.data.run_type !== 'monitoring' && r.data.snapshot_date !== snapshotDate);
       await Promise.all(stale.map(r => rowsStore.delete(r.key)));
       clearedRows = stale.length;
       await updateJob(jobsStore, jobKey, { clearedRows, phase: 'clearing' });

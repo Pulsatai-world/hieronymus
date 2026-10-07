@@ -62,7 +62,7 @@
   // Enter in the code field — and two logins running together used to mean two setups started, two
   // QR codes issued, and only one of them usable.
   let loginInFlight = null;
-  let restoreInFlight = null;
+  let restoreInFlight = null, restoreInFlightFor = null;
 
   const api = {
     /** Called by internal pages before anything else. */
@@ -80,12 +80,22 @@
      * Resolves to the who-payload, or null. Clears a session the server no longer recognises.
      */
     restore: function () {
-      // Single-flight, for the same reason login is (see loginInFlight above). Two restores now
-      // run on every console page load — the sidebar asks, and so does the page — and a single
+      // Single-flight, for the same reason login is (see loginInFlight above). Two restores run
+      // on every console page load — the sidebar asks, and so does the page — and a single
       // non-ok answer in either calls setToken('') below, which would throw away a session the
       // other call is in the middle of confirming. One request, one answer, shared by both.
-      if (restoreInFlight) return restoreInFlight;
-      restoreInFlight = api._restore().finally(function () { restoreInFlight = null; });
+      //
+      // Keyed by the token, and that is not a detail. akoreRestoreEither() flips `audience` and
+      // calls this again to try the other session; sharing one promise across that flip handed
+      // the second call the FIRST audience's answer, so a staff member opening a dashboard — the
+      // sidebar having already asked under the client audience, finding nothing — was told they
+      // were not signed in. Two different tokens are two different questions.
+      const held = token();
+      if (restoreInFlight && restoreInFlightFor === held) return restoreInFlight;
+      restoreInFlightFor = held;
+      restoreInFlight = api._restore().finally(function () {
+        restoreInFlight = null; restoreInFlightFor = null;
+      });
       return restoreInFlight;
     },
 
