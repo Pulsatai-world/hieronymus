@@ -674,7 +674,7 @@ async function loadCompany(company) {
   currentRows = rows;
   const runDates = [...new Set(rows.map(r => r.snapshot_date))].sort().reverse();
 
-  // ── Monitoring settings card ──
+  // ── Monitoring values (the card itself lives on the Auditoría screen) ──
   const mon = codeRec || {};
   const monEnabled = !!mon.monitoringEnabled;
   const diagReleased = !!mon.diagnosisReleased;
@@ -684,31 +684,6 @@ async function loadCompany(company) {
   const monNext = mon.nextRunAt ? mon.nextRunAt.slice(0, 10) : '';
   const hasDiagnosis = rows.some(r => r.run_type !== 'monitoring'); // diagnosis data to seed snapshot #1
   const cadOpt = (v, label) => `<option value="${v}"${monCadence === v ? ' selected' : ''}>${label}</option>`;
-  const monitoringBlock = `
-    <div class="card">
-      <div class="card-title">${t('monitoringSettingsTitle')}</div>
-      <div class="card-caption">${t('monitoringSettingsHint')}</div>
-      <label class="row" style="gap:8px;align-items:center;margin:6px 0 14px;cursor:pointer;">
-        <input type="checkbox" id="mon-enabled" ${monEnabled ? 'checked' : ''}> ${t('monEnableLabel')}
-      </label>
-      <div class="two-col">
-        <div class="field">
-          <label>${t('monCadenceLabel')}</label>
-          <select id="mon-cadence">
-            ${cadOpt('weekly', t('cadWeekly'))}${cadOpt('semimonthly', t('cadSemimonthly'))}${cadOpt('monthly', t('cadMonthly'))}${cadOpt('quarterly', t('cadQuarterly'))}
-          </select>
-        </div>
-        <div class="field">
-          <label>${t('monStartLabel')}</label>
-          <input type="date" id="mon-start" value="${esc(monStart)}">
-        </div>
-      </div>
-      ${monEnabled && monNext ? `<div class="field-hint" style="margin-top:10px;">${t('monNextRun', esc(monNext))}</div>` : ''}
-      ${!hasDiagnosis ? `<div class="field-hint" style="margin-top:10px;color:var(--warning);">${t('monNoDiagnosisWarn')}</div>` : ''}
-      <div class="row" style="margin-top:12px;">
-        <button class="btn btn-sm" onclick="saveMonitoring()">${t('saveMonitoringBtn')}</button>
-      </div>
-    </div>`;
 
   // Which questions this customer is actually asked, and whether staff have edits in hand that the
   // customer has not been given yet — the one thing about a draft that belongs on the page rather
@@ -900,6 +875,19 @@ async function loadCompany(company) {
       <h1 class="scr-h">${t('auditStatusTitle')}</h1>
 
       <section class="blk">
+        <h2 class="blk-h">${t('monitoringSettingsTitle')}</h2>
+        <p class="scr-note">${t('monitoringSettingsHint')}</p>
+        <label class="chk"><input type="checkbox" id="mon-enabled" ${monEnabled ? 'checked' : ''}> ${t('monEnableLabel')}</label>
+        <div class="field"><label>${t('monCadenceLabel')}</label>
+          <select id="mon-cadence">${cadOpt('weekly', t('cadWeekly'))}${cadOpt('semimonthly', t('cadSemimonthly'))}${cadOpt('monthly', t('cadMonthly'))}${cadOpt('quarterly', t('cadQuarterly'))}</select></div>
+        <div class="field"><label>${t('monStartLabel')}</label><input type="date" id="mon-start" value="${esc(monStart)}"></div>
+        ${monEnabled && monNext ? `<p class="scr-note">${t('monNextRun', esc(monNext))}</p>` : ''}
+        ${!hasDiagnosis ? `<p class="scr-note warn">${t('monNoDiagnosisWarn')}</p>` : ''}
+        <button class="btn btn-sm" onclick="saveMonitoring()">${t('saveMonitoringBtn')}</button>
+      </section>
+
+
+      <section class="blk">
         <h2 class="blk-h">${t('runsTitle')}</h2>
         ${runDates.length ? `<div class="runs">${runDates.map(d => {
           const rs = rows.filter(r => r.snapshot_date === d);
@@ -1001,8 +989,8 @@ async function loadCompany(company) {
       </section>
 
       <details class="more">
-        <summary>${t('geoTitle')} · ${t('monitoringSettingsTitle')}</summary>
-        <div class="more-grid">
+        <summary>${t('geoTitle')}</summary>
+        <div class="more-grid one">
           <div class="more-box">
             <div class="more-h">${t('geoTitle')}</div>
             <p class="scr-note">${t('geoHint')}</p>
@@ -1021,15 +1009,6 @@ async function loadCompany(company) {
                 </div>
               </div>`).join('')}
           </div>
-          <div class="more-box">
-            <div class="more-h">${t('monitoringSettingsTitle')}</div>
-            <label class="chk"><input type="checkbox" id="mon-enabled" ${monEnabled ? 'checked' : ''}> ${t('monEnableLabel')}</label>
-            <div class="field"><label>${t('monCadenceLabel')}</label>
-              <select id="mon-cadence">${cadOpt('weekly', t('cadWeekly'))}${cadOpt('semimonthly', t('cadSemimonthly'))}${cadOpt('monthly', t('cadMonthly'))}${cadOpt('quarterly', t('cadQuarterly'))}</select></div>
-            <div class="field"><label>${t('monStartLabel')}</label><input type="date" id="mon-start" value="${esc(monStart)}"></div>
-            ${monEnabled && monNext ? `<p class="scr-note">${t('monNextRun', esc(monNext))}</p>` : ''}
-            ${!hasDiagnosis ? `<p class="scr-note warn">${t('monNoDiagnosisWarn')}</p>` : ''}
-            <button class="btn btn-sm" onclick="saveMonitoring()">${t('saveMonitoringBtn')}</button>
           </div>
         </div>
       </details>

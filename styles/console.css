@@ -9,6 +9,12 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
+/* Nothing scrolls the page itself: body is height:100% with overflow:hidden so the injected rail
+   can stand as a fixed column beside it. That left this page with no scroller at all — every
+   screen taller than the window simply stopped at the fold, and the collapsible at the bottom
+   opened into content there was no way to reach. The content pane is the scroller. */
+body { display: flex; flex-direction: column; }
+.main { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 body { margin: 0; font-family: var(--font-body, "Manrope", system-ui, sans-serif);
   font-size: 14px; line-height: 1.5; color: var(--dark, #08090c);
   background: var(--ice, #f4f6f8); -webkit-font-smoothing: antialiased; overflow: hidden; }
@@ -400,3 +406,5 @@ tr:last-child td { border-bottom: 0; }
 .pedit:hover { background: var(--ice,#f4f6f8); }
 .pedit:focus { outline: none; background: #fff; border-color: var(--violet-400,#9b86f2);
   box-shadow: 0 0 0 3px rgba(109,79,224,.12); }
+/* The collapsible holds one panel now that monitoring moved to the Auditoría screen. */
+.more-grid.one { grid-template-columns: 1fr; }
