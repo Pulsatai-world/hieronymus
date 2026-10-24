@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- The Akore mark in the browser tab. -->
+<link rel="icon" type="image/png" href="/brand/logo-mark.png">
+<link rel="apple-touch-icon" href="/brand/logo-mark.png">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
 <title>Akore Labs — Customer Detail</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -274,7 +277,7 @@ const T = {
   showingRecent: { en: (n) => `Showing the 5 most recent of ${n} rows — see the dashboards below for the full picture.`, es: (n) => `Se muestran las 5 filas más recientes de ${n}; consulta los tableros de abajo para ver el panorama completo.` },
   noResultsYet: { en: 'No audit results yet for this customer.', es: 'Aún no hay resultados de auditoría para este cliente.' },
   dashboardsTitle: { en: 'Dashboards', es: 'Tableros' },
-  runsTitle: { en: 'Runs on record', es: 'Ejecuciones registradas' },
+  runsTitle: { en: 'Audits', es: 'Auditorías' },
   runsHint: { en: 'Each snapshot stored for this customer. A run where every row failed collected no data — delete it so it cannot be mistaken for a month of zero visibility.', es: 'Cada captura guardada de este cliente. Si en una corrida fallaron todas las filas, no se juntó ningún dato: bórrala para que no se confunda con un mes de visibilidad en cero.' },
   runRowLine: { en: (d, n, e, t) => `${d} · ${n} rows · ${e} failed · ${t}`, es: (d, n, e, t) => `${d} · ${n} filas · ${e} con error · ${t}` },
   runAllFailed: { en: 'collected nothing', es: 'no recolectó nada' },
@@ -723,25 +726,6 @@ async function loadCompany(company) {
     }
   });
   const failedEngines = Object.keys(failuresByEngine).filter(e => failuresByEngine[e].failed > 0);
-  // Per-snapshot list, so a single bad run can be removed without wiping a customer's history. A
-  // wholly failed run is called out: on the monitoring trend it would otherwise read as a real month
-  // of zero visibility rather than a measurement that never happened.
-  const runsBlock = runDates.length ? `
-    <div class="card">
-      <div class="card-title">${t('runsTitle')}</div>
-      <div class="card-caption">${t('runsHint')}</div>
-      ${runDates.map(d => {
-        const rs = rows.filter(r => r.snapshot_date === d);
-        const errs = rs.filter(r => r.sentiment === 'error').length;
-        const allFailed = rs.length > 0 && errs === rs.length;
-        const kind = rs.some(r => r.run_type === 'monitoring') ? 'monitoring' : 'diagnostic';
-        return `<div class="row" style="margin-top:10px;align-items:center;">
-          <span class="badge ${allFailed ? 'badge-error' : (errs ? 'badge-partial' : 'badge-done')}">${esc(d)}</span>
-          <span class="field-hint">${t('runRowLine', esc(d), rs.length, errs, kind)}${allFailed ? ' — ' + t('runAllFailed') : ''}</span>
-          <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="deleteRun('${esc(d)}')">${t('deleteRunBtn')}</button>
-        </div>`;
-      }).join('')}
-    </div>` : '';
 
   const failureBlock = failedEngines.length ? `
     <div class="card">
