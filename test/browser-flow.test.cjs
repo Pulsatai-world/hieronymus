@@ -553,7 +553,8 @@ function scrypt(pw) {
         !/id="pw-input"/.test(src) && !/akoreSignIn\s*\(/.test(src),
         'it still has its own gate');
       check(page + ' sends people to the one that exists',
-        /akoreGoToLogin\s*\(/.test(src), 'it does not redirect to the login page');
+        /akoreGoToLogin\s*\(|akoreGate\s*\(/.test(src),
+        'it does not reach the login page');
     }
 
     // Where ?next= is honoured, and where it is not.

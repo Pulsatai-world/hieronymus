@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- The Akore mark in the browser tab. -->
+<style id="akore-gate-style">html{visibility:hidden!important}</style>
 <link rel="icon" type="image/png" href="/brand/logo-mark.png">
 <link rel="apple-touch-icon" href="/brand/logo-mark.png">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
@@ -826,20 +827,9 @@ select {
 </div>
 
 <!-- ACCESS GATE — shown until a valid per-client code is entered -->
-<div id="access-gate" class="access-gate">
-  <div class="access-gate-inner">
-    <div class="access-gate-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-    <h2 data-en="Client Access" data-es="Acceso de cliente">Client Access</h2>
-    <p data-en="Enter the username and password from your invitation to begin your GEO intake questionnaire." data-es="Ingresa el usuario y la contraseña de tu invitación para comenzar tu cuestionario inicial de GEO.">Enter the username and password from your invitation to begin your GEO intake questionnaire.</p>
-    <input type="text" id="gate-username-input" class="gate-field-normal" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')document.getElementById('gate-password-input').focus()">
-    <input type="password" id="gate-password-input" class="gate-field-normal" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')window.submitGateCode()">
-    <input type="text" id="gate-code-input" class="gate-field-normal" autocomplete="one-time-code" maxlength="13" placeholder="6-digit code" style="display:none" onkeydown="if(event.key==='Enter')window.submitGateCode()">
-    <button class="btn-accent" id="gate-submit-btn" onclick="window.submitGateCode()">
-      <span data-en="Continue" data-es="Continuar">Continue</span>
-    </button>
-    <div id="gate-error" class="access-gate-error"></div>
-  </div>
-</div>
+<!-- The sign-in form that used to live here is gone: one login page gates every page.
+     The container stays because a viewer-role account is shown a read-only notice in it. -->
+<div id="access-gate" class="access-gate" style="display:none;"></div>
 
 <div id="app-content" style="display:none">
 
@@ -1680,33 +1670,6 @@ function applyPreviewMode() {
   });
 }
 
-window.submitGateCode = async function() {
-  const userInput = document.getElementById('gate-username-input');
-  const passInput = document.getElementById('gate-password-input');
-  const codeEl = document.getElementById('gate-code-input');
-  const errEl = document.getElementById('gate-error');
-  const username = userInput.value.trim().toLowerCase();
-  const password = passInput.value.trim();
-  const code = window.akoreCodeValue(codeEl);
-  errEl.textContent = '';
-  if (!username || !password) {
-    errEl.textContent = lang === 'es' ? 'Ingresa tu usuario y contraseña.' : 'Enter your username and password.';
-    return;
-  }
-
-  const attempt = await window.akoreSignIn(username, password, code, lang);
-  if (attempt.cancelled) { errEl.textContent = ''; return; }
-  if (attempt.needsCode) { errEl.textContent = window.showGateCode(attempt, lang, !!code); return; }
-  if (!attempt.ok) {
-    errEl.textContent = attempt.error || (lang === 'es'
-      ? 'Usuario o contraseña inválidos. Verifica e intenta de nuevo.'
-      : 'Invalid username or password. Please check and try again.');
-    passInput.classList.add('error');
-    setTimeout(() => passInput.classList.remove('error'), 400);
-    return;
-  }
-  await adoptSession(attempt.who);
-};
 
 
 // The question template for this customer.
@@ -1867,7 +1830,6 @@ function applyIntakeFrozen() {
 }
 
 function showApp() {
-  document.getElementById('access-gate').style.display = 'none';
   document.getElementById('logout-btn').style.display = '';
   if (clientRole === 'viewer') {
     const saveBtn = document.getElementById('save-progress-btn');
@@ -1997,17 +1959,19 @@ function populateForm(d) {
 
   // Already signed in? The server decides, from the session this browser holds. Nothing else is
   // remembered between visits — no password is stored for a restore to read.
-  const who = await window.akoreAuth.restore();
-  if (who) { await adoptSession(who); return; }
+  let who = await window.akoreAuth.restore();
 
   // Staff filling in or correcting a customer's intake, using the staff session already in this
   // browser. Every request the page then makes carries that staff session.
-  if (usernameFromUrl) {
+  if (!who && usernameFromUrl) {
     const asCustomer = await window.akoreStaffBypass(usernameFromUrl);
-    if (asCustomer) { await adoptSession({ ...asCustomer, staffBypass: true }); return; }
-    const userInput = document.getElementById('gate-username-input');
-    if (userInput) userInput.value = usernameFromUrl;
+    if (asCustomer) who = Object.assign({}, asCustomer, { staffBypass: true });
   }
+
+  // One login page for everyone; this page no longer carries a form of its own.
+  if (!who) { window.akoreGoToLogin(); return; }
+  window.akoreReveal();
+  await adoptSession(who);
 })();
 
 // ── SUBMIT — window global ──

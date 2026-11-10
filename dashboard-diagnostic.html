@@ -1,6 +1,10 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <!-- The Akore mark in the browser tab. -->
+<!-- Nothing is drawn until the session is known; akoreGate() removes this or sends the
+     visitor to the login page. A page that renders for someone who is not signed in is
+     one bad endpoint away from leaking, and reads as though it already has. -->
+<style id="akore-gate-style">html{visibility:hidden!important}</style>
 <link rel="icon" type="image/png" href="/brand/logo-mark.png">
 <link rel="apple-touch-icon" href="/brand/logo-mark.png">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
@@ -474,7 +478,10 @@ async function loadData() {
   // A dashboard can be opened by staff or by the customer it belongs to, so the session is restored
   // before anything reads it — the "back" link, the staff-only controls and this request all depend
   // on knowing which. Not signed in means the endpoint refuses and the message below explains it.
-  await window.akoreRestoreEither();
+  // One login page gates every page. Not signed in means going there with nothing drawn,
+  // rather than rendering the whole dashboard and then reporting the data was refused.
+  const who = await window.akoreGate('either');
+  if (!who) return;
   const res = await fetch(await window.resultsQuery(new URLSearchParams(location.search).get('company') || ''));
   // Results are scoped server-side now, so a refusal means the visitor is not signed in as this
   // customer (or as staff). Say that, rather than parsing an error body as CSV and rendering an

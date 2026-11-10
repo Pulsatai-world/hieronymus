@@ -22,7 +22,12 @@ const template = JSON.parse(fs.readFileSync(path.join(ROOT, 'intake-template.def
 
 // Answers shaped like the real ones, so startup takes its normal path rather than its error path.
 const ROUTES = [
-  [/\/api\/login/, () => ({ username: 'akore-local', kind: 'staff', role: 'admin', company: '' })],
+  // `as=` is the staff bypass: production answers with THAT customer's payload, company and
+  // all, which is what the client pages need to open. Returning a company-less staff payload
+  // for it meant the bypass could never succeed here, so those pages only ever redirected.
+  [/\/api\/login/, (s) => /[?&]as=/.test(s)
+    ? ({ username: 'demo', kind: 'customer', role: 'full', company: 'Demo', staffBypass: true })
+    : ({ username: 'akore-local', kind: 'staff', role: 'admin', company: '' })],
   [/\/api\/intake-template/, () => ({ company: 'Demo', draft: null, released: null, unreleasedChanges: false })],
   [/intake-template\.default\.json/, () => template],
   [/\/api\/intake-codes/, () => ({ company: 'Demo', username: 'demo', monitoringEnabled: false })],
@@ -60,8 +65,17 @@ const RENDERED = {
   },
   'intake.html': d => !!d.getElementById('access-gate') && !!d.getElementById('company')
     || 'the form did not render',
-  'client-portal.html': d => !!d.getElementById('access-gate') || 'no gate rendered',
-  'prompt-review.html': d => !!d.getElementById('access-gate') || 'no gate rendered'
+  // These two no longer draw a sign-in form of their own — one login page gates every page, and
+  // a visitor without a session is sent there. What proves startup reached the end is that the
+  // gate opened: akoreReveal() removes the style that hides the document, and nothing else does.
+  'client-portal.html': d => !d.getElementById('akore-gate-style')
+    || 'the gate never opened — startup did not finish',
+  // The opposite assertion, and deliberately so. This page is the customer's and carries no
+  // staff bypass — reviewing it as staff meant an Akore reviewer looking at a client's sidebar.
+  // The harness holds a STAFF session, so the right outcome is that the gate stays shut and the
+  // visitor is sent to the login page. A gate that opened here would be the bug.
+  'prompt-review.html': d => !!d.getElementById('akore-gate-style')
+    || 'a staff session opened the customer\'s review page'
 };
 
 const PAGES = fs.readdirSync(ROOT).filter(f => f.endsWith('.html'));
@@ -89,11 +103,13 @@ const PAGES = fs.readdirSync(ROOT).filter(f => f.endsWith('.html'));
           w.alert = () => {};
           w.confirm = () => false;
           w.scrollTo = () => {};
+          // jsdom implements neither; a page calling one is not a page failing.
+          if (w.Element && w.Element.prototype) w.Element.prototype.scrollIntoView = () => {};
           w.matchMedia = w.matchMedia || (() => ({ matches: false, addListener() {}, removeListener() {}, addEventListener() {}, removeEventListener() {} }));
           w.fetch = async (u) => {
             const s = String(u);
             const hit = ROUTES.find(([re]) => re.test(s));
-            const body = hit ? hit[1]() : {};
+            const body = hit ? hit[1](s) : {};
             const text = /\/api\/results/.test(s) ? '' : JSON.stringify(body);
             // Duck-typed rather than a real Response: jsdom does not expose the constructor in
             // every window, and the pages only ever use these four members.

@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- The Akore mark in the browser tab. -->
+<!-- Nothing is drawn until the session is known; akoreGate() removes this or sends the
+     visitor to the login page. A page that renders for someone who is not signed in is
+     one bad endpoint away from leaking, and reads as though it already has. -->
+<style id="akore-gate-style">html{visibility:hidden!important}</style>
 <link rel="icon" type="image/png" href="/brand/logo-mark.png">
 <link rel="apple-touch-icon" href="/brand/logo-mark.png">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
@@ -2383,8 +2387,8 @@ async function pollGenerateJob(company, opts) {
   // On its way while the gate is being checked, rather than after.
   if (company) pendingCompanyData = { company, data: fetchCompanyData(company, null) };
 
-  const gate = await window.akoreRequireStaff();
-  if (!gate.ok) { pendingCompanyData = null; if (!gate.redirecting) showPasswordGate(); return; }
+  const gate = await window.akoreGate('staff');
+  if (!gate) { pendingCompanyData = null; return; }
   // Portal is the one place to choose/search/create a customer now — this page only makes
   // sense with a specific customer already selected, so bounce straight there instead of
   // showing a redundant bare "Select a customer" dropdown here too.

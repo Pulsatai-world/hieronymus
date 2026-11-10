@@ -19,7 +19,10 @@ const ROOT = path.join(__dirname, '..');
 // restore() and additionally turns away a signed-in customer. Either satisfies "asks the server" —
 // but only because auth.js really does restore inside that helper, which is asserted below rather
 // than assumed. Without that second assertion this would be a textual check that a name appears.
-const ASKS_SERVER = /akoreAuth\.restore\s*\(|akoreRequireStaff\s*\(/;
+// akoreGate() is the third way, and the one every page uses now: it restores inside
+// js/auth.js and sends a visitor with no session to the one login page. Asserted below
+// against auth.js itself rather than taken on the strength of the name.
+const ASKS_SERVER = /akoreAuth\.restore\s*\(|akoreRequireStaff\s*\(|akoreGate\s*\(/;
 
 // Pages that gate on a staff session. A page added here without the two calls fails this test.
 const STAFF_PAGES = ['portal.html', 'index.html', 'intake-view.html', 'geo-report.html'];
@@ -92,6 +95,15 @@ for (const page of STAFF_PAGES) {
 const auth = fs.readFileSync(path.join(ROOT, 'js/auth.js'), 'utf8');
 const helper = auth.slice(auth.indexOf('window.akoreRequireStaff'));
 const body = helper.slice(0, helper.indexOf('\n  };'));
+{
+  const gate = auth.slice(auth.indexOf('window.akoreGate ='));
+  const gBody = gate.slice(0, gate.indexOf('\n  };'));
+  check('akoreGate asks the server itself',
+    /api\.restore\s*\(|akoreRestoreEither\s*\(/.test(gBody),
+    'it never asks; a name is not a session check');
+  check('akoreGate sends a visitor with no session to the login page',
+    /akoreGoToLogin/.test(gBody), 'no session leaves the page open');
+}
 check('akoreRequireStaff asks the server itself',
   /api\.restore\s*\(/.test(body), 'it does not call restore(); the pages relying on it now ask nobody');
 check('akoreRequireStaff admits only staff',

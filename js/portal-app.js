@@ -928,7 +928,6 @@
   // nothing on its own. There is one sign-in page and this is not it — this console briefly grew
   // its own form, which is six sign-in forms again, each with its own strings and its own handling
   // of a code. Send them to the one that exists, remembering where they were headed.
-  window.akoreRequireStaff()
-    .then(gate => { if (gate && gate.ok) start(); else if (!gate || !gate.redirecting) window.akoreGoToLogin(); })
-    .catch(() => window.akoreGoToLogin());
+  // One gate, one login page, and nothing drawn until it answers.
+  window.akoreGate('staff').then(who => { if (who) start(); });
 })();

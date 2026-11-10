@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <!-- The Akore mark in the browser tab. -->
+<!-- Nothing is drawn until the session is known; akoreGate() removes this or sends the
+     visitor to the login page. A page that renders for someone who is not signed in is
+     one bad endpoint away from leaking, and reads as though it already has. -->
+<style id="akore-gate-style">html{visibility:hidden!important}</style>
 <link rel="icon" type="image/png" href="/brand/logo-mark.png">
 <link rel="apple-touch-icon" href="/brand/logo-mark.png">
 <link rel="stylesheet" href="/styles/akore-tokens.css">
@@ -405,18 +409,8 @@ body.app-mode .app-header { display: none; }
   </div>
 </div>
 
-<div id="access-gate" class="access-gate">
-  <div class="access-gate-inner">
-    <div class="access-gate-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div>
-    <h2 id="gate-title">Client Access</h2>
-    <p id="gate-desc">Enter the username and password from your invitation to view your GEO audit dashboard.</p>
-    <input type="text" id="gate-username-input" placeholder="Username" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')document.getElementById('gate-password-input').focus()">
-    <input type="password" id="gate-password-input" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitGate()">
-    <input type="text" id="gate-code-input" autocomplete="one-time-code" maxlength="13" placeholder="6-digit code" style="display:none" onkeydown="if(event.key==='Enter')submitGate()">
-    <button class="btn-accent" id="gate-continue-btn" onclick="submitGate()">Continue</button>
-    <div id="gate-error" class="access-gate-error"></div>
-  </div>
-</div>
+<!-- The sign-in form that used to live here is gone: there is one login page for
+     everyone, and this page is sent there when no session is held. -->
 
 <main class="main" id="main-content"></main>
 
@@ -565,11 +559,6 @@ function t(key, ...args) {
 window.AkoreScore.setTranslator((k, ...a) => t(k, ...a));
 function applyStaticLang() {
   const sub = document.getElementById('logo-sub'); if (sub) sub.textContent = t('logoSub');
-  document.getElementById('gate-title').textContent = t('gateTitle');
-  document.getElementById('gate-desc').textContent = t('gateDesc');
-  document.getElementById('gate-username-input').placeholder = t('usernamePlaceholder');
-  document.getElementById('gate-password-input').placeholder = t('passwordPlaceholder');
-  document.getElementById('gate-continue-btn').textContent = t('continueBtn');
   document.getElementById('lang-btn-en').classList.toggle('active', lang === 'en');
   document.getElementById('lang-btn-es').classList.toggle('active', lang === 'es');
   document.querySelectorAll('[data-t]').forEach(el => { el.textContent = t(el.getAttribute('data-t')); });
@@ -694,33 +683,6 @@ function adoptSession(who) {
   showApp();
 }
 
-async function submitGate() {
-  const userInput = document.getElementById('gate-username-input');
-  const passInput = document.getElementById('gate-password-input');
-  const codeEl = document.getElementById('gate-code-input');
-  const errEl = document.getElementById('gate-error');
-  const username = userInput.value.trim().toLowerCase();
-  const password = passInput.value.trim();
-  const code = window.akoreCodeValue(codeEl);
-  errEl.textContent = '';
-  if (!username || !password) { errEl.textContent = t('enterCreds'); return; }
-
-  // Three possible answers: in, needs a code, or needs an authenticator set up first. Setting one up
-  // ends signed in, so there is no second step to get wrong.
-  const attempt = await window.akoreSignIn(username, password, code, lang);
-  if (attempt.cancelled) { errEl.textContent = ''; return; }
-  if (attempt.needsCode) {
-    errEl.textContent = window.showGateCode(attempt, lang, !!code);
-    return;
-  }
-  if (!attempt.ok) {
-    errEl.textContent = attempt.error || t('invalidCreds');
-    passInput.classList.add('error');
-    setTimeout(() => passInput.classList.remove('error'), 400);
-    return;
-  }
-  adoptSession(attempt.who);
-}
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
@@ -760,7 +722,6 @@ function clientLogout() {
 
 
 async function showApp() {
-  document.getElementById('access-gate').style.display = 'none';
   document.getElementById('main-content').style.display = 'none';
   document.body.classList.add('app-mode');
 
@@ -1482,21 +1443,25 @@ applyStaticLang();
   const usernameFromUrl = params.get('username');
 
   // Already signed in? The server decides, from the session this browser holds.
-  const who = await window.akoreAuth.restore();
-  if (who) { adoptSession(who); return; }
+  let who = await window.akoreAuth.restore();
 
   // Staff opening a customer's own page. Uses the staff session already in this browser; nothing is
   // issued to it, and every request the page then makes carries that staff session. It means a staff
   // sign-in reaches any customer's pages — a deliberate trade for being able to help someone who has
   // lost their password.
-  if (usernameFromUrl) {
+  if (!who && usernameFromUrl) {
     const asCustomer = await window.akoreStaffBypass(usernameFromUrl);
-    if (asCustomer) { adoptSession(asCustomer); return; }
-    const userInput = document.getElementById('gate-username-input');
-    if (userInput) userInput.value = usernameFromUrl;
+    if (asCustomer) who = asCustomer;
   }
   // Otherwise the gate asks for a username, a password and a code. Nothing is remembered between
   // visits except the session itself, so there is no stored password to restore from.
+
+  // One login page for everyone. Not signed in means going there — this page no longer carries a
+  // sign-in form of its own, which is six sign-in forms again, each with its own strings and its
+  // own handling of a code.
+  if (!who) { window.akoreGoToLogin(); return; }
+  window.akoreReveal();
+  adoptSession(who);
 })();
 </script>
 </body>

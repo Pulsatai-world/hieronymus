@@ -268,6 +268,57 @@
   }
 
   /** Send someone to the sign-in page, remembering where they were trying to get to. */
+  /**
+   * The gate every page stands behind.
+   *
+   * A page used to decide for itself what to do with no session, and the answers differed: the
+   * internal pages redirected, the client pages each drew their own sign-in form, and the
+   * dashboards drew their whole chrome and then said the data was refused — so a signed-out
+   * visitor got a branded page with the customer's name in the URL and tabs they could click.
+   * Nothing leaked, because every endpoint refuses without a session, but a page that renders at
+   * all for someone who is not signed in is one bad endpoint away from leaking, and it reads as
+   * though it did.
+   *
+   * There is one login page. Not signed in means going there, with nothing drawn first — the
+   * document stays hidden until this resolves, so there is no flash of a page that was never
+   * theirs to see.
+   *
+   *   audience: 'staff'  internal pages — a customer signing in here is sent where they belong
+   *             'client' the customer's own pages
+   *             'either' the dashboards, which both can open
+   *
+   * Returns the who-payload, or null when it has already started navigating away.
+   */
+  window.akoreReveal = function () {
+    const st = document.getElementById('akore-gate-style');
+    if (st) st.remove();
+    document.documentElement.style.visibility = '';
+  };
+
+  window.akoreGate = async function (audience) {
+    const reveal = window.akoreReveal;
+    try {
+      let who = null;
+      if (audience === 'staff') {
+        api.useStaffSession();
+        who = await api.restore();
+        // Someone signed in, but as a customer: they belong on their own pages, not here.
+        if (who && who.kind !== 'staff') { window.akoreLand(who); return null; }
+      } else if (audience === 'client') {
+        who = await api.restore();
+      } else {
+        who = await window.akoreRestoreEither();
+      }
+      if (!who) { window.akoreGoToLogin(); return null; }
+      reveal();
+      return who;
+    } catch (e) {
+      // A gate that cannot answer must not open. The login page is the safe landing.
+      window.akoreGoToLogin();
+      return null;
+    }
+  };
+
   window.akoreGoToLogin = function () {
     const here = location.pathname + location.search;
     location.replace(LOGIN_PAGE + '?next=' + encodeURIComponent(here));
