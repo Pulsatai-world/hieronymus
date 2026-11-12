@@ -60,6 +60,33 @@ export default async (request, context) => {
     }
     const denied = await requireStaff(url, body, json);
     if (denied) return denied;
+    // A batch, for an import of any size. Every write drops the derived CSV, so a few thousand
+    // rows sent one per request is a few thousand rebuilds — the cost grows with the store, not
+    // with the import, and it is the one thing lib/results-cache.js exists to avoid. Writing them
+    // together costs one. Bounded per request so a batch still fits a function's execution limit;
+    // a bigger import sends several.
+    if (Array.isArray(body.rows)) {
+      const rows = body.rows.filter(r => r && r.run_id);
+      if (!rows.length) {
+        return json({ error: 'No rows with a run_id' }, 400);
+      }
+      if (rows.length > 500) {
+        return json({ error: 'Too many rows in one request — send at most 500' }, 400);
+      }
+      // Bounded, not all at once: a few hundred simultaneous blob writes is enough to stall the
+      // request long enough for whatever sits in front of the function to give up, and then the
+      // caller cannot tell a refused import from a slow one.
+      const CONCURRENCY = 20;
+      for (let i = 0; i < rows.length; i += CONCURRENCY) {
+        await Promise.all(rows.slice(i, i + CONCURRENCY).map(r => store.setJSON(r.run_id, r)));
+      }
+      await invalidateResultsCache();
+      return new Response(JSON.stringify({ status: 'ok', written: rows.length }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+
     if (!body.run_id) {
       return new Response(JSON.stringify({ error: 'Missing run_id' }), {
         status: 400,

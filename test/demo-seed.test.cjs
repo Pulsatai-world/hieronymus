@@ -29,6 +29,31 @@ test('both callers read the one definition', () => {
     'the console carries its own copy of the demo data');
 });
 
+test('the demo is the size a real customer is', () => {
+  // 300 questions, asked once per engine, across six months of monitoring behind a baseline.
+  // A demo built from a dozen prompts does not show what the product looks like in use, and it
+  // hides the things that only appear at size — a 2 MB result set, a 300-row prompt list.
+  assert.strictEqual(demo.PROMPTS.length, 300, 'the prompt set is not 300 questions');
+  assert.strictEqual(demo.ENGINES.length, 3, 'one answer per engine means three engines');
+  const monitoring = demo.TIMELINE.filter(s => s.type === 'monitoring');
+  assert.strictEqual(monitoring.length, 6, 'six months of monitoring');
+  const rows = demo.buildRows();
+  assert.strictEqual(rows.length, 300 * 3 * demo.TIMELINE.length);
+  // Every question asked of every engine, every month — no gaps.
+  for (const snap of demo.TIMELINE) {
+    const of = rows.filter(r => r.snapshot_date === snap.date);
+    assert.strictEqual(of.length, 900, `${snap.date} has ${of.length} rows, expected 900`);
+    assert.strictEqual(new Set(of.map(r => r.prompt_id)).size, 300);
+    assert.strictEqual(new Set(of.map(r => r.engine)).size, 3);
+  }
+});
+
+test('no question is asked twice', () => {
+  const texts = demo.PROMPTS.map(p => p[2]);
+  assert.strictEqual(new Set(texts).size, texts.length,
+    'the set repeats itself — cycling each list by its own modulo collides');
+});
+
 test('one diagnostic snapshot, the rest monitoring', () => {
   const diag = demo.TIMELINE.filter(s => s.type === 'diagnostic');
   assert.strictEqual(diag.length, 1, 'the diagnostic dashboard pins to one baseline');

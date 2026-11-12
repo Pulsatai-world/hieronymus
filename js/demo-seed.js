@@ -24,22 +24,70 @@
   const SLUG = COMPANY.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const CLIENT_PASSWORD = 'DemoIndustrial-2026';
 
-  // The five categories the generator produces, so the prompt list and the dashboard's
-  // "type of question" filter look like a real set rather than one note repeated.
-  const PROMPTS = [
-    ['CAT1', 'brand',      '¿Qué opiniones hay de Demo Industrial? ¿Alguien les ha comprado refacciones hidráulicas?'],
-    ['CAT1', 'brand',      '¿Demo Industrial repara bombas de pistón o sólo vende refacciones?'],
-    ['CAT1', 'brand',      'Is Demo Industrial a reliable supplier for hydraulic cylinders?'],
-    ['CAT2', 'category',   '¿Cuáles son los mejores proveedores de sistemas hidráulicos industriales en México?'],
-    ['CAT2', 'category',   '¿Quién distribuye bombas hidráulicas de alta presión en el Bajío?'],
-    ['CAT2', 'category',   'Best industrial hydraulics suppliers for manufacturing plants'],
-    ['CAT3', 'problem',    'Mi prensa hidráulica perdió presión de un día para otro, ¿quién puede diagnosticarla?'],
-    ['CAT3', 'problem',    'Tengo un cilindro de 6 pulgadas tirando aceite por los sellos, ¿quién hace rectificación?'],
-    ['CAT3', 'problem',    'Hydraulic pump overheating after 2 hours of operation — who can service it?'],
-    ['CAT4', 'competitor', '¿Demo Industrial o Hidráulica Vertex para mantenimiento de prensas?'],
-    ['CAT4', 'competitor', 'Comparación entre proveedores de hidráulica industrial en el centro de México'],
-    ['CAT5', 'persona',    'Soy gerente de mantenimiento y busco un proveedor de hidráulica con servicio en sitio']
-  ];
+  // 300 questions, the size of a real prompt set — too many to write out, so they are built from
+  // the pieces a generated set is built from: equipment, symptoms, cities, buyer roles. Five
+  // categories, sixty each, Spanish and English mixed the way a bilingual customer's set is.
+  const EQUIPMENT = ['bombas de pistón', 'cilindros hidráulicos', 'prensas hidráulicas', 'válvulas proporcionales',
+    'centrales hidráulicas', 'mangueras de alta presión', 'motores hidráulicos', 'acumuladores',
+    'sistemas de filtración', 'bombas de engranes'];
+  const SYMPTOMS = ['perdió presión de un día para otro', 'tira aceite por los sellos',
+    'se sobrecalienta después de dos horas', 'hace ruido y vibra al arrancar',
+    'baja la fuerza a medio ciclo', 'no sostiene carga'];
+  const CITIES = ['Querétaro', 'León', 'el Bajío', 'Monterrey', 'Puebla', 'Toluca', 'Guadalajara', 'San Luis Potosí'];
+  const ROLES = ['gerente de mantenimiento', 'comprador industrial', 'jefe de planta',
+    'supervisor de producción', 'ingeniero de confiabilidad', 'encargado de refacciones'];
+  const EN_EQUIP = ['hydraulic cylinders', 'piston pumps', 'proportional valves', 'power units', 'hydraulic presses'];
+
+  function buildPrompts() {
+    // Built from a cross-product and de-duplicated rather than by cycling each list with its own
+    // modulo: the strides collide, and the first version produced 300 questions of which only 159
+    // were distinct. A demo that lists the same question twice reads as carelessness.
+    const take = (cat, intent, makers, n) => {
+      const seen = new Set(), out = [];
+      for (const make of makers) {
+        for (const text of make()) {
+          if (out.length >= n) break;
+          if (seen.has(text)) continue;
+          seen.add(text); out.push([cat, intent, text]);
+        }
+        if (out.length >= n) break;
+      }
+      if (out.length < n) throw new Error(`only ${out.length} distinct prompts for ${cat}, needed ${n}`);
+      return out;
+    };
+    const cross = (a, b, fn) => function* () { for (const x of a) for (const y of b) yield fn(x, y); };
+    const over = (a, fn) => function* () { for (const x of a) yield fn(x); };
+
+    return [].concat(
+      take('CAT1', 'brand', [
+        cross(EQUIPMENT, CITIES, (e, c) => `¿${COMPANY} vende ${e} en ${c}?`),
+        over(EQUIPMENT, e => `¿Qué opiniones hay de ${COMPANY}? ¿Alguien les ha comprado ${e}?`),
+        over(EQUIPMENT, e => `¿${COMPANY} repara ${e} o sólo los vende?`),
+        over(EN_EQUIP, e => `Is ${COMPANY} a reliable supplier for ${e}?`)
+      ], 60),
+      take('CAT2', 'category', [
+        cross(EQUIPMENT, CITIES, (e, c) => `¿Cuáles son los mejores proveedores de ${e} en ${c}?`),
+        cross(EQUIPMENT, CITIES, (e, c) => `¿Quién distribuye ${e} en ${c}?`),
+        over(EN_EQUIP, e => `Best industrial suppliers for ${e} in Mexico`)
+      ], 60),
+      take('CAT3', 'problem', [
+        cross(EQUIPMENT, SYMPTOMS, (e, sy) => `Mi equipo con ${e} ${sy}, ¿quién puede diagnosticarlo?`),
+        cross(EQUIPMENT, CITIES, (e, c) => `Tengo ${e} fuera de servicio en ${c}. ¿A quién le hablo?`),
+        over(EN_EQUIP, e => `${e} losing pressure mid-cycle — who can service them in Mexico?`)
+      ], 60),
+      take('CAT4', 'competitor', [
+        cross(COMPETITORS, EQUIPMENT, (r, e) => `¿${COMPANY} o ${r} para ${e}?`),
+        cross(COMPETITORS, CITIES, (r, c) => `¿Quién es mejor en ${c}, ${COMPANY} o ${r}?`),
+        over(COMPETITORS, r => `${COMPANY} vs ${r} for industrial hydraulics — which is better?`)
+      ], 60),
+      take('CAT5', 'persona', [
+        cross(ROLES, EQUIPMENT, (r, e) => `Soy ${r} y busco proveedor de ${e} con servicio en sitio.`),
+        cross(ROLES, CITIES, (r, c) => `Como ${r} en ${c}, ¿qué proveedor de hidráulica me recomiendan?`),
+        over(EN_EQUIP, e => `As a maintenance manager, which supplier should I use for ${e}?`)
+      ], 60)
+    );
+  }
+  const PROMPTS = buildPrompts();
 
   // A weak baseline, then six months of steady improvement: 17% of answers citing the brand at the
   // diagnostic, 68% by November, with the rank it lands at improving alongside.
@@ -165,11 +213,17 @@
     log(PROMPTS.length + ' prompts released and approved');
 
     await call('DELETE', '/api/results', { query: { company: COMPANY } });
+    // In batches. Every write drops the derived CSV, so six thousand rows sent one per request is
+    // six thousand rebuilds, each one reading more than the last — hours, and most of it spent
+    // rebuilding a cache that the next row immediately drops again.
+    const BATCH = 150;
     let written = 0;
-    for (const row of rows) {
-      const r = await call('POST', '/api/results', { body: row });
-      if (r.status === 200) written++;
-      if (written % 60 === 0 && written) log(written + '/' + rows.length + ' rows');
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const slice = rows.slice(i, i + BATCH);
+      const r = await call('POST', '/api/results', { body: { rows: slice } });
+      if (r.status === 200) written += (r.data && r.data.written) || slice.length;
+      else throw new Error('row batch refused: ' + r.status + ' ' + JSON.stringify(r.data).slice(0, 140));
+      log(written + '/' + rows.length + ' rows');
     }
     log(written + '/' + rows.length + ' rows written');
 
