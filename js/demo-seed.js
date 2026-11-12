@@ -196,6 +196,22 @@
     await call('PATCH', '/api/intake-codes', {
       body: { username: SLUG, adminReset: true, newPassword: CLIENT_PASSWORD } });
 
+    // The question set the customer is served. A customer with nothing released gets the default
+    // set, but the staff page still reads as unfinished — there is a form sitting there waiting to
+    // be published, which is a job the demo should not be handing anyone. Saved as a draft and
+    // then released, which is the same two steps the editor performs.
+    const tpl = await call('GET', '/intake-template.default.json', {});
+    let template = null;
+    try { template = JSON.parse(tpl.text || 'null'); } catch (e) { template = null; }
+    if (template) {
+      await call('POST', '/api/intake-template', { body: { company: COMPANY, template } });
+      const rel = await call('PATCH', '/api/intake-template', { body: { company: COMPANY } });
+      log(rel.status === 200 ? 'intake form released to the customer'
+                             : 'intake form NOT released (' + rel.status + ' ' + JSON.stringify(rel.data).slice(0, 90) + ')');
+    } else {
+      log('could not read the default intake template — the form stays unreleased');
+    }
+
     await call('POST', '/api/intake', { body: { company: COMPANY, intake: INTAKE } });
     // Saving the answers is not the same as the form being submitted: submittedAt lives on the
     // customer record, keyed by the member's username, and without it the client portal greets
@@ -231,11 +247,18 @@
     // dashboard then reads "Monitoring off" to the client as well as to staff. On is safe here:
     // when the schedule comes due the cron tries a real audit, this customer has no Claude key,
     // and run-audit-background refuses before it calls anything and before it clears any rows.
-    await call('PATCH', '/api/intake-codes', {
-      body: { company: COMPANY, diagnosisReleased: true, monitoringReleased: true,
-              monitoringEnabled: true, monitoringCadence: 'monthly',
+    // Two requests, not one. The PATCH handler matches a monitoring-cadence branch first and
+    // returns from it, so a request carrying both the schedule and the release flags sets the
+    // schedule and silently drops the releases — the dashboards then read "No liberado" and the
+    // customer page says there is still a step to do, which is the opposite of the point.
+    const rel = await call('PATCH', '/api/intake-codes', {
+      body: { company: COMPANY, diagnosisReleased: true, monitoringReleased: true } });
+    const sched = await call('PATCH', '/api/intake-codes', {
+      body: { company: COMPANY, monitoringEnabled: true, monitoringCadence: 'monthly',
               monitoringStartDate: TIMELINE[TIMELINE.length - 1].date } });
-    log('both dashboards released');
+    if (rel.status !== 200) throw new Error('dashboards not released: ' + rel.status +
+      ' ' + JSON.stringify(rel.data).slice(0, 140));
+    log('both dashboards released, monitoring scheduled (' + sched.status + ')');
 
     // Warm the derived CSV before anyone opens a dashboard, and read until the rows come back
     // rather than once: writing a row drops that cache, so the first read pays for the whole
