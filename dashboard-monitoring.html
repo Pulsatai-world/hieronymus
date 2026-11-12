@@ -706,7 +706,10 @@ function chart(series, kpi, widthPx) {
     return '<line class="ygrid" x1="' + padL + '" y1="' + y.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + y.toFixed(1) + '"/>'
       + '<text class="axis ytick" x="' + (padL - 7) + '" y="' + (y + 3.5).toFixed(1) + '" text-anchor="end">' + fmt(v, kpi.unit) + '</text>';
   }).join('');
-  const xl = series.length > 2 ? [0, Math.floor((series.length - 1) / 2), series.length - 1] : series.map((_, i) => i);
+  // A label on every run. This drew only the first, middle and last whenever there were more
+  // than two, so six months of monthly measurements read as three dates and the gaps between
+  // them looked like quarters.
+  const xl = series.map((_, i) => i);
   const xlabels = xl.map(i => '<text class="axis" x="' + X(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + (i === 0 ? 'start' : i === series.length - 1 ? 'end' : 'middle') + '">' + series[i].date.slice(0, 7) + '</text>').join('');
   const step = (W - padL - padR) / (series.length - 1 || 1);
   const hots = series.map((s, i) => '<rect class="hotspot" data-i="' + i + '" x="' + (X(i) - step / 2).toFixed(1) + '" y="0" width="' + step.toFixed(1) + '" height="' + H + '"></rect>').join('');
@@ -894,8 +897,10 @@ function mountTrend(host, cfg) {
     // gridlines + Y tick labels
     const grid = ticks.map(v => '<line class="grid" x1="' + padL + '" y1="' + Y(v).toFixed(1) + '" x2="' + (W - padR) + '" y2="' + Y(v).toFixed(1) + '"/>' +
       '<text class="ytick" x="' + (padL - 8) + '" y="' + (Y(v) + 3.5).toFixed(1) + '" text-anchor="end">' + cfg.yFmt(v) + '</text>').join('');
-    // X ticks (all) + labels (subset if crowded)
-    const labelIdx = n <= 7 ? cfg.xLabels.map((_, i) => i) : [0, Math.round((n - 1) / 2), n - 1];
+    // X ticks and a label on every one. There used to be a rule here that dropped to just the
+    // first, middle and last above seven points, which quietly turned a monthly trend into three
+    // dates and made a run look like a quarter.
+    const labelIdx = cfg.xLabels.map((_, i) => i);
     const xaxis = cfg.xLabels.map((lab, i) => {
       const x = X(i).toFixed(1), tick = '<line class="xtick" x1="' + x + '" y1="' + (H - padB) + '" x2="' + x + '" y2="' + (H - padB + 5) + '"/>';
       if (!labelIdx.includes(i)) return tick;

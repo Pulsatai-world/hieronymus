@@ -228,7 +228,13 @@
     await call('PATCH', '/api/prompts', { body: { company: COMPANY, comments: 'Aprobado (demo)' } });
     log(PROMPTS.length + ' prompts released and approved');
 
-    await call('DELETE', '/api/results', { query: { company: COMPANY } });
+    // Written BEFORE anything is removed. This used to clear the customer's rows and then write,
+    // which is fine until a write fails — and the first time it did, it failed for every row at
+    // once (a build started against a deploy whose /api/results did not take a batch yet), so the
+    // clear had already happened and the dashboard was simply empty. Row keys are deterministic
+    // — company, date, prompt, engine — so writing over a previous build replaces it in place and
+    // there is nothing to clear first. Stale dates are swept afterwards, once the new set is
+    // safely stored.
     // In batches. Every write drops the derived CSV, so six thousand rows sent one per request is
     // six thousand rebuilds, each one reading more than the last — hours, and most of it spent
     // rebuilding a cache that the next row immediately drops again.
@@ -242,6 +248,26 @@
       log(written + '/' + rows.length + ' rows');
     }
     log(written + '/' + rows.length + ' rows written');
+
+    // Now that this build is stored, remove snapshots from any earlier one whose dates this
+    // timeline no longer has. Deleting by date rather than wholesale, so a failure here leaves
+    // the demo built rather than gutted.
+    const mine = new Set(TIMELINE.map(t => t.date));
+    const current = await call('GET', '/api/results', { query: { company: COMPANY } });
+    const lines = String(current.text || '').split('\n').filter(Boolean).slice(1);
+    const header = String(current.text || '').split('\n')[0].split(',');
+    const dateAt = header.indexOf('snapshot_date');
+    const stale = new Set();
+    if (dateAt !== -1) {
+      for (const line of lines) {
+        const d = line.split(',')[dateAt];
+        if (d && !mine.has(d)) stale.add(d);
+      }
+    }
+    for (const d of stale) {
+      await call('DELETE', '/api/results', { query: { company: COMPANY, snapshot_date: d } });
+    }
+    if (stale.size) log('removed ' + stale.size + ' snapshot(s) from an earlier build');
 
     // Monitoring ON with a schedule, not off. Off is the cautious choice, but the monitoring
     // dashboard then reads "Monitoring off" to the client as well as to staff. On is safe here:
