@@ -285,3 +285,9 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .card-wrap { position: relative; display: flex; }
 .card-wrap .card-link { flex: 1 1 auto; }
 .card-menu { position: absolute; top: 12px; right: 12px; z-index: 2; }
+/* Internal tooling in the customer list — set apart from "+ Nuevo cliente", which is the
+   real action. A button that fabricates a customer should not look like a peer of one that
+   creates a real one. */
+.demo-tools { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.demo-tools .btn { font-size: 12px; color: var(--ink-60,#5b6472); }
+.demo-tools .btn.danger { color: #b4232a; }

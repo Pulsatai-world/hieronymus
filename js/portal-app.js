@@ -43,6 +43,25 @@
       const res = await fetch(await window.apiQuery(path, params || {}), { method: 'DELETE' });
       if (!res.ok) throw new Error(await errText(res));
       return res.json().catch(() => ({}));
+    },
+    /* Status and body without throwing, for a caller that has to read a refusal rather than be
+       stopped by one — js/demo-seed.js treats a 409 on "create the customer" as "it is already
+       there", which is not an error. `text` is kept whole because /api/results answers CSV, and
+       counting its rows from a trimmed excerpt reports every seed as empty. */
+    async raw(method, path, opts) {
+      const o = opts || {};
+      const url = await window.apiQuery(path, o.query || {});
+      const init = { method };
+      if (o.body) {
+        init.headers = { 'Content-Type': 'application/json' };
+        init.body = JSON.stringify(Object.assign({ session: window.akoreAuth.session() }, o.body));
+      }
+      try {
+        const res = await fetch(url, init);
+        const text = await res.text();
+        let data; try { data = JSON.parse(text); } catch (e) { data = text.slice(0, 200); }
+        return { status: res.status, data, text };
+      } catch (e) { return { status: 0, data: e.message, text: '' }; }
     }
   };
   async function errText(res) {
@@ -277,7 +296,12 @@
             <button class="btn btn-primary" id="new-customer">+ Nuevo cliente</button>
           </div>
         </div>
-        <div class="toolbar"><span class="count">${items.length} ${items.length === 1 ? 'cliente' : 'clientes'}</span></div>
+        <div class="toolbar"><span class="count">${items.length} ${items.length === 1 ? 'cliente' : 'clientes'}</span>
+          ${isAdmin() ? `<span class="demo-tools">
+            <button class="btn btn-ghost btn-sm" id="demo-build">${state.customers.some(c => c.company === DEMO_NAME) ? 'Rehacer cliente demo' : 'Crear cliente demo'}</button>
+            ${state.customers.some(c => c.company === DEMO_NAME) ? `<button class="btn btn-ghost btn-sm danger" id="demo-remove">Eliminar demo</button>` : ''}
+          </span>` : ''}
+        </div>
         ${!state.customers.length ? `<div class="empty">Todavía no hay clientes. Crea el primero para empezar.</div>`
           : !items.length ? `<div class="empty">Ningún cliente coincide con esa búsqueda.</div>`
           : `<div class="grid">${items.map(card).join('')}</div>`}
@@ -286,6 +310,10 @@
     const qi = document.getElementById('cust-q');
     qi.addEventListener('input', e => { custQuery = e.target.value; viewCustomers(); document.getElementById('cust-q').focus(); });
     document.getElementById('new-customer').onclick = newCustomer;
+    const demoBuild = document.getElementById('demo-build');
+    if (demoBuild) demoBuild.onclick = () => runDemo('seed');
+    const demoRemove = document.getElementById('demo-remove');
+    if (demoRemove) demoRemove.onclick = () => runDemo('remove');
     content().querySelectorAll('[data-customer]').forEach(el => {
       // The customer's own page is a real page with every tool on it. The console lists and
       // creates; it does not keep a thinner copy of that page alongside the real one.
@@ -312,6 +340,52 @@
       viewCustomers();
       toast('Cliente eliminado');
     } catch (e) { toast('No se pudo eliminar: ' + e.message); }
+  }
+
+  /* The demo customer, built from the console instead of a terminal.
+     What it contains and the order it is built in live in js/demo-seed.js, shared with
+     scripts/seed-demo-customer.mjs so the two cannot describe different demos. Here it is only
+     wired to a button: the staff session this page already holds carries every request, so there
+     is no new endpoint and no credential to hand anywhere. */
+  const DEMO_NAME = (window.AkoreDemoSeed && window.AkoreDemoSeed.COMPANY) || 'Demo Industrial';
+
+  async function runDemo(mode) {
+    if (!window.AkoreDemoSeed) { toast('No se cargó el módulo de demo.'); return; }
+    const removing = mode === 'remove';
+    const ok = await confirmPassword(
+      removing ? 'Eliminar cliente demo' : 'Cliente demo',
+      removing
+        ? `Se borra ${DEMO_NAME} por completo: sus resultados y su registro. No afecta a ningún cliente real.`
+        : `Se crea ${DEMO_NAME} con un diagnóstico y seis meses de monitoreo. Si ya existe, se rehace desde cero.`);
+    if (!ok) return;
+
+    const btn = document.getElementById(removing ? 'demo-remove' : 'demo-build');
+    if (btn) { btn.disabled = true; btn.textContent = removing ? 'Eliminando…' : 'Construyendo…'; }
+    const say = m => { if (btn) btn.textContent = m; };
+
+    try {
+      const out = await window.AkoreDemoSeed[removing ? 'remove' : 'seed']({
+        call: (method, path, o) => api.raw(method, path, o),
+        log: say
+      });
+      await loadCustomers(true);
+      route();
+      if (removing) toast('Cliente demo eliminado');
+      else {
+        await dialog({
+          title: 'Cliente demo listo', fields: [], confirm: 'Abrir',
+          sub: `${out.readable} de ${out.rows} filas visibles. Los dos tableros están publicados.`,
+          note: `<div>Acceso del cliente <code>${esc(out.username)}</code> / <code>${esc(out.password)}</code></div>
+                 <div style="margin-top:8px;">Un cliente configura su app de dos pasos la primera vez que entra. Para
+                 enseñar la vista del cliente sin eso, abre su portal estando con tu sesión de Akore.</div>`
+        });
+        location.href = '/index.html?company=' + encodeURIComponent(out.company);
+      }
+    } catch (e) {
+      toast('No se pudo: ' + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; route(); }
+    }
   }
 
   async function newCustomer() {
